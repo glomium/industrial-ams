@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package ams.server;
+
+import "google/protobuf/empty.proto";
+
+/*
+*/
+service Simulation {
+    /*
+    */
+    rpc resume(EventRegister) returns (EventSchedule) {}
+    /*
+    */
+    rpc schedule(EventRegister) returns (EventSchedule) {}
+    /*
+    */
+    rpc log(EventLog) returns (google.protobuf.Empty) {}
+}
+
+message EventLog {
+    uint32 level = 1;
+    uint32 lineno = 2;
+    string name = 3;
+    string msg = 4;
+}
+
+message EventRegister {
+    bytes uuid = 1;
+    float delay = 2;
+}
+
+message EventSchedule {
+    float time = 1;
+}

@@ -17,9 +17,13 @@ setuptools.setup(
     url="https://github.com/glomium/industrial-ams",
     packages=setuptools.find_packages(),
     classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Information Technology",
+        "Intended Audience :: Manufacturing",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
         "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3.7",
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.7',
 )

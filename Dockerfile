@@ -8,16 +8,17 @@ WORKDIR /usr/src/app
 RUN apk add --no-cache python3
 # base python template
 
-COPY requirements.txt ./requirements.txt
+COPY setup.py setup.cfg requirements.txt ./
+COPY iams ./iams
+
 RUN apk add --no-cache --virtual build-dependencies \
     python3-dev \
     build-base \
  && pip3 install --no-cache-dir -r requirements.txt \
+ && pip3 install . \
  && apk del build-dependencies
 
-# COPY iams ./iams
-# COPY run.py ./run.py
+# python3 setup.py install \
+# RUN doc8 iams && flake8 iams
 
-# RUN doc8 run.py && flake8 run.py
-
-CMD ["python3", "run.py", "-d"]
+ENTRYPOINT ["iams-server"]

@@ -36,11 +36,15 @@ from .utils import grpc_retry
 logger = logging.getLogger(__name__)
 
 
-AgentData = framework_pb2.AgentData
-
-
-class SimulationStub(simulation_pb2_grpc.SimulationStub):
+class FrameworkStub(framework_pb2_grpc.FrameworkStub):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.resume = grpc_retry(self.resume)
-        self.schedule = grpc_retry(self.schedule)
+
+        self.agents = grpc_retry(self.agents)
+        self.booted = grpc_retry(self.booted)
+        self.create = grpc_retry(self.create)
+        self.destroy = grpc_retry(self.destroy)
+        self.images = grpc_retry(self.images)
+        self.sleep = grpc_retry(self.sleep)
+        self.upgrade = grpc_retry(self.upgrade)
+        self.update = grpc_retry(self.update)

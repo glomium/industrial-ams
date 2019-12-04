@@ -6,7 +6,7 @@ import logging
 
 from logging.config import dictConfig
 
-from iams.helper import get_logging_config
+from .helper import get_logging_config
 
 
 def execute_command_line():
@@ -32,7 +32,3 @@ def execute_command_line():
     logger = logging.getLogger(__name__)
 
     logger.info('DONE')
-
-
-if __name__ == "__main__":
-    execute_command_line()

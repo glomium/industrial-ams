@@ -11,6 +11,7 @@ from time import sleep
 
 import grpc
 
+from .cfssl import get_ca_public_key
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
 from .servicer import FrameworkServicer
@@ -71,6 +72,9 @@ def execute_command_line():
 
     assert os.environ.get('IAMS_HOST'), "Environment IAMS_HOST not set"
     assert os.environ.get('IAMS_CFSSL'), "Environment IAMS_CFSSL not set"
+
+    pk = get_ca_public_key()
+    logger.debug('Public key: %s', pk)
 
     # # dynamically load services from environment
     # logger.debug("loading services configuration")

@@ -10,7 +10,7 @@ from functools import wraps
 
 import grpc
 
-from .rpc.agent_pb2_grpc import add_AgentServicer_to_server
+from .proto.agent_pb2_grpc import add_AgentServicer_to_server
 
 
 logger = logging.getLogger(__name__)

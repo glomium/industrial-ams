@@ -26,6 +26,14 @@ def execute_command_line():
         dest="loglevel",
         const=logging.DEBUG,
     )
+    parser.add_argument(
+        '--simulation',
+        help="Run ams in simulation mode",
+        dest='simulation',
+        action='store_true',
+        default=False,
+    )
+
     args = parser.parse_args()
 
     dictConfig(get_logging_config(["iams"], args.loglevel))

@@ -1,0 +1,5 @@
+pip==19.3.1
+pip-upgrader==1.4.15
+wheel==0.33.6
+grpcio-tools==1.25.0
+googleapis-common-protos==1.6.0

@@ -3,4 +3,9 @@
 *.pyc
 *-journal
 
+/build
+/dist
+/*\.egg-info
 /\.venv
+
+/iams/proto

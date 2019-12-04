@@ -1,3 +1,5 @@
 docker==4.1.0
-PyYAML==5.1.2
+PyYAML==5.2
 requests==2.22.0
+grpcio==1.25.0
+googleapis-common-protos==1.6.0

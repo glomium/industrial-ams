@@ -11,14 +11,12 @@ RUN apk add --no-cache python3
 COPY setup.py setup.cfg requirements.txt ./
 COPY iams ./iams
 
-RUN apk add --no-cache --virtual build-dependencies \
+RUN apk add --no-cache libstdc++ \
+ && apk add --no-cache --virtual build-dependencies \
     python3-dev \
     build-base \
  && pip3 install --no-cache-dir -r requirements.txt \
  && pip3 install . \
  && apk del build-dependencies
-
-# python3 setup.py install \
-# RUN doc8 iams && flake8 iams
 
 ENTRYPOINT ["iams-server"]

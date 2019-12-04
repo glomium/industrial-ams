@@ -11,15 +11,16 @@ import grpc
 
 from google.protobuf.empty_pb2 import Empty
 
-from .rpc import agent_pb2_grpc
-from .rpc import framework_pb2_grpc
-from .rpc import framework_pb2
-from .rpc import simulation_pb2_grpc
-from .rpc.agent_pb2 import ConnectionResponse
-from .rpc.agent_pb2 import PingResponse
-from .rpc.agent_pb2 import ServiceResponse
-from .rpc.framework_pb2 import WakeAgent
-from .rpc.simulation_pb2 import EventRegister
+from .proto import agent_pb2_grpc
+from .proto import framework_pb2_grpc
+from .proto import framework_pb2
+from .proto import simulation_pb2_grpc
+from .proto.agent_pb2 import ConnectionResponse
+from .proto.agent_pb2 import PingResponse
+from .proto.agent_pb2 import ServiceResponse
+from .proto.framework_pb2 import WakeAgent
+from .proto.simulation_pb2 import EventRegister
+from .stub import AgentStub
 from .utils import agent_required
 from .utils import framework_channel
 from .utils import grpc_retry
@@ -29,17 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 AgentData = framework_pb2.AgentData
-
-
-class AgentStub(agent_pb2_grpc.AgentStub):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.connection_get = grpc_retry(self.connection_get)
-        self.ping = grpc_retry(self.ping)
-        self.service_get = grpc_retry(self.service_get)
-        self.simulation_continue = grpc_retry(self.simulation_continue)
 
 
 class AgentServicer(agent_pb2_grpc.AgentServicer):

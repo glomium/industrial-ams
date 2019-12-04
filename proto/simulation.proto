@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package ams.server;
+package iams.servicer;
 
 import "google/protobuf/empty.proto";
 

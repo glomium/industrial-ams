@@ -12,6 +12,13 @@ from time import sleep
 import grpc
 
 from .helper import get_logging_config
+from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
+from .servicer import FrameworkServicer
+
+"""
+SSL-CN: "string" -> user
+SSL-CN: "string:string:string" -> agent_name, image, version
+"""
 
 
 # class Runner(object):
@@ -41,6 +48,13 @@ def execute_command_line():
         dest="port",
         type=int,
         default=80,
+    )
+    parser.add_argument(
+        '--rsa',
+        help="RSA key length",
+        dest="rsa",
+        type=int,
+        default=2096,
     )
     parser.add_argument(
         '--simulation',
@@ -75,10 +89,11 @@ def execute_command_line():
 
     server = grpc.server(ThreadPoolExecutor())
     server.add_insecure_port('[::]:%s' % args.port)
-    '''
-    self.framework = FrameworkServicer(self, self.type, DockerClient())
-    framework_pb2_grpc.add_FrameworkServicer_to_server(self.framework, self.server)
-    '''
+
+    add_FrameworkServicer_to_server(FrameworkServicer(
+        args,
+    ), server)
+
     if args.simulation:
         '''
         simulation_pb2_grpc.add_SimulationServicer_to_server(

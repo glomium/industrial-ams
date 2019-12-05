@@ -8,14 +8,15 @@ RUN apk add --no-cache python3
 # base python template
 
 COPY setup.py setup.cfg requirements.txt ./
-COPY iams ./iams
 
-RUN apk add --no-cache libstdc++ \
+RUN apk add --no-cache openssl-dev libffi-dev libstdc++ \
  && apk add --no-cache --virtual build-dependencies \
     python3-dev \
     build-base \
  && pip3 install --no-cache-dir -r requirements.txt \
- && pip3 install . \
  && apk del build-dependencies
+
+COPY iams ./iams
+RUN pip3 install .
 
 ENTRYPOINT ["iams-server"]

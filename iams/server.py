@@ -2,6 +2,7 @@
 # ex:set fileencoding=utf-8:
 
 import argparse
+import datetime
 import logging
 import os
 
@@ -11,7 +12,11 @@ from time import sleep
 
 import grpc
 
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+
 from .cfssl import get_ca_public_key
+from .cfssl import get_certificate
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
 from .servicer import FrameworkServicer
@@ -73,8 +78,15 @@ def execute_command_line():
     assert os.environ.get('IAMS_HOST'), "Environment IAMS_HOST not set"
     assert os.environ.get('IAMS_CFSSL'), "Environment IAMS_CFSSL not set"
 
-    pk = get_ca_public_key()
-    logger.debug('Public key: %s', pk)
+    ca_public = get_ca_public_key()
+    logger.debug('Public key: %s', ca_public)
+    response = get_certificate('root', hosts=["localhost"])
+    certificate = response["result"]["certificate"].encode()
+    # certificate_request = response["result"]["certificate_request"].encode()
+    private_key = response["result"]["private_key"].encode()
+
+    cert = x509.load_pem_x509_certificate(certificate, default_backend())
+    logger.debug("private key: %s", private_key)
 
     # # dynamically load services from environment
     # logger.debug("loading services configuration")
@@ -91,8 +103,13 @@ def execute_command_line():
     #         logger.debug("loaded %s for label %s", path, label)
     #         self.services[label] = plugin(config)
 
+    credentials = grpc.ssl_server_credentials(
+        ((private_key, certificate),),
+        root_certificates=ca_public,
+        require_client_auth=True,
+    )
     server = grpc.server(ThreadPoolExecutor())
-    server.add_insecure_port('[::]:%s' % args.port)
+    server.add_secure_port('[::]:%s' % args.port, credentials)
 
     add_FrameworkServicer_to_server(FrameworkServicer(
         args,
@@ -111,7 +128,6 @@ def execute_command_line():
     # service running
     logger.debug("container manager running")
     try:
-        while True:
-            sleep(3600)
+        sleep((cert.not_valid_after - datetime.datetime.now()).total_seconds())
     except KeyboardInterrupt:
         pass

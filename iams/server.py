@@ -75,18 +75,25 @@ def execute_command_line():
     dictConfig(get_logging_config(["iams"], args.loglevel))
     logger = logging.getLogger(__name__)
 
+    server = grpc.server(ThreadPoolExecutor())
+    add_FrameworkServicer_to_server(FrameworkServicer(
+        args,
+    ), server)
+
     assert os.environ.get('IAMS_HOST'), "Environment IAMS_HOST not set"
-    assert os.environ.get('IAMS_CFSSL'), "Environment IAMS_CFSSL not set"
 
-    ca_public = get_ca_public_key()
-    logger.debug('Public key: %s', ca_public)
-    response = get_certificate('root', hosts=["localhost"])
-    certificate = response["result"]["certificate"].encode()
-    # certificate_request = response["result"]["certificate_request"].encode()
-    private_key = response["result"]["private_key"].encode()
+    if args.simulation is False:
+        assert os.environ.get('IAMS_CFSSL'), "Environment IAMS_CFSSL not set"
 
-    cert = x509.load_pem_x509_certificate(certificate, default_backend())
-    logger.debug("private key: %s", private_key)
+        ca_public = get_ca_public_key()
+        logger.debug('Public key: %s', ca_public)
+        response = get_certificate('root', hosts=["localhost"])
+        certificate = response["result"]["certificate"].encode()
+        # certificate_request = response["result"]["certificate_request"].encode()
+        private_key = response["result"]["private_key"].encode()
+
+        cert = x509.load_pem_x509_certificate(certificate, default_backend())
+        logger.debug("private key: %s", private_key)
 
     # # dynamically load services from environment
     # logger.debug("loading services configuration")
@@ -103,19 +110,14 @@ def execute_command_line():
     #         logger.debug("loaded %s for label %s", path, label)
     #         self.services[label] = plugin(config)
 
-    credentials = grpc.ssl_server_credentials(
-        ((private_key, certificate),),
-        root_certificates=ca_public,
-        require_client_auth=True,
-    )
-    server = grpc.server(ThreadPoolExecutor())
-    server.add_secure_port('[::]:%s' % args.port, credentials)
-
-    add_FrameworkServicer_to_server(FrameworkServicer(
-        args,
-    ), server)
-
-    if args.simulation:
+        credentials = grpc.ssl_server_credentials(
+            ((private_key, certificate),),
+            root_certificates=ca_public,
+            require_client_auth=True,
+        )
+        server.add_secure_port('[::]:%s' % args.port, credentials)
+    else:
+        server.add_insecure_port('[::]:%s' % args.port)
         '''
         simulation_pb2_grpc.add_SimulationServicer_to_server(
             SimulationServicer(self),
@@ -128,6 +130,10 @@ def execute_command_line():
     # service running
     logger.debug("container manager running")
     try:
-        sleep((cert.not_valid_after - datetime.datetime.now()).total_seconds())
+        if args.simulation is False:
+            sleep((cert.not_valid_after - datetime.datetime.now()).total_seconds())
+        else:
+            while True:
+                sleep(24 * 3600)
     except KeyboardInterrupt:
         pass

@@ -80,6 +80,19 @@ class ClientInterceptor(
         return self.intercept(continuation, client, request_iterator)
 
 
+def auth_required(f):
+    @wraps(f)
+    def wrapper(self, request, context):
+        auth = context.auth_context()
+        try:
+            assert auth, "auth context not provided"
+        except AssertionError as e:
+            message = 'Permission denied: %s' % e
+            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        return f(self, request, context)
+    return wrapper
+
+
 def agent_required(f):
     @wraps(f)
     def wrapper(self, request, context):

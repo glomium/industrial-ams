@@ -11,3 +11,5 @@ Traceback (most recent call last):
     return self.attrs['Spec']['Name']
 KeyError: 'Spec'
 
+> pip wheel .
+> python -m twine upload iams-0.0.1a0-py3-none-any.whl

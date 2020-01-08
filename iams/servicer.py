@@ -17,6 +17,7 @@ from .proto import simulation_pb2
 from .proto import simulation_pb2_grpc
 from .proto import framework_pb2
 from .proto import framework_pb2_grpc
+# from .utils import auth_required
 from .utils import agent_required
 
 

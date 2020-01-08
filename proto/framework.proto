@@ -8,6 +8,11 @@ import "google/protobuf/empty.proto";
 */
 service Framework {
     /*
+    this command checks the certificate the agents certificate and renews it, if it is invalid or expired
+    */
+    rpc certificate(AgentCertificate) returns (google.protobuf.Empty) {}
+
+    /*
     */
     rpc agents(google.protobuf.Empty) returns (stream AgentData) {}
 
@@ -70,6 +75,10 @@ message AgentData {
     string version = 4;
     string config = 5;
     bool autostart = 6;
+}
+
+message AgentCertificate {
+    string name = 1;
 }
 
 message ImagesData {

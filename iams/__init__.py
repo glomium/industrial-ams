@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # ex:set fileencoding=utf-8:
 
-VERSION = ((0, 9, 0), ('b', 0))
+VERSION = ((0, 0, 1), ('a', 0))
 
 
 def get_version(dev=True, short=False):

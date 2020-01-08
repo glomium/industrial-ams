@@ -27,10 +27,6 @@ SSL-CN: "string:string:string" -> agent_name, image, version
 """
 
 
-# class Runner(object):
-#     pass
-
-
 def execute_command_line():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -50,14 +46,14 @@ def execute_command_line():
     )
     parser.add_argument(
         '-p', '--port',
-        help="Port",
+        help="Port=80",
         dest="port",
         type=int,
         default=80,
     )
     parser.add_argument(
         '--rsa',
-        help="RSA key length",
+        help="RSA key length=2096",
         dest="rsa",
         type=int,
         default=2096,
@@ -75,25 +71,10 @@ def execute_command_line():
     dictConfig(get_logging_config(["iams"], args.loglevel))
     logger = logging.getLogger(__name__)
 
-    server = grpc.server(ThreadPoolExecutor())
-    add_FrameworkServicer_to_server(FrameworkServicer(
-        args,
-    ), server)
-
     assert os.environ.get('IAMS_HOST'), "Environment IAMS_HOST not set"
+    assert os.environ.get('IAMS_CFSSL'), "Environment IAMS_CFSSL not set"
 
-    if args.simulation is False:
-        assert os.environ.get('IAMS_CFSSL'), "Environment IAMS_CFSSL not set"
-
-        ca_public = get_ca_public_key()
-        logger.debug('Public key: %s', ca_public)
-        response = get_certificate('root', hosts=["localhost"])
-        certificate = response["result"]["certificate"].encode()
-        # certificate_request = response["result"]["certificate_request"].encode()
-        private_key = response["result"]["private_key"].encode()
-
-        cert = x509.load_pem_x509_certificate(certificate, default_backend())
-        logger.debug("private key: %s", private_key)
+    plugins = {}
 
     # # dynamically load services from environment
     # logger.debug("loading services configuration")
@@ -110,14 +91,35 @@ def execute_command_line():
     #         logger.debug("loaded %s for label %s", path, label)
     #         self.services[label] = plugin(config)
 
-        credentials = grpc.ssl_server_credentials(
-            ((private_key, certificate),),
-            root_certificates=ca_public,
-            require_client_auth=True,
-        )
-        server.add_secure_port('[::]:%s' % args.port, credentials)
-    else:
-        server.add_insecure_port('[::]:%s' % args.port)
+    server = grpc.server(ThreadPoolExecutor())
+    add_FrameworkServicer_to_server(FrameworkServicer(
+        args,
+        plugins,
+    ), server)
+
+    # request CA's public key
+    ca_public = get_ca_public_key()
+    logger.debug('Public key: %s', ca_public)
+
+    # create certificate and private key from CA
+    response = get_certificate('root', hosts=["localhost"])
+    certificate = response["result"]["certificate"].encode()
+    # certificate_request = response["result"]["certificate_request"].encode()
+    private_key = response["result"]["private_key"].encode()
+    logger.debug("private key: %s", private_key)
+
+    # load certificate data (used to shutdown service after certificate became invalid)
+    cert = x509.load_pem_x509_certificate(certificate, default_backend())
+    tol = (cert.not_valid_after - datetime.datetime.now()).total_seconds()
+
+    credentials = grpc.ssl_server_credentials(
+        ((private_key, certificate),),
+        root_certificates=ca_public,
+        require_client_auth=True,
+    )
+    server.add_secure_port('[::]:%s' % args.port, credentials)
+
+    if args.simulation is True:
         '''
         simulation_pb2_grpc.add_SimulationServicer_to_server(
             SimulationServicer(self),
@@ -128,12 +130,11 @@ def execute_command_line():
     server.start()
 
     # service running
-    logger.debug("container manager running")
+    tol -= 60
+    logger.debug("container manager running for %s seconds", tol)
     try:
-        if args.simulation is False:
-            sleep((cert.not_valid_after - datetime.datetime.now()).total_seconds())
-        else:
-            while True:
-                sleep(24 * 3600)
+        sleep(tol)
+    except ValueError:
+        logger.error("certificate livetime less then 60 seconds")
     except KeyboardInterrupt:
         pass

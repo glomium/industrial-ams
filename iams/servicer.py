@@ -64,9 +64,11 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
-    def __init__(self, args):
+    def __init__(self, args, plugins=[]):
         # def __init__(self, parent, prefix, client):
         self.args = args
+        self.plugins = plugins
+
         prefix = "sim"
         # self.parent = parent
         # self.prefix = prefix
@@ -112,44 +114,51 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         scale = int(autostart)
         labels = {}
         env = {}
-        networks = set(['cloud_etcd'])  # TODO remove this and add a etcd network if required
+        networks = set()
+        secrets = {}
 
+        # plugin system
         for label, cfg in image_object.labels.items():
             logger.debug("apply label %s with config %s", label, cfg)
             try:
-                plugin = self.parent.services[label]
+                plugin = self.plugins[label]
             except KeyError:
                 continue
 
             # updating networks and environment
-            n, e = plugin(cfg, **config)
+            e, l, n, s = plugin(cfg, **config)
             networks.update(n)
             env.update(e)
+            secrets.update(s)
 
         if address:
             env.update({
                 'AMS_ADDRESS': address,
             })
 
-        # TODO
-        #  curl -d '{"request": {"hosts": [""], "CN": "agent_name:image:version", "key": {"algo": "rsa", "size": 2096}}, "profile": "peer" }' 127.0.0.1:8888/api/v1/cfssl/newcert  # noqa
-
         env.update({
             'AMS_CORE': 'tasks.%s' % os.environ.get('SERVICE_NAME'),
             'AMS_AGENT': name,
-
-            # TODO remove them
-            'AMS_IMAGE': image,
-            'AMS_VERSION': version,
-            'AMS_ETCD_SERVER': "tasks.etcd",
-            'AMS_PREFIX': self.prefix[0] + '_',
-            'AMS_TYPE': self.prefix,
         })
         labels.update({
-            'ams.autostart': '%s' % autostart,
+            'ams.autostart': str(autostart).lower(),
             'ams.type': self.prefix,
         })
         networks = list(networks)
+        secrets.update({
+            'client.key': b'123123',
+        })
+
+        # remove all secrets from agent
+        for secret in client.secrets.list(filters={"label": [f'iams.agent={name}']}):
+            secret.remove()
+        # create secrets
+        for filename, data in secrets:
+            try:
+                client.secrets.create(name=filename, data=data, labels={"iams.agent": name})
+            except KeyError:
+                # workarround for https://github.com/docker/docker-py/issues/2025
+                pass
 
         return {
             "image": f'{image!s}:{version!s}',
@@ -157,6 +166,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             "labels": labels,
             "env": env,
             "networks": networks,
+            "secrets": client.secrets.list(filters={"label": [f'iams.agent={name}']}),
             "log_driver": "json-file",
             "log_driver_options": {
                 "max-file": "10",
@@ -168,7 +178,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     # RPCs
 
-    # === TODO
+    # === TODO ===
 
     def images(self, request, context):
         """

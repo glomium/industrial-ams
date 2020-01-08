@@ -26,6 +26,13 @@ def execute_command_line():
         dest="loglevel",
         const=logging.DEBUG,
     )
+    parser.add_argument(
+        '--rsa',
+        help="RSA key length=2096",
+        dest="rsa",
+        type=int,
+        default=2096,
+    )
     args = parser.parse_args()
 
     dictConfig(get_logging_config(["iams"], args.loglevel))

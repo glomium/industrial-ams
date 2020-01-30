@@ -28,7 +28,7 @@ def get_certificate(name, hosts=None, image=None, version=None, algo="rsa", size
         else:
             profile = "peer"
     else:
-        cn = "%s:%s:%s" % (name, image, version)
+        cn = "%s|%s|%s" % (name, image, version)
         profile = "peer"
         hosts = ["127.0.0.1", "localhost", name]
 

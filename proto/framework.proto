@@ -8,9 +8,9 @@ import "google/protobuf/empty.proto";
 */
 service Framework {
     /*
-    this command checks the certificate the agents certificate and renews it, if it is invalid or expired
+    this rpc renews the client certificate and sends its data to the client
     */
-    rpc certificate(AgentCertificate) returns (google.protobuf.Empty) {}
+    rpc renew(RenewRequest) returns (RenewResponse) {}
 
     /*
     */
@@ -64,6 +64,15 @@ service Framework {
     rpc wake(WakeAgent) returns (google.protobuf.Empty) {}
 }
 
+message RenewRequest {
+    string name = 1;
+    bool hard = 2;
+}
+message RenewResponse {
+    string private_key = 1;
+    string certificate = 2;
+}
+
 message WakeAgent {
     string agent = 1;
 }
@@ -75,10 +84,6 @@ message AgentData {
     string version = 4;
     string config = 5;
     bool autostart = 6;
-}
-
-message AgentCertificate {
-    string name = 1;
 }
 
 message ImagesData {

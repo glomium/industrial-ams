@@ -45,9 +45,16 @@ def execute_command_line():
         const=logging.DEBUG,
     )
     parser.add_argument(
-        '-p', '--port',
+        '--secure-port',
+        help="Port=443",
+        dest="secure_port",
+        type=int,
+        default=443,
+    )
+    parser.add_argument(
+        '--insecure-port',
         help="Port=80",
-        dest="port",
+        dest="insecure_port",
         type=int,
         default=80,
     )
@@ -91,22 +98,24 @@ def execute_command_line():
     #         logger.debug("loaded %s for label %s", path, label)
     #         self.services[label] = plugin(config)
 
-    server = grpc.server(ThreadPoolExecutor())
+    threadpool = ThreadPoolExecutor()
+    server = grpc.server(threadpool)
     add_FrameworkServicer_to_server(FrameworkServicer(
         args,
+        threadpool,
         plugins,
     ), server)
 
     # request CA's public key
     ca_public = get_ca_public_key()
-    logger.debug('Public key: %s', ca_public)
+    logger.debug('ca-public-key: %s', ca_public)
 
     # create certificate and private key from CA
-    response = get_certificate('root', hosts=["localhost"])
+    response = get_certificate('root', hosts=["localhost"], size=args.rsa)
     certificate = response["result"]["certificate"].encode()
     # certificate_request = response["result"]["certificate_request"].encode()
     private_key = response["result"]["private_key"].encode()
-    logger.debug("private key: %s", private_key)
+    logger.debug("iams-private-key: %s", private_key)
 
     # load certificate data (used to shutdown service after certificate became invalid)
     cert = x509.load_pem_x509_certificate(certificate, default_backend())
@@ -117,7 +126,8 @@ def execute_command_line():
         root_certificates=ca_public,
         require_client_auth=True,
     )
-    server.add_secure_port('[::]:%s' % args.port, credentials)
+    server.add_secure_port('[::]:%s' % args.secure_port, credentials)
+    server.add_insecure_port('[::]:%s' % args.insecure_port)
 
     if args.simulation is True:
         '''
@@ -131,7 +141,7 @@ def execute_command_line():
 
     # service running
     tol -= 60
-    logger.debug("container manager running for %s seconds", tol)
+    logger.info("container manager running for %s seconds", tol)
     try:
         sleep(tol)
     except ValueError:

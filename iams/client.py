@@ -28,10 +28,10 @@ def execute_command_line():
     )
     parser.add_argument(
         '--rsa',
-        help="RSA key length=2096",
+        help="RSA key length=4096",
         dest="rsa",
         type=int,
-        default=2096,
+        default=4096,
     )
     args = parser.parse_args()
 

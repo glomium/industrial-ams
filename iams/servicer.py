@@ -1,23 +1,27 @@
 #!/usr/bin/python3
 # vim: set fileencoding=utf-8 :
 
-import json
+# import json
 import logging
-import re
-import os
+# import re
+# import os
 
+import docker
 import grpc
 
-from docker import errors as docker_errors
+# from docker import errors as docker_errors
 # from docker.types import Placement
-from docker.types import ServiceMode
+# from docker.types import ServiceMode
 from google.protobuf.empty_pb2 import Empty
 
 from .cfssl import get_certificate
+# from .proto import agent_pb2
+from .proto import agent_pb2_grpc
 from .proto import simulation_pb2
 from .proto import simulation_pb2_grpc
 from .proto import framework_pb2
 from .proto import framework_pb2_grpc
+
 # from .utils import auth_required
 from .utils import agent_required
 
@@ -66,10 +70,33 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
-    def __init__(self, args, threadpool, plugins=[]):
+    def __init__(self, args, credentials, threadpool, plugins=[]):
         self.args = args
+        self.credentials = credentials
         self.threadpool = threadpool
+
+        if args.simulation:
+            self.prefix = "sim"
+        else:
+            self.prefix = "prod"
+
+        self.client = docker.DockerClient()
         self.plugins = plugins
+
+    #   self.RE_ENV = re.compile(r'^AMS_(ADDRESS|KWARGS)=(.*)$')
+    #   self.RE_NAME = re.compile(r'^(%s_)?([\w]+)$' % prefix[0])
+
+    # Internal functions
+
+    def _get_service(self, context, name):
+        try:
+            return self.client.services.list(filters={'label': ["ams.type=%s" % self.prefix], 'name': name})[0]
+        except IndexError:
+            message = 'Could not find %s' % name
+            context.abort(grpc.StatusCode.NOT_FOUND, message)
+
+    def _update_certificate(self, service):
+        return None
 
     # RPCs
 
@@ -85,37 +112,44 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 request.name = name
             except (IndexError, ValueError, AssertionError):
                 message = "Authentification does not match a valid agent"
-                context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+                context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
         else:
-            # TODO connect to ping-rpc on name and check if connection breaks due to an invalid certificate
-            request.hard = True
+            # connect to ping-rpc on name and check if connection breaks due to an invalid certificate
+            try:
+                # FIXME the client port is hardcoded to 443
+                with grpc.secure_channel('%s:%s' % (request.name, 443), self.credentials) as channel:
+                    stub = agent_pb2_grpc.PingStub(channel)
+                    stub.ping(Empty())
+            except grpc.RpcError as e:
+                code = e.code()
+                if code in [grpc.StatusCode.UNAVAILABLE]:
+                    request.hard = True
+                else:
+                    message = "Client-validation failed"
+                    context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+            else:
+                message = "Client-validation failed"
+                context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
 
+        if not request.name:
+            message = "Agent name not set"
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+
+        # Use a seperate thread to renew the certificate in docker's secrets
         if request.hard:
-            # TODO: Use threadpool to queue a shutdown thread for the agent
+            service = self._get_service(context, request.name)
+            self.threadpool.submit(self._update_certificate, service)
             return framework_pb2.RenewResponse()
 
         # generate pk and certificate and send it
-        response = get_certificate(name, image=image, version=version)
+        # the request is authenticated and origins from an agent, i.e it contains image and version
+        response = get_certificate(request.name, image=image, version=version)
         return framework_pb2.RenewResponse(
             private_key=response["result"]["private_key"],
             certificate=response["result"]["certificate"],
         )
 
-#   #   prefix = "sim"
-#   #   # self.parent = parent
-#   #   # self.prefix = prefix
-#   #   # self.client = client
-#   #   self.RE_ENV = re.compile(r'^AMS_(ADDRESS|KWARGS)=(.*)$')
-#   #   self.RE_NAME = re.compile(r'^(%s_)?([\w]+)$' % prefix[0])
-
 #   # Common used functions
-
-#   def get_service(self, context, name):
-#       try:
-#           return self.client.services.list(filters={'label': ["ams.type=%s" % self.prefix], 'name': name})[0]
-#       except IndexError:
-#           message = 'Could not find %s' % name
-#           context.abort(grpc.StatusCode.NOT_FOUND, message)
 
 #   def get_service_data(self, service):
 #       image, version = service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].image.rsplit(':', 1)  # noqa

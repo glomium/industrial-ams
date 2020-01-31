@@ -100,11 +100,6 @@ def execute_command_line():
 
     threadpool = ThreadPoolExecutor()
     server = grpc.server(threadpool)
-    add_FrameworkServicer_to_server(FrameworkServicer(
-        args,
-        threadpool,
-        plugins,
-    ), server)
 
     # request CA's public key
     ca_public = get_ca_public_key()
@@ -126,8 +121,21 @@ def execute_command_line():
         root_certificates=ca_public,
         require_client_auth=True,
     )
+    channel_credentials = grpc.ssl_channel_credentials(
+        root_certificates=ca_public,
+        private_key=private_key,
+        certificate_chain=certificate,
+    )
+
     server.add_secure_port('[::]:%s' % args.secure_port, credentials)
     server.add_insecure_port('[::]:%s' % args.insecure_port)
+
+    add_FrameworkServicer_to_server(FrameworkServicer(
+        args,
+        channel_credentials,
+        threadpool,
+        plugins,
+    ), server)
 
     if args.simulation is True:
         '''

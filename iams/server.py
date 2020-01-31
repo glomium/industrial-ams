@@ -72,6 +72,12 @@ def execute_command_line():
         action='store_true',
         default=False,
     )
+    parser.add_argument(
+        '--namespace',
+        help="docker stack namespace name (default: cloud)",
+        dest='namespace',
+        default="cloud",
+    )
 
     args = parser.parse_args()
 

@@ -45,15 +45,22 @@ def execute_command_line():
         const=logging.DEBUG,
     )
     parser.add_argument(
+        '--agent-port',
+        help="Agent Port=443",
+        dest="agent_port",
+        type=int,
+        default=443,
+    )
+    parser.add_argument(
         '--secure-port',
-        help="Port=443",
+        help="Secure Port=443",
         dest="secure_port",
         type=int,
         default=443,
     )
     parser.add_argument(
         '--insecure-port',
-        help="Port=80",
+        help="Insecure Port=80",
         dest="insecure_port",
         type=int,
         default=80,

@@ -101,8 +101,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         else:
             # connect to ping-rpc on name and check if connection breaks due to an invalid certificate
             try:
-                # FIXME the client port is hardcoded to 443
-                with grpc.secure_channel('%s:%s' % (request.name, 443), self.credentials) as channel:
+                with grpc.secure_channel('%s:%s' % (request.name, self.args.agent_port), self.credentials) as channel:
                     stub = agent_pb2_grpc.PingStub(channel)
                     stub.ping(Empty())
             except grpc.RpcError as e:

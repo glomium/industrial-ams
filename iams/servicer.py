@@ -18,9 +18,9 @@ from .proto import simulation_pb2_grpc
 from .proto import framework_pb2
 from .proto import framework_pb2_grpc
 
+from .utils.auth import permissions
 from .utils.cfssl import get_certificate
 from .utils.docker import Docker
-from .utils.grpc import permissions
 
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     # RPCs
 
-    @permissions(optional=True)
+    @permissions(is_optional=True)
     def renew(self, request, context):
 
         if context._agent is not None:

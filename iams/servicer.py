@@ -20,8 +20,7 @@ from .proto import framework_pb2_grpc
 
 from .utils.cfssl import get_certificate
 from .utils.docker import Docker
-from .utils.grpc import auth_required
-from .utils.grpc import agent_required
+from .utils.grpc import permissions
 
 
 logger = logging.getLogger(__name__)
@@ -49,7 +48,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
             return start_next and allow_next, simulation_pb2.EventSchedule(time=time)
         return allow_next, simulation_pb2.EventSchedule()
 
-    @agent_required
+    @permissions(has_agent=True)
     def resume(self, request, context):
         self.test(request, context)
         start_next, response = self.add_event(context._agent, request.uuid, request.delay, True)
@@ -59,7 +58,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
             self.parent.simulation.event.set()
         return response
 
-    @agent_required
+    @permissions(has_agent=True)
     def schedule(self, request, context):
         self.test(request, context)
         start_next, response = self.add_event(context._agent, request.uuid, request.delay, False)
@@ -85,19 +84,11 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     # RPCs
 
+    @permissions(optional=True)
     def renew(self, request, context):
-        auth = context.auth_context()
 
-        # check if client is authenticated
-        if "x509_common_name" in auth:
-            # use name from authentifaction as request.name for new certififcate
-            try:
-                name, image, version = auth["x509_common_name"][0].split(b'|')
-                assert name.isalnum()
-                request.name = name
-            except (IndexError, ValueError, AssertionError):
-                message = "Authentification does not match a valid agent"
-                context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+        if context._agent is not None:
+            request.name = context._agent
         else:
             # connect to ping-rpc on name and check if connection breaks due to an invalid certificate
             try:
@@ -126,7 +117,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         # generate pk and certificate and send it
         # the request is authenticated and origins from an agent, i.e it contains image and version
-        response = get_certificate(request.name, image=image, version=version)
+        response = get_certificate(request.name, image=context._image, version=context._version)
         return framework_pb2.RenewResponse(
             private_key=response["result"]["private_key"],
             certificate=response["result"]["certificate"],
@@ -156,7 +147,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
 #   # === END TODO
 
-    @auth_required
     def agents(self, request, context):
         """
         """
@@ -171,7 +161,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 autostart=autostart,
             )
 
-    @agent_required
+    @permissions(has_agent=True, has_groups=["root", "web"])
     def update(self, request, context):
         logger.debug('update called from %s', context._agent)
         try:
@@ -195,7 +185,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         return framework_pb2.AgentData()
 
-    @agent_required
+    @permissions(has_agent=True, has_groups=["root", "web"])
     def create(self, request, context):
         logger.debug('create called from %s', context._agent)
 
@@ -249,7 +239,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         return framework_pb2.AgentData()
 
-    @agent_required
+    @permissions(has_agent=True, has_groups=["root", "web"])
     def destroy(self, request, context):
         logger.debug('destroy called from %s', context._agent)
         try:
@@ -266,7 +256,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         #     self.etcd_client.delete_prefix(path.encode('utf-8'))
         return Empty()
 
-    @agent_required
+    @permissions(has_agent=True)
     def sleep(self, request, context):
         logger.debug('sleep called from %s', context._agent)
         try:
@@ -276,7 +266,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             context.abort(grpc.StatusCode.NOT_FOUND, message)
         return Empty()
 
-    @agent_required
+    @permissions(has_agent=True)
     def upgrade(self, request, context):
         logger.debug('upgrade called from %s', context._agent)
         self.docker.set_service(

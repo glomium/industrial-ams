@@ -80,42 +80,54 @@ class ClientInterceptor(
         return self.intercept(continuation, client, request_iterator)
 
 
-def auth_required(f):
-    @wraps(f)
-    def wrapper(self, request, context):
-        auth = context.auth_context()
-        try:
-            assert auth, "auth context not provided"
-        except AssertionError as e:
-            message = 'Permission denied: %s' % e
-            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
-        return f(self, request, context)
-    return wrapper
+def get_credentials(credential):
+    try:
+        agent, image, version = credential.split(b'|')
+        return agent, image, version, set()
+    except ValueError:
+        return None, None, None, set()
 
 
-def agent_required(f):
-    @wraps(f)
-    def wrapper(self, request, context):
-        auth = context.auth_context()
-        try:
-            assert auth, "auth context not provided"
-            assert "x509_common_name" in auth, "client-certificate missing"
-            try:
-                context._agent, context._image, context._version = auth["x509_common_name"][0].split(b'|')
-                assert context._agent.isalnum()
-            except (IndexError, ValueError, AssertionError):
-                message = "Authentification does not match a valid agent"
+def permissions(function=None, has_agent=False, has_groups=[], is_optional=False):
+
+    def decorator(func):
+        @wraps(func)
+        def wrapped(self, request, context):
+            auth = context.auth_context()
+
+            if not auth:
+                if is_optional:
+                    context._agent, context._version, context._image, context._groups = None, None, None, set()
+                    return func(self, request, context)
+                else:
+                    message = 'Request is not authenticated'
+                    context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+
+            if "x509_common_name" not in auth:
+                message = 'Client certificate is missing'
+                context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+
+            context._agent, context._version, context._image, context._groups = get_credentials(auth["x509_common_name"][0])  # noqa
+
+            if has_agent and not has_groups and context._agent is None:
+                message = "Client needs to be an agent"
                 context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+            elif has_groups:
+                groups = set(has_groups)
+                if not groups.issubset(context._groups):
+                    message = "Client needs to be in %s" % groups
+                    context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
 
-        except AssertionError as e:
-            message = 'Permission denied: %s' % e
-            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+            return func(self, request, context)
+        return wrapped
 
-        return f(self, request, context)
+    if function:
+        return decorator(function)
+    return decorator
 
 
 @contextmanager
-def framework_channel(node=None, proxy=None, port=80):
+def framework_channel(node=None, proxy=None, port=443):
 
     if not node:
         node = os.environ.get('AMS_CORE', None)
@@ -127,7 +139,7 @@ def framework_channel(node=None, proxy=None, port=80):
         ('grpc.ssl_target_name_override', node),
     ]
 
-    with grpc.insecure_channel(f'{server!s}:{port!s}', options=options) as channel:
+    with grpc.secure_channel(f'{server!s}:{port!s}', options=options) as channel:
         channel = grpc.intercept_channel(channel, ClientInterceptor())
         yield channel
 

@@ -6,7 +6,7 @@ import logging
 from .proto import agent_pb2_grpc
 from .proto import framework_pb2_grpc
 from .proto import simulation_pb2_grpc
-from .utils import grpc_retry
+from .utils.grpc import grpc_retry
 
 
 logger = logging.getLogger(__name__)

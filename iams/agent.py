@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 AgentData = framework_pb2.AgentData
 
 
-class AgentServicer(agent_pb2_grpc.AgentServicer):
+class Servicer(agent_pb2_grpc.AgentServicer):
 
     def __init__(self, main, timeout, threadpool, timeout_buffer=5):
         self.address = os.environ.get('AMS_ADDRESS', None)

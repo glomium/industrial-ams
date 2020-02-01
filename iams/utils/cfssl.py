@@ -24,14 +24,14 @@ def get_ca_public_key():
 def get_certificate(name, hosts=None, image=None, version=None, algo="rsa", size=2096):
 
     if image is None and version is None:
-        cn = set_credentials(None, None, None, [name])
+        cn = set_credentials(None, None, None, name, [])
         if hosts is None:
             profile = "client"
             hosts = [""]
         else:
             profile = "peer"
     else:
-        cn = set_credentials(name, image, version, None)
+        cn = set_credentials(name, image, version, None, None)
         profile = "peer"
         hosts = ["127.0.0.1", "localhost", name]
 

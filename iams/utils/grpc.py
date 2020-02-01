@@ -10,7 +10,7 @@ from functools import wraps
 
 import grpc
 
-from .proto.agent_pb2_grpc import add_AgentServicer_to_server
+from ..proto.agent_pb2_grpc import add_AgentServicer_to_server
 
 
 logger = logging.getLogger(__name__)
@@ -96,19 +96,22 @@ def auth_required(f):
 def agent_required(f):
     @wraps(f)
     def wrapper(self, request, context):
-        metadata = dict(context.invocation_metadata())
+        auth = context.auth_context()
         try:
-            assert "x-ams-agent" in metadata, "'x-ams-agent' missing in metadata"
-            assert "x-ams-image" in metadata, "'x-ams-image' missing in metadata"
-            assert "x-ams-version" in metadata, "'x-ams-version' missing in metadata"
+            assert auth, "auth context not provided"
+            assert "x509_common_name" in auth, "client-certificate missing"
+            try:
+                context._agent, context._image, context._version = auth["x509_common_name"][0].split(b'|')
+                assert context._agent.isalnum()
+            except (IndexError, ValueError, AssertionError):
+                message = "Authentification does not match a valid agent"
+                context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+
         except AssertionError as e:
             message = 'Permission denied: %s' % e
             context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
-        context._agent = metadata['x-ams-agent']
-        context._image = metadata['x-ams-image']
-        context._version = metadata['x-ams-version']
+
         return f(self, request, context)
-    return wrapper
 
 
 @contextmanager

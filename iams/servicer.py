@@ -150,7 +150,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     def agents(self, request, context):
         """
         """
-        for service in self.client.services.list(filters={'label': ["iams.namespace=%s" % self.prefix]}):
+        for service in self.docker.client.services.list(filters={'label': ["iams.namespace=%s" % self.prefix]}):
             name, address, image, version, config, autostart = self.get_service_data(service)
             yield framework_pb2.AgentData(
                 name=service.name,

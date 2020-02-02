@@ -116,18 +116,19 @@ def execute_command_line():
 
     # request CA's public key
     ca_public = get_ca_public_key()
-    logger.debug('ca-public-key: %s', ca_public)
+    # logger.debug('ca-public-key: %s', ca_public)
 
+    logger.info("Generating certificates")
     # create certificate and private key from CA
     response = get_certificate('root', hosts=["localhost"], size=args.rsa)
     certificate = response["result"]["certificate"].encode()
     # certificate_request = response["result"]["certificate_request"].encode()
     private_key = response["result"]["private_key"].encode()
-    logger.debug("iams-private-key: %s", private_key)
+    # logger.debug("iams-private-key: %s", private_key)
 
     # load certificate data (used to shutdown service after certificate became invalid)
     cert = x509.load_pem_x509_certificate(certificate, default_backend())
-    tol = (cert.not_valid_after - datetime.datetime.now()).total_seconds()
+    tol = cert.not_valid_after - datetime.datetime.now()
 
     credentials = grpc.ssl_server_credentials(
         ((private_key, certificate),),
@@ -161,10 +162,11 @@ def execute_command_line():
     server.start()
 
     # service running
-    tol -= 60
-    logger.info("container manager running for %s seconds", tol)
+    logger.info("container manager running")
+    logger.debug("certificate valid for %s days and %s hours", tol.days, tol.seconds / 3600)
     try:
-        sleep(tol)
+        tol -= datetime.timedelta(seconds=60)
+        sleep(tol.total_seconds())
     except ValueError:
         logger.error("certificate livetime less then 60 seconds")
     except KeyboardInterrupt:

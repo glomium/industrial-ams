@@ -16,6 +16,20 @@ from ..proto.agent_pb2_grpc import add_AgentServicer_to_server
 logger = logging.getLogger(__name__)
 
 
+def get_credentials(node):
+    if not node:
+        node = os.environ.get('AMS_CORE', None)
+        assert node is not None, 'Must define AMS_CORE in environment'
+
+    # TODO read from filesystem
+    pass
+    # return node, grpc.ssl_channel_credentials(
+    #     root_certificates=ca_public,
+    #     private_key=private_key.encode(),
+    #     certificate_chain=certificate.encode(),
+    # )
+
+
 class Grpc(object):
     def __init__(self, parent, servicer, threadpool, port):
         self.agent = servicer
@@ -39,62 +53,15 @@ class Grpc(object):
         logger.debug("Stopped grpc-server")
 
 
-class ClientInterceptor(
-        grpc.UnaryUnaryClientInterceptor, grpc.UnaryStreamClientInterceptor,
-        grpc.StreamUnaryClientInterceptor, grpc.StreamStreamClientInterceptor):
-
-    def intercept(self, continuation, client, request):
-
-        if client.metadata:
-            metadata = list(client.metadata)
-        else:
-            metadata = []
-
-        for k, e in (
-            ("x-ams-agent", 'AMS_AGENT'),
-            ("x-ams-image", 'AMS_IMAGE'),
-            ("x-ams-version", 'AMS_VERSION'),
-        ):
-            value = os.environ.get(e)
-            if value:
-                metadata.append((k, value))
-
-        calldetails = grpc.ClientCallDetails()
-        calldetails.method = client.method
-        calldetails.timeout = client.timeout
-        calldetails.metadata = metadata
-        calldetails.credentials = client.credentials
-
-        return continuation(calldetails, request)
-
-    def intercept_unary_unary(self, continuation, client, request):
-        return self.intercept(continuation, client, request)
-
-    def intercept_unary_stream(self, continuation, client, request):
-        return self.intercept(continuation, client, request)
-
-    def intercept_stream_unary(self, continuation, client, request_iterator):
-        return self.intercept(continuation, client, request_iterator)
-
-    def intercept_stream_stream(self, continuation, client, request_iterator):
-        return self.intercept(continuation, client, request_iterator)
-
-
 @contextmanager
-def framework_channel(node=None, proxy=None, port=443):
-
-    if not node:
-        node = os.environ.get('AMS_CORE', None)
-        assert node is not None, 'Must define AMS_CORE in environment'
-    server = proxy or node
-
+def framework_channel(credentials, proxy=None, port=443):
+    server = proxy or credentials[0]
     options = [
-        ('grpc.default_authority', node),
-        ('grpc.ssl_target_name_override', node),
+        ('grpc.default_authority', credentials[0]),
+        ('grpc.ssl_target_name_override', credentials[0]),
     ]
 
-    with grpc.secure_channel(f'{server!s}:{port!s}', options=options) as channel:
-        channel = grpc.intercept_channel(channel, ClientInterceptor())
+    with grpc.secure_channel(f'{server!s}:{port!s}', credentials[1], options=options) as channel:
         yield channel
 
 

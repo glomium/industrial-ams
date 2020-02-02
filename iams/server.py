@@ -15,16 +15,13 @@ import grpc
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
-from .utils.cfssl import get_ca_public_key
-from .utils.cfssl import get_certificate
+from .exceptions import SkipPlugin
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
 from .servicer import FrameworkServicer
-
-"""
-SSL-CN: "string" -> user
-SSL-CN: "string:string:string" -> agent_name, image, version
-"""
+from .utils.cfssl import get_ca_public_key
+from .utils.cfssl import get_certificate
+from .utils.plugins import get_plugins
 
 
 def execute_command_line():
@@ -94,22 +91,17 @@ def execute_command_line():
     assert os.environ.get('IAMS_HOST'), "Environment IAMS_HOST not set"
     assert os.environ.get('IAMS_CFSSL'), "Environment IAMS_CFSSL not set"
 
-    plugins = {}
-
     # # dynamically load services from environment
-    # logger.debug("loading services configuration")
-    # self.services = {}
-    # for key, data in os.environ.items():
-    #     if key.startswith(self.PREFIX):
-    #         # extract data from json
-    #         label, path, config = json.loads(data)
-    #         # dynamic load of plugin
-    #         module_name, plugin_name = path.rsplit('.', 1)
-    #         module = import_module(module_name)
-    #         plugin = getattr(module, plugin_name)
-    #         # add service
-    #         logger.debug("loaded %s for label %s", path, label)
-    #         self.services[label] = plugin(config)
+    plugins = []
+    for cls in get_plugins():
+        # TODO add plugins only when requirements fit
+        try:
+            plugins.append(cls())
+        except SkipPlugin:
+            continue
+        except Exception:
+            logger.exception("Error loading plugin %s", cls.__qualname__)
+            continue
 
     threadpool = ThreadPoolExecutor()
     server = grpc.server(threadpool)

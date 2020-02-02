@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 
 class InfluxDB(Plugin):
 
-    def __init__(self, config):
+    def __init__(self):
         pass
 
-    def __call__(self, config, **kwargs):
+    def call__(self, config, **kwargs):
         logger.debug("calling %s plugin with config %s", self.__class__.__name__, config)
         networks = set(['cloud_influxdb'])
         env = {

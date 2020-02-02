@@ -243,26 +243,33 @@ class Agent(object):
 class Plugin(object):
     __hash__ = None
 
-    def get_labels(self):
+    label = None
+
+    def get_kwargs(self, config):
         return {}
 
-    def get_env(self):
+    def get_labels(self, **kwargs):
         return {}
 
-    def get_networks(self):
+    def get_env(self, **kwargs):
+        return {}
+
+    def get_networks(self, **kwargs):
         return []
 
-    def get_configured_secrets(self):
+    def get_configured_secrets(self, **kwargs):
         return {}
 
-    def get_generated_secrets(self):
+    def get_generated_secrets(self, **kwargs):
         return []
 
-    def __call__(self):
+    def __call__(self, config):
+        kwargs = self.get_kwargs(config)
+
         return (
-            self.get_labels(),
-            self.get_env(),
-            set(self.get_networks()),
-            self.get_configured_secrets(),
-            self.get_generated_secrets(),
+            self.get_labels(**kwargs),
+            self.get_env(**kwargs),
+            set(self.get_networks(**kwargs)),
+            self.get_configured_secrets(**kwargs),
+            self.get_generated_secrets(**kwargs),
         )

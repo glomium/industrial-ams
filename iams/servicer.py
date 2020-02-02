@@ -67,7 +67,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
-    def __init__(self, args, credentials, threadpool, plugins={}):
+    def __init__(self, args, credentials, threadpool, plugins):
         self.args = args
         self.credentials = credentials
         self.threadpool = threadpool
@@ -77,8 +77,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         else:
             self.prefix = "prod"
 
-        self.docker = Docker(args.namespace, self.prefix)
-        self.plugins = plugins
+        self.docker = Docker(args.namespace, self.prefix, plugins)
 
         self.RE_NAME = re.compile(r'^(%s_)?([\w]+)$' % self.prefix[0])
 

@@ -245,7 +245,7 @@ class Plugin(object):
 
     label = None
 
-    def get_kwargs(self, config):
+    def get_kwargs(self, name, image, version, config):
         return {}
 
     def get_labels(self, **kwargs):

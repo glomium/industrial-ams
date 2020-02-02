@@ -179,7 +179,7 @@ class Docker(object):
         for plugin in self.plugins:
             if plugin.label in image_object.labels:
                 # apply plugin
-                e, l, n, s, g = plugin(image_object.labels[plugin.label])
+                e, l, n, s, g = plugin(name, image, version, image_object.labels[plugin.label])
                 labels.update(l)
                 env.update(e)
                 networks.update(n)

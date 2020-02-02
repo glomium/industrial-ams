@@ -14,7 +14,7 @@ class InfluxDB(Plugin):
     def get_networks(self, **kwargs):
         return ['cloud_influxdb']
 
-    def get_kwargs(self, config):
+    def get_kwargs(self, name, image, version, config):
         return {"name": config}
 
     def get_env(self, name):

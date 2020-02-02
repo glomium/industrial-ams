@@ -14,7 +14,7 @@ class Fluentd(Plugin):
     def get_networks(self, **kwargs):
         return ['cloud_envoy']
 
-    def get_kwargs(self, config):
+    def get_kwargs(self, name, image, version, config):
         return {"name": config}
 
     def get_env(self, name):

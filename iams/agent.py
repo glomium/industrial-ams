@@ -5,25 +5,26 @@ import json
 import logging
 import os
 
-from uuid import uuid1
+# from uuid import uuid1
 
 import grpc
+# import msgpack
 
 from google.protobuf.empty_pb2 import Empty
 
 from .proto import agent_pb2_grpc
-from .proto import framework_pb2_grpc
+# from .proto import framework_pb2_grpc
 from .proto import framework_pb2
-from .proto import simulation_pb2_grpc
+# from .proto import simulation_pb2_grpc
 from .proto.agent_pb2 import ConnectionResponse
 from .proto.agent_pb2 import PingResponse
 from .proto.agent_pb2 import ServiceResponse
-from .proto.framework_pb2 import WakeAgent
-from .proto.simulation_pb2 import EventRegister
+# from .proto.framework_pb2 import WakeAgent
+# from .proto.simulation_pb2 import EventRegister
 from .stub import AgentStub
-from .utils import agent_required
-from .utils import framework_channel
-from .utils import grpc_retry
+from .utils.auth import permissions
+from .utils.grpc import framework_channel
+# from .utils.grpc import grpc_retry
 
 
 logger = logging.getLogger(__name__)
@@ -50,12 +51,13 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         self.threadpool = threadpool
 
         if self.type == "simulation":
-            self.simulation = SimulationRuntime(self, main)
+            pass
+            # self.simulation = SimulationRuntime(self, main)
         else:
             self.simulation = None
 
         self.etcd_prefix = f"agents/{self.container}/".encode('utf-8')
-        self.etcd_client = Etcd3Client(host=self.etcd_server, timeout=timeout)
+        # self.etcd_client = Etcd3Client(host=self.etcd_server, timeout=timeout)
         self.etcd_lease = self.etcd_client.lease(timeout + timeout_buffer)
 
         # variables used by agent
@@ -73,20 +75,16 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             self.etcd_client.put(key, state, lease=self.etcd_lease)
             self.state = state
 
-    def set_idle(self):
-        self.set_state(States.IDLE)
-
-    def set_busy(self):
-        self.set_state(States.BUSY)
-
-    def set_waiting(self):
-        self.set_state(States.WAITING)
-
-    def set_error(self):
-        self.set_state(States.ERROR)
-
-    def set_maintenance(self):
-        self.set_state(States.MAINTENANCE)
+    # def set_idle(self):
+    #     self.set_state(States.IDLE)
+    # def set_busy(self):
+    #     self.set_state(States.BUSY)
+    # def set_waiting(self):
+    #     self.set_state(States.WAITING)
+    # def set_error(self):
+    #     self.set_state(States.ERROR)
+    # def set_maintenance(self):
+    #     self.set_state(States.MAINTENANCE)
 
     def load_config(self):
         key = f'agents/{self.container!s}/config'
@@ -159,7 +157,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         if request.kwargs:
-            kwargs = msgpack.loads(request.kwargs)
+            kwargs = {}  # msgpack.loads(request.kwargs)
         else:
             kwargs = {}
 
@@ -182,24 +180,24 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
     # grpc call
-    @agent_required
+    @permissions(has_agent=True)
     def connection_get(self, request, context):
         for agent, data in self.topology.items():
             for item in data:
                 image = item.get("image", None)
                 version = item.get("version", None)
                 interface = item.get("interface", None)
-                kwargs = item.get("kwargs", {})
+                # kwargs = item.get("kwargs", {})
                 yield ConnectionResponse(
                     agent=agent,
                     image=image,
                     version=version,
                     interface=interface,
-                    kwargs=msgpack.dumps(kwargs),
+                    kwargs=None,  # msgpack.dumps(kwargs),
                 )
 
     # grpc call
-    @agent_required
+    @permissions(has_agent=True)
     def service_get(self, request, context):
         logger.debug("service_get called: %s", self.service)
         for service, kwargs in self.service.items():
@@ -208,11 +206,12 @@ class Servicer(agent_pb2_grpc.AgentServicer):
                 image=os.environ.get('AMS_IMAGE', None),
                 version=os.environ.get('AMS_VERSION', None),
                 service=service,
-                kwargs=msgpack.dumps(kwargs or {}),
+                kwargs=None,
+                # kwargs=msgpack.dumps(kwargs or {}),
             )
 
     # grpc call
-    @agent_required
+    @permissions(has_agent=True)
     def connection_add(self, request, context):
         kwargs = self.get_kwargs(request, context)
         if self.call_main("connection_add", context, kwargs):
@@ -220,19 +219,19 @@ class Servicer(agent_pb2_grpc.AgentServicer):
                 self.connections[kwargs["interface"]][kwargs["agent"]] = {
                     "image": kwargs["image"],
                     "version": kwargs["version"],
-                    "kwargs": msgpack.loads(request.kwargs, raw=False),
+                    # "kwargs": msgpack.loads(request.kwargs, raw=False),
                 }
                 self.connections[kwargs["agent"]] = {
                     "image": kwargs["image"],
                     "version": kwargs["version"],
-                    "kwargs": None,
+                    # "kwargs": None,
                 }
 
             # TODO use etcd to store connection information
             return Empty()
 
     # grpc call
-    @agent_required
+    @permissions(has_agent=True)
     def connection_del(self, request, context):
         kwargs = self.get_kwargs(request, context)
         if self.call_main("connection_del", context, kwargs):
@@ -255,7 +254,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         return Empty()
 
     # grpc call
-    @agent_required
+    @permissions(has_agent=True)
     def ping(self, request, context):
         return PingResponse(
             image=os.environ.get('AMS_IMAGE', None),
@@ -283,7 +282,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
                     "image": response.image,
                     "version": response.version,
                     "interface": response.interface,
-                    "kwargs": msgpack.loads(response.kwargs, raw=False),
+                    # "kwargs": msgpack.loads(response.kwargs, raw=False),
                 }
                 logger.debug("connection list of agent %s: %s", agent, data)
                 yield data
@@ -298,7 +297,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
                     "image": response.image,
                     "version": response.version,
                     "service": response.service,
-                    "kwargs": msgpack.loads(response.kwargs, raw=False),
+                    # "kwargs": msgpack.loads(response.kwargs, raw=False),
                 }
                 logger.debug("service list of agent %s: %s", agent, data)
                 yield data
@@ -322,37 +321,37 @@ class Servicer(agent_pb2_grpc.AgentServicer):
     #         logger.exception("error %s in simulation_resume: %s", e.code(), e.details())
     #         return False
 
-    def framework_booted(self) -> bool:
-        with framework_channel() as channel:
-            stub = FrameworkStub(channel)
-            stub.booted(Empty(), timeout=10)
-        return True
+    # def framework_booted(self) -> bool:
+    #     with framework_channel() as channel:
+    #         stub = FrameworkStub(channel)
+    #         stub.booted(Empty(), timeout=10)
+    #     return True
 
-    def framework_destroy(self) -> bool:
-        logger.debug("calling AMS to be killed")
-        with framework_channel() as channel:
-            stub = FrameworkStub(channel)
-            stub.destroy(Empty(), timeout=10)
-        return True
+    # def framework_destroy(self) -> bool:
+    #     logger.debug("calling AMS to be killed")
+    #     with framework_channel() as channel:
+    #         stub = FrameworkStub(channel)
+    #         stub.destroy(Empty(), timeout=10)
+    #     return True
 
-    def framework_sleep(self) -> bool:
-        logger.debug("calling AMS to be sent to sleep")
-        with framework_channel() as channel:
-            stub = FrameworkStub(channel)
-            stub.sleep(Empty(), timeout=10)
-        return True
+    # def framework_sleep(self) -> bool:
+    #     logger.debug("calling AMS to be sent to sleep")
+    #     with framework_channel() as channel:
+    #         stub = FrameworkStub(channel)
+    #         stub.sleep(Empty(), timeout=10)
+    #     return True
 
-    def framework_upgrade(self) -> bool:
-        with framework_channel() as channel:
-            stub = FrameworkStub(channel)
-            stub.upgrade(Empty(), timeout=10)
-        return True
+    # def framework_upgrade(self) -> bool:
+    #     with framework_channel() as channel:
+    #         stub = FrameworkStub(channel)
+    #         stub.upgrade(Empty(), timeout=10)
+    #     return True
 
-    def framework_wake(self, other) -> bool:
-        with framework_channel() as channel:
-            stub = FrameworkStub(channel)
-            stub.upgrade(WakeAgent(agent=other), timeout=10)
-        return True
+    # def framework_wake(self, other) -> bool:
+    #     with framework_channel() as channel:
+    #         stub = FrameworkStub(channel)
+    #         stub.upgrade(WakeAgent(agent=other), timeout=10)
+    #     return True
 
 
-AgentServicer.__doc__ = agent_pb2_grpc.AgentServicer.__doc__
+Servicer.__doc__ = agent_pb2_grpc.AgentServicer.__doc__

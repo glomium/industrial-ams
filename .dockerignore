@@ -1,0 +1,12 @@
+**/*.pyc
+**/__pycache__
+
+.coverage
+.git
+.venv
+
+build
+dist
+
+*\.egg-info
+*\.whl

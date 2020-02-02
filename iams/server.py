@@ -15,8 +15,8 @@ import grpc
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
-from .cfssl import get_ca_public_key
-from .cfssl import get_certificate
+from .utils.cfssl import get_ca_public_key
+from .utils.cfssl import get_certificate
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
 from .servicer import FrameworkServicer

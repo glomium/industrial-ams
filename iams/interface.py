@@ -2,20 +2,21 @@
 # vim: set fileencoding=utf-8 :
 
 import logging
-# import os
-# import signal
+import os
+import signal
 
-# from concurrent import futures
+from concurrent import futures
 # from threading import Event
 # from threading import Lock
 # from time import sleep
 
-# import grpc
+import grpc
 
-# from .agent import AgentServicer
+from .agent import Servicer
+from .utils.grpc import Grpc
+from .utils.grpc import get_credentials
 # from .exceptions import Continue
 # from .exceptions import EventNotFound
-# from .utils import Grpc
 
 
 logger = logging.getLogger(__name__)
@@ -24,95 +25,60 @@ logger = logging.getLogger(__name__)
 class Agent(object):
     __hash__ = None
 
+    # max workers = 5 * N(CPU) by default, which seems reasonable
+    MAX_WORKERS = 20
 
-#   ETCD_TIMEOUT = 20
-#   GRPC_PORT = '[::]:%s' % os.environ.get('CCM_GRPC_PORT', 80)
+    def __init__(self) -> None:
+        self._credentials = get_credentials()
+        self._executor = futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
+        # agent servicer for iams
+        self._iams = Servicer(self, self._executor)
+        # grpc communication (via threadpoolexecutor)
+        self._grpc = Grpc(self, self._iams, self._executor)
 
-#   # max workers = 5 * N(CPU) by default, which seems reasonable
-#   MAX_WORKERS = 20
+        # self._lock = Lock()
+        # self._loop_event = Event()
+        # self._stop_event = Event()
 
-#   def __init__(self) -> None:
-#       self._executor = futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
-#       self._lock = Lock()
-#       self._loop_event = Event()
-#       self._stop_event = Event()
-#       self._framework_agent = AgentServicer(self, self.ETCD_TIMEOUT, self._executor)
+        # create signals to catch sigterm events
+        signal.signal(signal.SIGINT, self.__stop)
+        signal.signal(signal.SIGTERM, self.__stop)
 
-#       # grpc communication (via threadpoolexecutor)
-#       self._grpc = Grpc(self, self._framework_agent, self._executor, self.GRPC_PORT)
+    def __repr__(self):
+        return self.__class__.__qualname__ + f"()"
 
-#       # create signals to catch sigterm events
-#       signal.signal(signal.SIGINT, self.__stop)
-#       signal.signal(signal.SIGTERM, self.__stop)
+    def __call__(self):
+        # run setup methods for controlling machines
+        if self._iams.simulation is None:
+            self._pre_setup()
+            self.setup()
+            self._post_setup()
 
-#   def __repr__(self):
-#       return self.__class__.__qualname__ + f"()"
+        # load and start gRPC service
+        self.grpc_setup()  # local module specification
+        self._grpc_setup()  # definition on mixins
+        self._grpc.start()
 
-#   def get_config(self):
-#       return self._framework_agent.config
+        # run agent configuration
+        try:
+            self.configure()  # local module specification
+            self._configure()  # definitions on mixins
+        except grpc.RpcError as e:
+            logger.debug("gRPC request failed in configure - resetting: %s - %s", e.code(), e.details())
+            exit()
 
-#   def set_config(self, data):
-#       return self._framework_agent.write_config(data)
+        if self._iams.simulation is not None:
+            try:
+                self.simulation_init()
+            except NotImplementedError:
+                logger.debug("simulation_init not implemented at %s", self.__class__.__qualname__)
 
-#   def get_service(self):
-#       return self._framework_agent.service
-
-#   def set_service(self, data):
-#       return self._framework_agent.write_service(data)
-
-#   def get_topology(self):
-#       return self._framework_agent.topology
-
-#   def set_topology(self, data):
-#       return self._framework_agent.write_topology(data)
-
-#   def __call__(self):
-
-#       # we trust the data received and don't validate it
-#       self._framework_agent.load_config()
-#       self._framework_agent.load_service()
-#       self._framework_agent.load_topology()
-
-#       # run setup methods for controlling machines
-#       if self._framework_agent.simulation is None:
-#           self._pre_setup()
-#           self.setup()
-#           self._post_setup()
-
-#       # load and start gRPC service
-#       self.grpc_setup()  # local
-#       self._grpc_setup()  # libs
-#       self._grpc.start()
-
-#       # wait until all related agents are online
-#       if self._framework_agent.simulation is not None:
-#           for agent in self.get_topology().keys():
-#               while True:
-#                   if self._framework_agent.agent_ping(agent):
-#                       break
-#                   logger.debug("wait for agent %s to bootup", agent)
-#                   sleep(1)
-
-#       # run agent configuration
-#       try:
-#           self.configure()  # local
-#           self._configure()  # libs
-#       except grpc.RpcError as e:
-#           logger.debug("gRPC request failed in configure - resetting: %s - %s", e.code(), e.details())
-#           exit()
-
-#       if self._framework_agent.simulation is not None:
-#           try:
-#               self.simulation_init()
-#           except NotImplementedError:
-#               logger.debug("simulation_init not implemented at %s", self.__class__.__qualname__)
-
-#       logger.debug("Informing the runtime that %s is booted", self._framework_agent.container)
-#       # signal the framework that the agent booted
-#       self._framework_agent.framework_booted()
+        # logger.debug("Informing the runtime that %s is booted", self._iams.container)
+        # # signal the framework that the agent booted
+        # self._iams.framework_booted()
 
 #       # simulation
-#       if self._framework_agent.simulation is not None:
+#       if self._iams.simulation is not None:
 #           while True:
 #               # wait for event loop
 #               logger.debug("waiting for wakeup event")
@@ -124,10 +90,10 @@ class Agent(object):
 #                   break
 
 #               try:
-#                   callback, kwargs = next(self._framework_agent.simulation)
+#                   callback, kwargs = next(self._iams.simulation)
 #               except EventNotFound:
 #                   logger.debug("Skipping - scheduled event was not found")
-#                   self._framework_agent.simulation.resume()
+#                   self._iams.simulation.resume()
 #                   continue
 
 #               # execute callbacks (event based simulation)
@@ -137,57 +103,57 @@ class Agent(object):
 #               except Continue:
 #                   pass
 #               logger.debug("calling resume")
-#               self._framework_agent.simulation.resume()
+#               self._iams.simulation.resume()
 
 #       # control
 #       else:
 #           logger.debug("Calling control loop")
 #           self._loop()
 
-#       logger.debug("Stopping gRPC service on %s", os.environ.get('AMS_AGENT', 'undefined'))
-#       self._grpc.stop()
+        logger.debug("Stopping gRPC service on %s", os.environ.get('AMS_AGENT', 'undefined'))
+        self._grpc.stop()
 
-#       if self._framework_agent.simulation is None:
-#           self.teardown()
-#           self._teardown()
+        if self._iams.simulation is None:
+            self.teardown()
+            self._teardown()
 
-#       logger.debug("Stopping executor on %s", os.environ.get('AMS_AGENT', 'undefined'))
-#       self._executor.shutdown(wait=False)
-#       logger.info("Exit %s", os.environ.get('AMS_AGENT', 'undefined'))
+        logger.debug("Stopping executor on %s", os.environ.get('AMS_AGENT', 'undefined'))
+        self._executor.shutdown(wait=False)
+        logger.info("Exit %s", os.environ.get('AMS_AGENT', 'undefined'))
 
 #   def sleep(self, delay=None):
-#       if self._framework_agent.simulation is None:
+#       if self._iams.simulation is None:
 #           if delay is not None and delay > 0.0:
 #               self._stop_event.wait(delay)
-#       return self._framework_agent.simulation is None
+#       return self._iams.simulation is None
 
-#   def __stop(self, signum, frame):
-#       logger.info("Exit requested with code %s", signum)
-#       self.stop()
+    def __stop(self, signum, frame):
+        logger.info("Exit requested with code %s", signum)
+        self.stop()
 
-#   def _grpc_setup(self):
-#       """
-#       this method can be overwritten by mixins
-#       """
-#       pass
+    def _grpc_setup(self):
+        """
+        this method can be overwritten by mixins
+        """
+        pass
 
-#   def _pre_setup(self):
-#       """
-#       this method can be overwritten by mixins
-#       """
-#       pass
+    def _pre_setup(self):
+        """
+        this method can be overwritten by mixins
+        """
+        pass
 
-#   def _post_setup(self):
-#       """
-#       this method can be overwritten by mixins
-#       """
-#       pass
+    def _post_setup(self):
+        """
+        this method can be overwritten by mixins
+        """
+        pass
 
-#   def _teardown(self):
-#       """
-#       this method can be overwritten by mixins
-#       """
-#       pass
+    def _teardown(self):
+        """
+        this method can be overwritten by mixins
+        """
+        pass
 
 #   def _loop(self):
 #       """
@@ -195,55 +161,70 @@ class Agent(object):
 #       """
 #       raise NotImplementedError("A _loop method needs to be implemented")
 
-#   def _configure(self):
-#       """
-#       """
-#       pass
+    def _configure(self):
+        """
+        """
+        pass
 
-#   def configure(self):
-#       """
-#       """
-#       pass
+    def configure(self):
+        """
+        """
+        pass
 
-#   def setup(self):
-#       """
-#       This gets executed on startup
-#       """
-#       pass
+    def setup(self):
+        """
+        This gets executed on startup
+        """
+        pass
 
-#   def grpc_setup(self):
-#       """
-#       This gets executed on startup
-#       """
-#       pass
+    def grpc_setup(self):
+        """
+        This gets executed on startup
+        """
+        pass
 
-#   def stop(self):
-#       """
-#       This gets executed on startup
-#       """
+    def stop(self):
+        """
+        This gets executed on startup
+        """
+        pass
 #       self._stop_event.set()
 #       self._loop_event.set()
 
-#   def teardown(self):
-#       """
-#       This gets executed on teardown
-#       """
-#       pass
+    def teardown(self):
+        """
+        This gets executed on teardown
+        """
+        pass
 
-#   def simulation_init(self):
-#       """
-#       This gets executed on teardown
-#       """
-#       raise NotImplementedError
-
-#   def get_process_kwargs(self):
-#       return self.PROCESS_KWARGS or {}
+    def simulation_init(self):
+        """
+        This gets executed on teardown
+        """
+        raise NotImplementedError
 
 
 class Plugin(object):
     __hash__ = None
 
     label = None
+
+    def __init__(self, namespace, simulation):
+        pass
+
+    def __repr__(self):
+        return self.__class__.__qualname__ + f"()"
+
+    def __call__(self, name, image, version, config):
+        kwargs = self.get_kwargs(name, image, version, config)
+
+        return (
+            self.get_labels(**kwargs),
+            self.get_env(**kwargs),
+            set(self.get_networks(**kwargs)),
+            self.get_configured_secrets(**kwargs),
+            self.get_generated_secrets(**kwargs),
+        )
 
     def get_kwargs(self, name, image, version, config):
         return {}
@@ -262,14 +243,3 @@ class Plugin(object):
 
     def get_generated_secrets(self, **kwargs):
         return []
-
-    def __call__(self, config):
-        kwargs = self.get_kwargs(config)
-
-        return (
-            self.get_labels(**kwargs),
-            self.get_env(**kwargs),
-            set(self.get_networks(**kwargs)),
-            self.get_configured_secrets(**kwargs),
-            self.get_generated_secrets(**kwargs),
-        )

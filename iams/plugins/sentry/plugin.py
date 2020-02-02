@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class Sentry(Plugin):
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.sentry = os.environ.get('RAVEN_DSN', None)
         if self.sentry is None:
             raise SkipPlugin

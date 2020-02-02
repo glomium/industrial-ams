@@ -16,10 +16,7 @@ from ..proto.agent_pb2_grpc import add_AgentServicer_to_server
 logger = logging.getLogger(__name__)
 
 
-def get_credentials(node=None):
-    if node is None:
-        node = os.environ.get('AMS_CORE', None)
-        assert node is not None, 'Must define AMS_CORE in environment'
+def get_credentials():
 
     with open('/run/secrets/ca.pem', 'rb') as f:
         ca_public = f.read()
@@ -30,7 +27,7 @@ def get_credentials(node=None):
     with open('/run/secrets/own.crt', 'rb') as f:
         certificate = f.read()
 
-    return node, grpc.ssl_channel_credentials(
+    return grpc.ssl_channel_credentials(
         root_certificates=ca_public,
         private_key=private_key,
         certificate_chain=certificate,

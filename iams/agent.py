@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 # vim: set fileencoding=utf-8 :
 
-import json
 import logging
 import os
 
@@ -16,9 +15,9 @@ from .proto import agent_pb2_grpc
 # from .proto import framework_pb2_grpc
 from .proto import framework_pb2
 # from .proto import simulation_pb2_grpc
-from .proto.agent_pb2 import ConnectionResponse
+# from .proto.agent_pb2 import ConnectionResponse
 from .proto.agent_pb2 import PingResponse
-from .proto.agent_pb2 import ServiceResponse
+# from .proto.agent_pb2 import ServiceResponse
 # from .proto.framework_pb2 import WakeAgent
 # from .proto.simulation_pb2 import EventRegister
 from .stub import AgentStub
@@ -36,14 +35,13 @@ AgentData = framework_pb2.AgentData
 class Servicer(agent_pb2_grpc.AgentServicer):
 
     def __init__(self, main, timeout, threadpool, timeout_buffer=5):
-        self.address = os.environ.get('AMS_ADDRESS', None)
+        self.address = os.environ.get('IAMS_ADDRESS', None)
+        self.port = os.environ.get('IAMS_PORT', None)
         self.container = os.environ.get('AMS_AGENT', None)
-        self.etcd_server = os.environ.get('AMS_ETCD_SERVER', None)
         self.framework = os.environ.get('AMS_CORE', None)
         self.type = os.environ.get('AMS_TYPE', None)
 
         assert self.container is not None, 'Must define AMS_AGENT in environment'
-        assert self.etcd_server is not None, 'Must define AMS_ETCD_SERVER in environment'
         assert self.framework is not None, 'Must define AMS_CORE in environment'
         assert self.type is not None, 'Must define AMS_TYPE in environment'
 
@@ -56,193 +54,12 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         else:
             self.simulation = None
 
-        self.etcd_prefix = f"agents/{self.container}/".encode('utf-8')
-        # self.etcd_client = Etcd3Client(host=self.etcd_server, timeout=timeout)
-        self.etcd_lease = self.etcd_client.lease(timeout + timeout_buffer)
-
         # variables used by agent
         self.config = {}
         self.heartbeat(timeout, init=True)
         self.state = None
         self.service = {}
         self.topology = {}
-
-    def set_state(self, state):
-        # key = f'agents/{self.container!s}/state'  # TODO
-        key = f'agents/{self.container!s}/status'
-
-        if self.state != state:
-            self.etcd_client.put(key, state, lease=self.etcd_lease)
-            self.state = state
-
-    # def set_idle(self):
-    #     self.set_state(States.IDLE)
-    # def set_busy(self):
-    #     self.set_state(States.BUSY)
-    # def set_waiting(self):
-    #     self.set_state(States.WAITING)
-    # def set_error(self):
-    #     self.set_state(States.ERROR)
-    # def set_maintenance(self):
-    #     self.set_state(States.MAINTENANCE)
-
-    def load_config(self):
-        key = f'agents/{self.container!s}/config'
-        self.config = self.load(key)
-
-    def load_service(self):
-        key = f'agents/{self.container!s}/service'
-        self.service = self.load(key)
-
-    def load_topology(self):
-        key = f'agents/{self.container!s}/topology'
-        self.topology = self.load(key)
-
-    def load(self, key):
-        data, metadata = self.etcd_client.get(key)
-        try:
-            data = json.loads(data)
-        except TypeError:
-            data = {}
-        except json.JSONDecodeError as e:
-            logger.exception(e)
-            data = {}
-        logger.debug("loaded %s from %s", data, key)
-        return data
-
-    def write_config(self, data):
-        key = f'agents/{self.container!s}/config'
-        if self.write(key, data):
-            self.config = data
-            return True
-        return False
-
-    def write_service(self, data):
-        key = f'agents/{self.container!s}/service'
-        if self.write(key, data):
-            self.service = data
-            return True
-        return False
-
-    def write_topology(self, data):
-        key = f'agents/{self.container!s}/topology'
-        if self.write(key, data):
-            self.topology = data
-            return True
-        return False
-
-    def write(self, key, data):
-        data = json.dumps(data)
-        self.etcd_client.put(key, data)
-        logger.debug("written %s to %s", data, key)
-        return True
-
-    def stop(self):
-        self.etcd_lease.revoke()
-
-    def heartbeat(self, timeout, init=False):
-        if not init:
-            if hasattr(self.main, "heartbeat"):
-                logger.debug("heartbeat called")
-                self.main.heartbeat()
-            self.etcd_lease.refresh()
-            self.main._stop_event.wait(timeout)
-
-        if not self.main._stop_event.is_set():
-            self.threadpool.submit(self.heartbeat, timeout)
-
-    def get_kwargs(self, request, context):
-        if not request.agent:
-            message = 'No agent given in request.'
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-
-        if request.kwargs:
-            kwargs = {}  # msgpack.loads(request.kwargs)
-        else:
-            kwargs = {}
-
-        kwargs.update({
-            "name": request.name,
-            "image": request.image,
-            "version": request.version,
-        })
-        return kwargs
-
-    def call_main(self, name, context, kwargs):
-        try:
-            callback = getattr(self.main, 'framework_%s' % name)
-        except AttributeError:
-            message = 'Method framework_%s not available!' % name
-            context.abort(grpc.StatusCode.FAILED_PRECONDITION, message)
-
-        if not callback(**kwargs):
-            message = 'No Permissions to call framework_%s.' % name
-            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
-
-    # grpc call
-    @permissions(has_agent=True)
-    def connection_get(self, request, context):
-        for agent, data in self.topology.items():
-            for item in data:
-                image = item.get("image", None)
-                version = item.get("version", None)
-                interface = item.get("interface", None)
-                # kwargs = item.get("kwargs", {})
-                yield ConnectionResponse(
-                    agent=agent,
-                    image=image,
-                    version=version,
-                    interface=interface,
-                    kwargs=None,  # msgpack.dumps(kwargs),
-                )
-
-    # grpc call
-    @permissions(has_agent=True)
-    def service_get(self, request, context):
-        logger.debug("service_get called: %s", self.service)
-        for service, kwargs in self.service.items():
-            yield ServiceResponse(
-                agent=self.container,
-                image=os.environ.get('AMS_IMAGE', None),
-                version=os.environ.get('AMS_VERSION', None),
-                service=service,
-                kwargs=None,
-                # kwargs=msgpack.dumps(kwargs or {}),
-            )
-
-    # grpc call
-    @permissions(has_agent=True)
-    def connection_add(self, request, context):
-        kwargs = self.get_kwargs(request, context)
-        if self.call_main("connection_add", context, kwargs):
-            if request.kwargs:
-                self.connections[kwargs["interface"]][kwargs["agent"]] = {
-                    "image": kwargs["image"],
-                    "version": kwargs["version"],
-                    # "kwargs": msgpack.loads(request.kwargs, raw=False),
-                }
-                self.connections[kwargs["agent"]] = {
-                    "image": kwargs["image"],
-                    "version": kwargs["version"],
-                    # "kwargs": None,
-                }
-
-            # TODO use etcd to store connection information
-            return Empty()
-
-    # grpc call
-    @permissions(has_agent=True)
-    def connection_del(self, request, context):
-        kwargs = self.get_kwargs(request, context)
-        if self.call_main("connection_del", context, kwargs):
-            try:
-                del self.connections[kwargs["interface"]][kwargs["agent"]]
-            except KeyError:
-                message = 'There is no agent %s at interface %s' % (kwargs["agent"], kwargs["interface"])
-                context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-
-            # TODO use etcd to store connection information
-            return Empty()
 
     # grpc call
     def simulation_continue(self, request, context):
@@ -256,10 +73,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
     # grpc call
     @permissions(has_agent=True)
     def ping(self, request, context):
-        return PingResponse(
-            image=os.environ.get('AMS_IMAGE', None),
-            version=os.environ.get('AMS_VERSION', None),
-        )
+        return PingResponse()
 
     def agent_ping(self, agent):
         try:

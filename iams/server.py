@@ -88,19 +88,23 @@ def execute_command_line():
     dictConfig(get_logging_config(["iams"], args.loglevel))
     logger = logging.getLogger(__name__)
 
+    # TODO read from docker ???
     assert os.environ.get('IAMS_HOST'), "Environment IAMS_HOST not set"
+    # TODO add as argument?
     assert os.environ.get('IAMS_CFSSL'), "Environment IAMS_CFSSL not set"
 
-    # # dynamically load services from environment
+    # dynamically load services from environment
     plugins = []
     for cls in get_plugins():
-        # TODO add plugins only when requirements fit
         try:
-            plugins.append(cls())
+            plugins.append(cls(
+                namespace=args.namespace,
+                simulation=args.simulation,
+            ))
         except SkipPlugin:
             continue
         except Exception:
-            logger.exception("Error loading plugin %s", cls.__qualname__)
+            logger.exception("Error loading plugin %r", cls)
             continue
 
     threadpool = ThreadPoolExecutor()

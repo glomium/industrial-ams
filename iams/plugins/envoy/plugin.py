@@ -14,8 +14,5 @@ class Envoy(Plugin):
     def __init__(self):
         pass
 
-    def call(self, config, **kwargs):
-        logger.debug("calling %s plugin with config %s", self.__class__.__name__, config)
-        networks = set(['cloud_envoy'])
-        env = {}
-        return networks, env
+    def get_networks(self, **kwargs):
+        return ['cloud_envoy']

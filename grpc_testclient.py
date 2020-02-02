@@ -34,6 +34,7 @@ def run():
         stub = FrameworkStub(channel)
         for response in stub.agents(Empty()):
             logger.info('got: %s', response)
+    print("done")
 
 
 if __name__ == '__main__':

@@ -46,6 +46,8 @@ FROM basestage as build
 MAINTAINER Sebastian Braun <sebastian.braun@fh-aachen.de>
 
 COPY --from=test /usr/src/app/iams-build-py3-none-any.whl /tmp/iams-build-py3-none-any.whl
-RUN pip3 install --no-index /tmp/iams-build-py3-none-any.whl && rm /tmp/iams-build-py3-none-any.whl /tmp/requirements.txt
+RUN pip3 install --no-index /tmp/iams-build-py3-none-any.whl && rm /tmp/requirements.txt
+# TODO delete iams-build-py3-none-any.whl (when there is a official release on pypi)
+# RUN pip3 install --no-index /tmp/iams-build-py3-none-any.whl && rm /tmp/iams-build-py3-none-any.whl /tmp/requirements.txt
 
 ENTRYPOINT ["/usr/bin/iams-server"]

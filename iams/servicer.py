@@ -83,7 +83,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         self.RE_NAME = re.compile(r'^(%s_)?([\w]+)$' % self.prefix[0])
 
     # RPCs
-
     @permissions(is_optional=True)
     def renew(self, request, context):
 

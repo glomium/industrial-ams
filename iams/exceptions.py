@@ -2,5 +2,5 @@
 # vim: set fileencoding=utf-8 :
 
 
-class SkipPlugin(Exception):
+class SkipPlugin(AssertionError):
     pass

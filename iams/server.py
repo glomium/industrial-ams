@@ -4,12 +4,13 @@
 import argparse
 import datetime
 import logging
-import os
 
+from socket import gethostname
 from concurrent.futures import ThreadPoolExecutor
 from logging.config import dictConfig
 from time import sleep
 
+import docker
 import grpc
 
 from cryptography import x509
@@ -19,8 +20,7 @@ from .exceptions import SkipPlugin
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
 from .servicer import FrameworkServicer
-from .utils.cfssl import get_ca_public_key
-from .utils.cfssl import get_certificate
+from .utils.cfssl import CFSSL
 from .utils.plugins import get_plugins
 
 
@@ -40,6 +40,11 @@ def execute_command_line():
         action="store_const",
         dest="loglevel",
         const=logging.DEBUG,
+    )
+    parser.add_argument(
+        'cfssl',
+        help="http interface of cfssl service",
+        default="tasks.cfssl:8888",
     )
     parser.add_argument(
         '--agent-port',
@@ -64,10 +69,9 @@ def execute_command_line():
     )
     parser.add_argument(
         '--rsa',
-        help="RSA key length=4096",
+        help="RSA key length",
         dest="rsa",
         type=int,
-        default=4096,
     )
     parser.add_argument(
         '--simulation',
@@ -78,9 +82,8 @@ def execute_command_line():
     )
     parser.add_argument(
         '--namespace',
-        help="docker stack namespace name (default: cloud)",
+        help="stack namespace (default: simulation or production)",
         dest='namespace',
-        default="cloud",
     )
 
     args = parser.parse_args()
@@ -88,10 +91,37 @@ def execute_command_line():
     dictConfig(get_logging_config(["iams"], args.loglevel))
     logger = logging.getLogger(__name__)
 
-    # TODO read from docker ???
-    assert os.environ.get('IAMS_HOST'), "Environment IAMS_HOST not set"
-    # TODO add as argument?
-    assert os.environ.get('IAMS_CFSSL'), "Environment IAMS_CFSSL not set"
+    client = docker.DockerClient()
+    try:
+        container = client.containers.get(gethostname())
+        namespace = container.attrs["Config"]["Labels"]["com.docker.stack.namespace"]
+        logger.info("got namespace %s from docker", args.namespace)
+        hostname = container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
+        hostname = "tasks." + hostname[len(namespace) + 1:]
+        logger.info("got task address %s from docker", hostname)
+    except docker.errors.NotFound:
+        container = None
+        namespace = "undefined"
+        hostname = "undefined"
+        logger.warning("Could not connect to docker container - please start iams-server as a docker-swarm service")
+
+    if not args.namespace:
+        if args.simulation:
+            args.namespace = "simulation"
+        else:
+            args.namespace = "production"
+        logger.info("setting namespace to %s", args.namespace)
+    else:
+        logger.info("reading namespace - %s", args.namespace)
+
+    if not args.rsa or args.rsa < 2048:
+        if args.simulation:
+            args.rsa = 2048
+        else:
+            args.rsa = 4096
+        logger.info("setting rsa key size to %s", args.rsa)
+    else:
+        logger.info("reading rsa key size - %s", args.rsa)
 
     # dynamically load services from environment
     plugins = []
@@ -110,17 +140,11 @@ def execute_command_line():
     threadpool = ThreadPoolExecutor()
     server = grpc.server(threadpool)
 
-    # request CA's public key
-    ca_public = get_ca_public_key()
-    # logger.debug('ca-public-key: %s', ca_public)
-
     logger.info("Generating certificates")
-    # create certificate and private key from CA
-    response = get_certificate('root', hosts=["localhost"], size=args.rsa)
+    cfssl = CFSSL(args.cfssl, args.rsa)
+    response = cfssl.get_certificate('root', groups=["root"])
     certificate = response["result"]["certificate"].encode()
-    # certificate_request = response["result"]["certificate_request"].encode()
     private_key = response["result"]["private_key"].encode()
-    # logger.debug("iams-private-key: %s", private_key)
 
     # load certificate data (used to shutdown service after certificate became invalid)
     cert = x509.load_pem_x509_certificate(certificate, default_backend())
@@ -128,11 +152,11 @@ def execute_command_line():
 
     credentials = grpc.ssl_server_credentials(
         ((private_key, certificate),),
-        root_certificates=ca_public,
+        root_certificates=cfssl.ca,
         require_client_auth=True,
     )
     channel_credentials = grpc.ssl_channel_credentials(
-        root_certificates=ca_public,
+        root_certificates=cfssl.ca,
         private_key=private_key,
         certificate_chain=certificate,
     )
@@ -141,6 +165,9 @@ def execute_command_line():
     server.add_insecure_port('[::]:%s' % args.insecure_port)
 
     add_FrameworkServicer_to_server(FrameworkServicer(
+        client,
+        cfssl,
+        namespace,
         args,
         channel_credentials,
         threadpool,
@@ -159,10 +186,12 @@ def execute_command_line():
 
     # service running
     logger.info("container manager running")
-    logger.debug("certificate valid for %s days and %s hours", tol.days, tol.seconds / 3600)
+    logger.debug("certificate valid for %s days and %.2f hours", tol.days, tol.seconds / 3600)
     try:
-        tol -= datetime.timedelta(seconds=60)
+        tol -= datetime.timedelta(seconds=3600)
         sleep(tol.total_seconds())
+        if container:
+            container.restart()
     except ValueError:
         logger.error("certificate livetime less then 60 seconds")
     except KeyboardInterrupt:

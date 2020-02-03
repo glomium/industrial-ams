@@ -2,7 +2,6 @@
 # ex:set fileencoding=utf-8:
 
 import logging
-import os
 
 import requests
 
@@ -12,41 +11,40 @@ from .auth import set_credentials
 logger = logging.getLogger(__name__)
 
 
-def get_ca_public_key():
-    url = 'http://%s/api/v1/cfssl/info' % os.environ.get('IAMS_CFSSL')
-    response = requests.post(url, json={}).json()
+class CFSSL(object):
 
-    if response["success"]:
-        return response["result"]["certificate"].encode()
-    return None
+    def __init__(self, addr, size):
+        self.addr = addr
+        self.size = size
+        url = f'http://{self.addr}/api/v1/cfssl/info'
+        response = requests.post(url, json={}).json()
+        self.ca = response["result"]["certificate"].encode()
 
-
-def get_certificate(name, hosts=None, image=None, version=None, algo="rsa", size=2096):
-
-    if image is None and version is None:
-        cn = set_credentials(None, None, None, name, [])
-        if hosts is None:
-            profile = "client"
-            hosts = [""]
+    def get_certificate(self, name, hosts=None, image=None, version=None, groups=[], algo="rsa", size=None):
+        if image is None and version is None:
+            cn = set_credentials(None, None, None, name, groups)
+            if hosts is None:
+                profile = "client"
+                hosts = [""]
+            else:
+                profile = "peer"
         else:
+            cn = set_credentials(name, image, version, None, groups)
             profile = "peer"
-    else:
-        cn = set_credentials(name, image, version, None, None)
-        profile = "peer"
-        hosts = ["127.0.0.1", "localhost", name]
+            hosts = ["127.0.0.1", "localhost", name]
 
-    url = 'http://%s/api/v1/cfssl/newcert' % os.environ.get('IAMS_CFSSL')
-    data = {
-        "request": {
-            "hosts": hosts,
-            "CN": cn,
-            "key": {
-                "algo": algo,
-                "size": size,
+        url = f'http://{self.addr}/api/v1/cfssl/newcert'
+        data = {
+            "request": {
+                "hosts": hosts,
+                "CN": cn,
+                "key": {
+                    "algo": algo,
+                    "size": size or self.size,
+                },
+                "profile": profile,
             },
-            "profile": profile,
-        },
-    }
-    logger.debug('request to %s: %s', url, data)
-    response = requests.post(url, json=data).json()
-    return response
+        }
+        logger.debug('request to %s: %s', url, data)
+        response = requests.post(url, json=data).json()
+        return response

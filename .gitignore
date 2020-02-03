@@ -5,6 +5,7 @@
 
 /build
 /dist
+/secrets
 /*\.egg-info
 /*\.whl
 /\.coverage

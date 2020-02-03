@@ -8,8 +8,6 @@ import re
 
 import docker
 
-from .cfssl import get_certificate
-
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +16,9 @@ class Docker(object):
 
     RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT|CONFIG)=(.*)$')
 
-    def __init__(self, namespace_docker, namespace_iams, simulation, plugins):
-        self.client = docker.DockerClient()
+    def __init__(self, client, cfssl, namespace_docker, namespace_iams, simulation, plugins):
+        self.client = client
+        self.cfssl = cfssl
         self.namespace = {
             "docker": namespace_docker,
             "iams": namespace_iams,
@@ -225,7 +224,7 @@ class Docker(object):
         # this works but is ugly and hardcoded
         # get private_key and certificate
         secrets["cloud_ca.pem"] = "ca.pem"
-        response = get_certificate(name, image=image, version=version)
+        response = self.cfssl.get_certificate(name, image=image, version=version)
         certificate = response["result"]["certificate"]
         private_key = response["result"]["private_key"]
         generated.append(("own.crt", "own.crt", certificate.encode()))

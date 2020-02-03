@@ -1,0 +1,76 @@
+version: '3.5'
+
+
+x-defaults: &defaults
+    logging:
+        driver: json-file
+        options:
+            max-size: 2m
+            max-file: 5
+
+
+services:
+
+    # AMS Control
+    ctrl:
+        <<: *defaults
+        image: registry:5000/iams:latest
+        command: tasks.cfssl:8888 -d
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        deploy:
+            mode: replicated
+            replicas: 1
+            placement:
+                constraints: [node.role == manager]
+        networks:
+            - iams
+            - cfssl
+
+    # Simulation
+    sim:
+        <<: *defaults
+        image: registry:5000/iams:latest
+        command: --simulation tasks.cfssl:8888 -d
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        deploy:
+            mode: replicated
+            replicas: 1
+            placement:
+                constraints: [node.role == manager]
+        networks:
+            - iams
+            - cfssl
+
+    cfssl:
+        <<: *defaults
+        image: glomium/cfssl:latest
+        ports:
+            - "8888:8888"
+        deploy:
+            mode: replicated
+            replicas: 1
+            update_config:
+                order: start-first
+            placement:
+                preferences:
+                    - spread: node.labels.worker
+        secrets:
+            - ca.csr
+            - ca-key.pem
+            - ca.pem
+        networks:
+            - cfssl
+
+networks:
+    iams:
+    cfssl:
+
+secrets:
+    ca.csr:
+        file: ./secrets/ca.csr
+    ca-key.pem:
+        file: ./secrets/ca-key.pem
+    ca.pem:
+        file: ./secrets/ca.pem

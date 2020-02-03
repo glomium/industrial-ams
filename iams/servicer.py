@@ -19,7 +19,6 @@ from .proto import framework_pb2
 from .proto import framework_pb2_grpc
 
 from .utils.auth import permissions
-from .utils.cfssl import get_certificate
 from .utils.docker import Docker
 
 
@@ -67,19 +66,16 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
-    def __init__(self, args, credentials, threadpool, plugins):
+    def __init__(self, client, cfssl, namespace, args, credentials, threadpool, plugins):
         self.args = args
+        self.cfssl = cfssl
         self.credentials = credentials
         self.threadpool = threadpool
+        self.namespace = namespace
 
-        if args.simulation:
-            self.prefix = "sim"
-        else:
-            self.prefix = "prod"
+        self.docker = Docker(client, cfssl, namespace, args.namespace, args.simulation, plugins)
 
-        self.docker = Docker(args.namespace, self.prefix, self.simulation, plugins)
-
-        self.RE_NAME = re.compile(r'^(%s_)?([\w]+)$' % self.prefix[0])
+        self.RE_NAME = re.compile(r'^(%s_)?([\w]+)$' % self.namespace[0])
 
     # RPCs
     @permissions(is_optional=True)
@@ -115,7 +111,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         # generate pk and certificate and send it
         # the request is authenticated and origins from an agent, i.e it contains image and version
-        response = get_certificate(request.name, image=context._image, version=context._version)
+        response = self.cfssl.get_certificate(request.name, image=context._image, version=context._version)
         return framework_pb2.RenewResponse(
             private_key=response["result"]["private_key"],
             certificate=response["result"]["certificate"],
@@ -148,7 +144,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     def agents(self, request, context):
         """
         """
-        for service in self.docker.client.services.list(filters={'label': ["iams.namespace=%s" % self.prefix]}):
+        for service in self.docker.client.services.list(filters={'label': [f"iams.namespace={self.namespace}"]}):
             name, address, image, version, config, autostart = self.get_service_data(service)
             yield framework_pb2.AgentData(
                 name=service.name,
@@ -188,7 +184,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         logger.debug('create called from %s', context._agent)
 
         if self.RE_NAME.match(request.name):
-            name = self.prefix[0] + '_' + request.name
+            name = self.namespace[0] + '_' + request.name
         else:
             message = 'A name containing no special chars is required to define agents'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)

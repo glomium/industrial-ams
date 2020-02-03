@@ -120,6 +120,10 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 #   # RPCs
 
 #   # === TODO ===
+    @permissions(has_agent=True, has_groups=["root", "web"])
+    def booted(self, request, context):
+        logger.debug('booted called from %s', context._agent)
+        return Empty()
 
 #   def images(self, request, context):
 #       """

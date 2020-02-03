@@ -33,6 +33,11 @@ class CFSSL(object):
             profile = "peer"
             hosts = ["127.0.0.1", "localhost", name]
 
+        hosts = [""]
+
+        return self._get_certificate(cn, hosts, profile, algo, size)
+
+    def _get_certificate(self, cn, hosts=[""], profile="peer", algo="rsa", size=None):
         url = f'http://{self.addr}/api/v1/cfssl/newcert'
         data = {
             "request": {

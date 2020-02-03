@@ -6,7 +6,7 @@ import logging
 from .proto import agent_pb2_grpc
 from .proto import framework_pb2_grpc
 from .proto import simulation_pb2_grpc
-from .utils.grpc import grpc_retry
+# from .utils.grpc import grpc_retry
 
 
 logger = logging.getLogger(__name__)
@@ -25,19 +25,18 @@ class AgentStub(agent_pb2_grpc.AgentStub):
 class FrameworkStub(framework_pb2_grpc.FrameworkStub):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self.agents = grpc_retry(self.agents)
-        self.booted = grpc_retry(self.booted)
-        self.create = grpc_retry(self.create)
-        self.destroy = grpc_retry(self.destroy)
-        self.images = grpc_retry(self.images)
-        self.sleep = grpc_retry(self.sleep)
-        self.upgrade = grpc_retry(self.upgrade)
-        self.update = grpc_retry(self.update)
+        # self.agents = grpc_retry(self.agents)
+        # self.booted = grpc_retry(self.booted)
+        # self.create = grpc_retry(self.create)
+        # self.destroy = grpc_retry(self.destroy)
+        # self.images = grpc_retry(self.images)
+        # self.sleep = grpc_retry(self.sleep)
+        # self.upgrade = grpc_retry(self.upgrade)
+        # self.update = grpc_retry(self.update)
 
 
 class SimulationStub(simulation_pb2_grpc.SimulationStub):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.resume = grpc_retry(self.resume)
-        self.schedule = grpc_retry(self.schedule)
+        # self.resume = grpc_retry(self.resume)
+        # self.schedule = grpc_retry(self.schedule)

@@ -82,14 +82,14 @@ def execute_command_line():
     try:
         container = client.containers.get(gethostname())
         namespace = container.attrs["Config"]["Labels"]["com.docker.stack.namespace"]
-        logger.info("got namespace %s from docker", args.namespace)
-        hostname = container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
-        hostname = "tasks." + hostname[len(namespace) + 1:]
-        logger.info("got task address %s from docker", hostname)
+        logger.info("got namespace %s from docker", namespace)
+        servername = container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
+        servername = "tasks." + servername[len(namespace) + 1:]
+        logger.info("got servername %s from docker", servername)
     except docker.errors.NotFound:
         container = None
         namespace = "undefined"
-        hostname = "undefined"
+        servername = "localhost"
         logger.warning("Could not connect to docker container - please start iams-server as a docker-swarm service")
 
     if not args.namespace:
@@ -129,7 +129,8 @@ def execute_command_line():
 
     logger.info("Generating certificates")
     cfssl = CFSSL(args.cfssl, args.rsa)
-    response = cfssl.get_certificate('root', groups=["root"])
+    # response = cfssl.get_certificate(servername, hosts=[servername], groups=["root"])
+    response = cfssl._get_certificate(servername)  # , hosts=[servername], groups=["root"])
     certificate = response["result"]["certificate"].encode()
     private_key = response["result"]["private_key"].encode()
 

@@ -80,6 +80,8 @@ def framework_channel(credentials, proxy=None, port=AGENT_PORT):
         ('grpc.ssl_target_name_override', credentials[0]),
     ]
 
+    logger.debug(f"connecting to %s:%s with options %s", server, port, options)
+
     with grpc.secure_channel(f'{server!s}:{port!s}', credentials[1], options=options) as channel:
         yield channel
 

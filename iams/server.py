@@ -16,6 +16,7 @@ import grpc
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
+from .constants import AGENT_PORT
 from .exceptions import SkipPlugin
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
@@ -45,20 +46,6 @@ def execute_command_line():
         'cfssl',
         help="http interface of cfssl service",
         default="tasks.cfssl:8888",
-    )
-    parser.add_argument(
-        '--agent-port',
-        help="Agent Port=443",
-        dest="agent_port",
-        type=int,
-        default=443,
-    )
-    parser.add_argument(
-        '--secure-port',
-        help="Secure Port=443",
-        dest="secure_port",
-        type=int,
-        default=443,
     )
     parser.add_argument(
         '--insecure-port',
@@ -161,7 +148,7 @@ def execute_command_line():
         certificate_chain=certificate,
     )
 
-    server.add_secure_port('[::]:%s' % args.secure_port, credentials)
+    server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
     server.add_insecure_port('[::]:%s' % args.insecure_port)
 
     add_FrameworkServicer_to_server(FrameworkServicer(

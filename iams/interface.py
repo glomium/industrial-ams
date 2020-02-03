@@ -13,7 +13,8 @@ import grpc
 
 from .agent import Servicer
 from .utils.grpc import Grpc
-from .utils.grpc import get_credentials
+from .utils.grpc import get_channel_credentials
+from .utils.grpc import get_server_credentials
 from .exceptions import Continue
 from .exceptions import EventNotFound
 
@@ -28,16 +29,15 @@ class Agent(object):
     MAX_WORKERS = 20
 
     def __init__(self) -> None:
-        self._credentials = get_credentials()
+        self._credentials = get_channel_credentials()
         self._executor = futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
         # agent servicer for iams
         self._iams = Servicer(self, self._executor)
         # grpc communication (via threadpoolexecutor)
-        self._grpc = Grpc(self._iams, self._executor)
+        self._grpc = Grpc(self._iams, self._executor, get_server_credentials())
 
         if self._iams.simuation:
-            # TODO: Add simulation runtime
-            self._simulation = None
+            self._simulation = None  # TODO: Add simulation runtime
         else:
             self._simulation = None
 

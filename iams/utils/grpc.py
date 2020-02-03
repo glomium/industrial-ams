@@ -10,6 +10,7 @@ from functools import wraps
 
 import grpc
 
+from ..constants import AGENT_PORT
 from ..proto.agent_pb2_grpc import add_AgentServicer_to_server
 
 
@@ -27,6 +28,12 @@ def get_credentials():
     with open('/run/secrets/own.crt', 'rb') as f:
         certificate = f.read()
 
+    return ca_public, private_key, certificate
+
+
+def get_channel_credentials():
+    ca_public, private_key, certificate = get_credentials()
+
     return grpc.ssl_channel_credentials(
         root_certificates=ca_public,
         private_key=private_key,
@@ -34,10 +41,21 @@ def get_credentials():
     )
 
 
+def get_server_credentials():
+    ca_public, private_key, certificate = get_credentials()
+
+    return grpc.ssl_server_credentials(
+        root_certificates=ca_public,
+        private_key=private_key,
+        certificate_chain=certificate,
+        require_client_auth=True,
+    )
+
+
 class Grpc(object):
-    def __init__(self, agent, threadpool, port):
+    def __init__(self, agent, threadpool, credentials):
         self.server = grpc.server(threadpool)
-        self.server.add_insecure_port(port)
+        self.server.add_secure_port(AGENT_PORT, credentials)
 
         # directly add agent functionality to grpc interface
         add_AgentServicer_to_server(agent, self.server)
@@ -55,7 +73,7 @@ class Grpc(object):
 
 
 @contextmanager
-def framework_channel(credentials, proxy=None, port=443):
+def framework_channel(credentials, proxy=None, port=AGENT_PORT):
     server = proxy or credentials[0]
     options = [
         ('grpc.default_authority', credentials[0]),

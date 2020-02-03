@@ -24,8 +24,9 @@ services:
             placement:
                 constraints: [node.role == manager]
         networks:
-            - iams
             - cfssl
+            - envoy
+            - iams
 
     # Simulation
     sim:
@@ -40,8 +41,9 @@ services:
             placement:
                 constraints: [node.role == manager]
         networks:
-            - iams
             - cfssl
+            - envoy
+            - iams
 
     cfssl:
         <<: *defaults
@@ -63,9 +65,26 @@ services:
         networks:
             - cfssl
 
+    envoy:
+        <<: *defaults
+        image: registry:5000/envoy:v1.11.1
+        ports:
+            - "5005:5005"
+        deploy:
+            mode: replicated
+            replicas: 1
+            update_config:
+                order: start-first
+            placement:
+                preferences:
+                    - spread: node.labels.worker
+        networks:
+            - envoy
+
 networks:
-    iams:
     cfssl:
+    envoy:
+    iams:
 
 secrets:
     ca.csr:

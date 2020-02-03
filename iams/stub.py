@@ -16,10 +16,10 @@ class AgentStub(agent_pb2_grpc.AgentStub):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.connection_get = grpc_retry(self.connection_get)
-        self.ping = grpc_retry(self.ping)
-        self.service_get = grpc_retry(self.service_get)
-        self.simulation_continue = grpc_retry(self.simulation_continue)
+        # self.connection_get = grpc_retry(self.connection_get)
+        # self.ping = grpc_retry(self.ping)
+        # self.service_get = grpc_retry(self.service_get)
+        # self.simulation_continue = grpc_retry(self.simulation_continue)
 
 
 class FrameworkStub(framework_pb2_grpc.FrameworkStub):

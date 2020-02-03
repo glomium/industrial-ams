@@ -223,7 +223,7 @@ class Docker(object):
         # === START TODO ======================================================
         # this works but is ugly and hardcoded
         # get private_key and certificate
-        secrets["cloud_ca.pem"] = "ca.pem"
+        secrets["%s_ca.pem" % self.namespace["docker"]] = "ca.pem"
         response = self.cfssl.get_certificate(name, image=image, version=version)
         certificate = response["result"]["certificate"]
         private_key = response["result"]["private_key"]

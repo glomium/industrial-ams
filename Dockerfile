@@ -1,4 +1,5 @@
-FROM alpine:3.11.3 as basestage
+ARG ALPINE
+FROM alpine:$ALPINE as basestage
 
 WORKDIR /usr/src/app
 RUN apk add --no-cache python3

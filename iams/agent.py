@@ -6,10 +6,10 @@ import os
 
 # from uuid import uuid1
 
-# import grpc
+import grpc
 # import msgpack
 
-# from google.protobuf.empty_pb2 import Empty
+from google.protobuf.empty_pb2 import Empty
 
 from .proto import agent_pb2_grpc
 # from .proto import framework_pb2_grpc
@@ -20,9 +20,9 @@ from .proto import framework_pb2
 # from .proto.agent_pb2 import ServiceResponse
 # from .proto.framework_pb2 import WakeAgent
 # from .proto.simulation_pb2 import EventRegister
-# from .stub import AgentStub
-# from .utils.auth import permissions
-# from .utils.grpc import framework_channel
+from .stub import FrameworkStub
+from .utils.auth import permissions
+from .utils.grpc import framework_channel
 # from .utils.grpc import grpc_retry
 
 
@@ -48,36 +48,49 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         self.parent = parent
         self.threadpool = threadpool
 
-        # self.call_booted
-        # self.validate_connection
+    @permissions(has_groups=["root"])
+    def resume(self, request, context):
+        if not self.simulation:
+            message = 'This function is only availabe when agenttype is set to simulation'
+            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        logger.debug("simulation_continue called")
+        self.parent._simulation.event_trigger(request.uuid, request.time)
+        return Empty()
 
-#       # === TODO ============================================================
+    # @permissions(has_agent=True, has_groups=["root"])
+    # def ping(self, request, context):
+    #     return Empty()
 
-#       if self.type == "simulation":
-#           pass
-#           # self.simulation = SimulationRuntime(self, main)
-#       else:
-#           self.simulation = None
+    def call_booted(self) -> bool:
+        with framework_channel() as channel:
+            stub = FrameworkStub(channel)
+            stub.booted(Empty(), timeout=10)
+        return True
 
-#       # variables used by agent
-#       self.config = {}
-#       self.state = None
-#       self.service = {}
-#       self.topology = {}
+    # def call_destroy(self) -> bool:
+    #     logger.debug("calling AMS to be killed")
+    #     with framework_channel() as channel:
+    #         stub = FrameworkStub(channel)
+    #         stub.destroy(Empty(), timeout=10)
+    #     return True
+    # def call_sleep(self) -> bool:
+    #     logger.debug("calling AMS to be sent to sleep")
+    #     with framework_channel() as channel:
+    #         stub = FrameworkStub(channel)
+    #         stub.sleep(Empty(), timeout=10)
+    #     return True
+    # def call_upgrade(self) -> bool:
+    #     with framework_channel() as channel:
+    #         stub = FrameworkStub(channel)
+    #         stub.upgrade(Empty(), timeout=10)
+    #     return True
+    # def call_wake(self, other) -> bool:
+    #     with framework_channel() as channel:
+    #         stub = FrameworkStub(channel)
+    #         stub.upgrade(WakeAgent(agent=other), timeout=10)
+    #     return True
 
-#   # grpc call
-#   def simulation_continue(self, request, context):
-#       if self.simulation is None:
-#           message = 'This function is only availabe when agenttype is set to simulation'
-#           context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
-#       logger.debug("simulation_continue called")
-#       self.simulation.event_trigger(request.uuid, request.time)
-#       return Empty()
-
-#   # grpc call
-#   @permissions(has_agent=True)
-#   def ping(self, request, context):
-#       return PingResponse()
+    # self.validate_connection
 
 #   def agent_ping(self, agent):
 #       try:
@@ -89,36 +102,6 @@ class Servicer(agent_pb2_grpc.AgentServicer):
 #       except grpc.RpcError as e:
 #           logger.debug("Ping response %s: %s from %s", e.code(), e.details(), agent)
 #           return False
-
-#   def agent_connection_get(self, agent):
-#       with framework_channel(agent) as channel:
-#           stub = AgentStub(channel)
-#           logger.debug("calling connection_get on %s", agent)
-#           for response in stub.connection_get(Empty(), timeout=10):
-#               data = {
-#                   "agent": response.agent,
-#                   "image": response.image,
-#                   "version": response.version,
-#                   "interface": response.interface,
-#                   # "kwargs": msgpack.loads(response.kwargs, raw=False),
-#               }
-#               logger.debug("connection list of agent %s: %s", agent, data)
-#               yield data
-
-#   def agent_service_get(self, agent):
-#       with framework_channel(agent) as channel:
-#           stub = AgentStub(channel)
-#           logger.debug("calling service_get on %s", agent)
-#           for response in stub.service_get(Empty(), timeout=10):
-#               data = {
-#                   "agent": response.agent,
-#                   "image": response.image,
-#                   "version": response.version,
-#                   "service": response.service,
-#                   # "kwargs": msgpack.loads(response.kwargs, raw=False),
-#               }
-#               logger.debug("service list of agent %s: %s", agent, data)
-#               yield data
 
 #   # def simulation_resume(self, delay=None) -> bool:
 #   #     if self.simulation is None:
@@ -138,38 +121,6 @@ class Servicer(agent_pb2_grpc.AgentServicer):
 #   #     except grpc.RpcError as e:
 #   #         logger.exception("error %s in simulation_resume: %s", e.code(), e.details())
 #   #         return False
-
-#   # def framework_booted(self) -> bool:
-#   #     with framework_channel() as channel:
-#   #         stub = FrameworkStub(channel)
-#   #         stub.booted(Empty(), timeout=10)
-#   #     return True
-
-#   # def framework_destroy(self) -> bool:
-#   #     logger.debug("calling AMS to be killed")
-#   #     with framework_channel() as channel:
-#   #         stub = FrameworkStub(channel)
-#   #         stub.destroy(Empty(), timeout=10)
-#   #     return True
-
-#   # def framework_sleep(self) -> bool:
-#   #     logger.debug("calling AMS to be sent to sleep")
-#   #     with framework_channel() as channel:
-#   #         stub = FrameworkStub(channel)
-#   #         stub.sleep(Empty(), timeout=10)
-#   #     return True
-
-#   # def framework_upgrade(self) -> bool:
-#   #     with framework_channel() as channel:
-#   #         stub = FrameworkStub(channel)
-#   #         stub.upgrade(Empty(), timeout=10)
-#   #     return True
-
-#   # def framework_wake(self, other) -> bool:
-#   #     with framework_channel() as channel:
-#   #         stub = FrameworkStub(channel)
-#   #         stub.upgrade(WakeAgent(agent=other), timeout=10)
-#   #     return True
 
 
 Servicer.__doc__ = agent_pb2_grpc.AgentServicer.__doc__

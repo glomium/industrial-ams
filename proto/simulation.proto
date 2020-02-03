@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package iams.servicer;
 
-import "google/protobuf/empty.proto";
+// import "google/protobuf/empty.proto";
 
 /*
 */
@@ -13,16 +13,9 @@ service Simulation {
     /*
     */
     rpc schedule(EventRegister) returns (EventSchedule) {}
-    /*
-    */
-    rpc log(EventLog) returns (google.protobuf.Empty) {}
-}
-
-message EventLog {
-    uint32 level = 1;
-    uint32 lineno = 2;
-    string name = 3;
-    string msg = 4;
+    // /*
+    // */
+    // rpc log(EventLog) returns (google.protobuf.Empty) {}
 }
 
 message EventRegister {
@@ -33,3 +26,12 @@ message EventRegister {
 message EventSchedule {
     float time = 1;
 }
+
+/*
+message EventLog {
+    uint32 level = 1;
+    uint32 lineno = 2;
+    string name = 3;
+    string msg = 4;
+}
+*/

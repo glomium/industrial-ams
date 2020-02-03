@@ -8,20 +8,17 @@ import "google/protobuf/empty.proto";
 */
 service Framework {
     /*
+    agent sends this command to signalize its operational
+    */
+    rpc booted(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
     this rpc renews the client certificate and sends its data to the client
     */
     rpc renew(RenewRequest) returns (RenewResponse) {}
 
     /*
-    */
-    rpc agents(google.protobuf.Empty) returns (stream AgentData) {}
-
-    /*
-    */
-    rpc images(google.protobuf.Empty) returns (ImagesData) {}
-
-    /*
-    send this command to create a agent
+    send this command to create an agent
 
     fails with invalid_arguemnt if argument missing or incorrect
     fails with already exists if name already exists
@@ -30,18 +27,13 @@ service Framework {
     rpc create(AgentData) returns (AgentData) {}
 
     /*
-    send this command to update a agent
+    send this command to update an agent
 
     fails with invalid_arguemnt if argument missing or incorrect
     fails with already exists if name already exists
     fails with not found if agent or image is not found or image is invalid
     */
     rpc update(AgentData) returns (AgentData) {}
-
-    /*
-    agent sends this command to signalize its operational
-    */
-    rpc booted(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 
     /*
     agent sends this command to destroy himself (service is removed)
@@ -62,6 +54,15 @@ service Framework {
     agent sends this command to start another agent (service is scaled to 1)
     */
     rpc wake(WakeAgent) returns (google.protobuf.Empty) {}
+
+    // /*
+    // */
+    // rpc agents(google.protobuf.Empty) returns (stream AgentData) {}
+
+    // /*
+    // */
+    // rpc images(google.protobuf.Empty) returns (ImagesData) {}
+
 }
 
 message RenewRequest {
@@ -73,19 +74,21 @@ message RenewResponse {
     string certificate = 2;
 }
 
+message AgentData {
+    string name = 1;
+    string address = 2;
+    uint32 port = 3;
+    string image = 4;
+    string version = 5;
+    string config = 6;
+    bool autostart = 7;
+}
+
 message WakeAgent {
     string agent = 1;
 }
 
-message AgentData {
-    string name = 1;
-    string address = 2;
-    string image = 3;
-    string version = 4;
-    string config = 5;
-    bool autostart = 6;
-}
-
+/*
 message ImagesData {
     repeated ImageData images = 1;
 }
@@ -94,3 +97,4 @@ message ImageData {
     string id = 1;
     repeated string tag = 2;
 }
+*/

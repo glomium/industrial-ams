@@ -5,73 +5,20 @@ package iams.agent;
 import "google/protobuf/empty.proto";
 
 /*
-Manages connections (i.e. communication pathways) between agents
 */
 service Agent {
-
-    /*
-    List all active connections towards this Agent
-    */
-    rpc connection_get(google.protobuf.Empty) returns (stream ConnectionResponse) {}
-
-    /*
-    Add a new connections to this Agent
-    */
-    rpc connection_add(ConnectionAddRequest) returns (google.protobuf.Empty) {}
-
-    /*
-    Remove an existing connection to this agent
-    */
-    rpc connection_del(ConnectionDelRequest) returns (google.protobuf.Empty) {}
-
-    /*
-    List all active services towards this Agent
-    */
-    rpc service_get(google.protobuf.Empty) returns (stream ServiceResponse) {}
-
     /*
     Receive scheduled events in simulation run
     */
-    rpc simulation_continue(SimulationData) returns (google.protobuf.Empty) {}
+    rpc resume(SimulationData) returns (google.protobuf.Empty) {}
 
-    /*
-    Ping agent
-    */
-    rpc ping(google.protobuf.Empty) returns (PingResponse) {}
+    // /*
+    // Receive scheduled events in simulation run
+    // */
+    // rpc ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }
-
 
 message SimulationData {
     bytes uuid = 1;
     float time = 2;
-}
-
-message ConnectionResponse {
-    string agent = 1;
-    string image = 2;
-    string version = 3;
-    string interface = 4;
-    bytes kwargs = 5;
-}
-
-message ServiceResponse {
-    string agent = 1;
-    string image = 2;
-    string version = 3;
-    string service = 4;
-    bytes kwargs = 5;
-}
-
-message ConnectionAddRequest {
-    string interface = 4;
-    bytes kwargs = 5;
-}
-
-message ConnectionDelRequest {
-    string interface = 4;
-}
-
-message PingResponse {
-    string image = 1;
-    string version = 2;
 }

@@ -35,14 +35,12 @@ def get_credentials():
 
 
 class Grpc(object):
-    def __init__(self, parent, servicer, threadpool, port):
-        self.agent = servicer
-        self.parent = parent
+    def __init__(self, agent, threadpool, port):
         self.server = grpc.server(threadpool)
         self.server.add_insecure_port(port)
 
         # directly add agent functionality to grpc interface
-        add_AgentServicer_to_server(servicer, self.server)
+        add_AgentServicer_to_server(agent, self.server)
 
     def add(self, function, servicer):
         function(servicer, self.server)
@@ -53,7 +51,6 @@ class Grpc(object):
 
     def stop(self):
         self.server.stop(0)
-        self.agent.stop()
         logger.debug("Stopped grpc-server")
 
 

@@ -18,16 +18,18 @@ class Docker(object):
 
     RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT|CONFIG)=(.*)$')
 
-    def __init__(self, namespace_docker, namespace_iams, plugins):
+    def __init__(self, namespace_docker, namespace_iams, simulation, plugins):
         self.client = docker.DockerClient()
         self.namespace = {
             "docker": namespace_docker,
             "iams": namespace_iams,
         }
+        self.simulation = simulation
         self.plugins = plugins
 
     def del_service(self, name):
         service = self.get_service(name)
+        image, version = service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].rsplit(':', 1)  # noqa
         service.remove()
 
         for secret in self.client.secrets.list(filters={"label": [
@@ -36,6 +38,13 @@ class Docker(object):
             f"iams.agent={name}",
         ]}):
             secret.remove()
+
+        # plugin system
+        image_object = self.client.images.get(f'{image!s}:{version!s}')
+        for plugin in self.plugins:
+            if plugin.label in image_object.labels:
+                # apply plugin
+                plugin.remove(name, image_object.labels[plugin.label])
 
     def get_service(self, name):
         services = self.client.services.list(filters={
@@ -201,8 +210,9 @@ class Docker(object):
             })
 
         env.update({
-            'IAMS_SERVICE': 'tasks.%s' % os.environ.get('SERVICE_NAME'),
             'IAMS_AGENT': name,
+            'IAMS_SERVICE': 'tasks.%s' % os.environ.get('SERVICE_NAME'),
+            'IAMS_SIMULATION': str(self.simulation).lower(),
         })
         labels.update({
             'com.docker.stack.namespace': self.namespace['docker'],

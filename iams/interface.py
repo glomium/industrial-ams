@@ -2,12 +2,11 @@
 # vim: set fileencoding=utf-8 :
 
 import logging
-import os
 import signal
 
 from concurrent import futures
-# from threading import Event
-# from threading import Lock
+from threading import Event
+from threading import Lock
 # from time import sleep
 
 import grpc
@@ -15,8 +14,8 @@ import grpc
 from .agent import Servicer
 from .utils.grpc import Grpc
 from .utils.grpc import get_credentials
-# from .exceptions import Continue
-# from .exceptions import EventNotFound
+from .exceptions import Continue
+from .exceptions import EventNotFound
 
 
 logger = logging.getLogger(__name__)
@@ -34,11 +33,17 @@ class Agent(object):
         # agent servicer for iams
         self._iams = Servicer(self, self._executor)
         # grpc communication (via threadpoolexecutor)
-        self._grpc = Grpc(self, self._iams, self._executor)
+        self._grpc = Grpc(self._iams, self._executor)
 
-        # self._lock = Lock()
-        # self._loop_event = Event()
-        # self._stop_event = Event()
+        if self._iams.simuation:
+            # TODO: Add simulation runtime
+            self._simulation = None
+        else:
+            self._simulation = None
+
+        self._lock = Lock()
+        self._loop_event = Event()
+        self._stop_event = Event()
 
         # create signals to catch sigterm events
         signal.signal(signal.SIGINT, self.__stop)
@@ -49,7 +54,7 @@ class Agent(object):
 
     def __call__(self):
         # run setup methods for controlling machines
-        if self._iams.simulation is None:
+        if not self._iams.simulation:
             self._pre_setup()
             self.setup()
             self._post_setup()
@@ -67,65 +72,61 @@ class Agent(object):
             logger.debug("gRPC request failed in configure - resetting: %s - %s", e.code(), e.details())
             exit()
 
-        if self._iams.simulation is not None:
+        if self._iams.simulation:
             try:
-                self.simulation_init()
+                self.start_simulation()
             except NotImplementedError:
-                logger.debug("simulation_init not implemented at %s", self.__class__.__qualname__)
+                logger.debug("start_simulation not implemented at %s", self.__class__.__qualname__)
 
-        # logger.debug("Informing the runtime that %s is booted", self._iams.container)
-        # # signal the framework that the agent booted
-        # self._iams.framework_booted()
+        logger.debug("Informing the runtime that %s is booted", self._iams.agent)
+        while True:
+            if self._iams.call_booted():
+                break
+            else:
+                self._iams.validate_connection()
 
-#       # simulation
-#       if self._iams.simulation is not None:
-#           while True:
-#               # wait for event loop
-#               logger.debug("waiting for wakeup event")
-#               self._loop_event.wait()
-#               self._loop_event.clear()
+        if self._iams.simulation:
+            # simulation loop
+            while True:
+                # wait for event loop
+                logger.debug("waiting for wakeup event")
+                self._loop_event.wait()
+                self._loop_event.clear()
 
-#               # if agent should be stopped discontinue execution
-#               if self._stop_event.is_set():
-#                   break
+                # if agent should be stopped discontinue execution
+                if self._stop_event.is_set():
+                    break
 
-#               try:
-#                   callback, kwargs = next(self._iams.simulation)
-#               except EventNotFound:
-#                   logger.debug("Skipping - scheduled event was not found")
-#                   self._iams.simulation.resume()
-#                   continue
+                try:
+                    callback, kwargs = next(self._simulation)
+                except EventNotFound:
+                    logger.debug("Skipping - scheduled event was not found")
+                    self._simulation.resume()
+                    continue
 
-#               # execute callbacks (event based simulation)
-#               logger.debug("calling %s.%s with %s", self.__class__.__qualname__, callback, kwargs)
-#               try:
-#                   getattr(self, callback)(**kwargs)
-#               except Continue:
-#                   pass
-#               logger.debug("calling resume")
-#               self._iams.simulation.resume()
+                # execute callbacks (event based simulation)
+                logger.debug("calling %s.%s with %s", self.__class__.__qualname__, callback, kwargs)
+                try:
+                    getattr(self, callback)(**kwargs)
+                except Continue:
+                    pass
+                logger.debug("calling resume")
+                self._simulation.resume()
+        else:
+            # control loop
+            logger.debug("Calling control loop")
+            self._loop()
 
-#       # control
-#       else:
-#           logger.debug("Calling control loop")
-#           self._loop()
-
-        logger.debug("Stopping gRPC service on %s", os.environ.get('AMS_AGENT', 'undefined'))
+        logger.debug("Stopping gRPC service on %s", self._iams.agent)
         self._grpc.stop()
 
-        if self._iams.simulation is None:
+        if not self._iams.simulation:
             self.teardown()
             self._teardown()
 
-        logger.debug("Stopping executor on %s", os.environ.get('AMS_AGENT', 'undefined'))
+        logger.debug("Stopping executor on %s", self._iams.agent)
         self._executor.shutdown(wait=False)
-        logger.info("Exit %s", os.environ.get('AMS_AGENT', 'undefined'))
-
-#   def sleep(self, delay=None):
-#       if self._iams.simulation is None:
-#           if delay is not None and delay > 0.0:
-#               self._stop_event.wait(delay)
-#       return self._iams.simulation is None
+        logger.info("Exit %s", self._iams.agent)
 
     def __stop(self, signum, frame):
         logger.info("Exit requested with code %s", signum)
@@ -155,11 +156,11 @@ class Agent(object):
         """
         pass
 
-#   def _loop(self):
-#       """
-#       this method can be overwritten by mixins
-#       """
-#       raise NotImplementedError("A _loop method needs to be implemented")
+    def _loop(self):
+        """
+        this method can be overwritten by mixins
+        """
+        raise NotImplementedError("A _loop method needs to be implemented")
 
     def _configure(self):
         """
@@ -187,9 +188,8 @@ class Agent(object):
         """
         This gets executed on startup
         """
-        pass
-#       self._stop_event.set()
-#       self._loop_event.set()
+        self._stop_event.set()
+        self._loop_event.set()
 
     def teardown(self):
         """
@@ -197,11 +197,17 @@ class Agent(object):
         """
         pass
 
-    def simulation_init(self):
+    def start_simulation(self):
         """
         This gets executed on teardown
         """
         raise NotImplementedError
+
+#   def sleep(self, delay=None):
+#       if self._iams.simulation is None:
+#           if delay is not None and delay > 0.0:
+#               self._stop_event.wait(delay)
+#       return self._iams.simulation is None
 
 
 class Plugin(object):
@@ -225,6 +231,9 @@ class Plugin(object):
             self.get_configured_secrets(**kwargs),
             self.get_generated_secrets(**kwargs),
         )
+
+    def remove(self, name, config):
+        pass
 
     def get_kwargs(self, name, image, version, config):
         return {}

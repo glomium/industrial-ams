@@ -17,7 +17,6 @@ class EventMixin(object):
 
     def _loop(self):
         logger.debug("Starting control loop")
-        self._framework_agent.set_idle()
         while self._loop_event.wait():
             if self._stop_event.is_set():
                 break

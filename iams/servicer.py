@@ -77,7 +77,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         else:
             self.prefix = "prod"
 
-        self.docker = Docker(args.namespace, self.prefix, plugins)
+        self.docker = Docker(args.namespace, self.prefix, self.simulation, plugins)
 
         self.RE_NAME = re.compile(r'^(%s_)?([\w]+)$' % self.prefix[0])
 
@@ -245,13 +245,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         except docker_errors.NotFound:
             message = 'Could not find %s' % context._agent
             context.abort(grpc.StatusCode.NOT_FOUND, message)
-
-        # TODO add destroy callbacks for plugins!
-        # # cleanup database
-        # for path in [
-        #     f'agents/{context._agent!s}',
-        # ]:
-        #     self.etcd_client.delete_prefix(path.encode('utf-8'))
         return Empty()
 
     @permissions(has_agent=True)

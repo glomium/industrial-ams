@@ -4,6 +4,7 @@
 import argparse
 import datetime
 import logging
+import os
 
 from socket import gethostname
 from concurrent.futures import ThreadPoolExecutor
@@ -61,6 +62,11 @@ def execute_command_line():
         type=int,
     )
     parser.add_argument(
+        '--hosts',
+        help="Comma seperated list of hostnames, which are used Hosts used in certificate creation",
+        dest="hosts",
+    )
+    parser.add_argument(
         '--simulation',
         help="Run ams in simulation mode",
         dest='simulation',
@@ -92,6 +98,13 @@ def execute_command_line():
         servername = "localhost"
         logger.warning("Could not connect to docker container - please start iams-server as a docker-swarm service")
 
+    # read variables from environment
+    if not args.namespace:
+        args.namespace = os.environ.get('IAMS_NAMESPACE', None)
+    if not args.hosts:
+        args.hosts = os.environ.get('IAMS_HOSTS', None)
+
+    # manipulate user inputs
     if not args.namespace:
         if args.simulation:
             args.namespace = "simulation"
@@ -109,6 +122,11 @@ def execute_command_line():
         logger.info("setting rsa key size to %s", args.rsa)
     else:
         logger.info("reading rsa key size - %s", args.rsa)
+
+    if args.hosts:
+        args.hosts = ["127.0.0.1", "localhost"] + args.hosts.split(',')
+    else:
+        args.hosts = ["127.0.0.1", "localhost"]
 
     # dynamically load services from environment
     plugins = []
@@ -128,9 +146,8 @@ def execute_command_line():
     server = grpc.server(threadpool)
 
     logger.info("Generating certificates")
-    cfssl = CFSSL(args.cfssl, args.rsa)
-    # response = cfssl.get_certificate(servername, hosts=[servername], groups=["root"])
-    response = cfssl._get_certificate(servername)  # , hosts=[servername], groups=["root"])
+    cfssl = CFSSL(args.cfssl, args.rsa, args.hosts)
+    response = cfssl.get_certificate(servername, hosts=[servername], groups=["root"])
     certificate = response["result"]["certificate"].encode()
     private_key = response["result"]["private_key"].encode()
 

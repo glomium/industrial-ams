@@ -48,8 +48,8 @@ def permissions(function=None, has_agent=False, has_groups=[], is_optional=False
                 context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
             elif has_groups:
                 groups = set(has_groups)
-                if not groups.issubset(context._groups):
-                    message = "Client needs to be in %s" % groups
+                if groups.intersection(context._groups):
+                    message = "Client needs to be in one of %s" % groups
                     context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
 
             return func(self, request, context)

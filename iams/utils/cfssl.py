@@ -13,9 +13,10 @@ logger = logging.getLogger(__name__)
 
 class CFSSL(object):
 
-    def __init__(self, addr, size):
+    def __init__(self, addr, size, hosts):
         self.addr = addr
         self.size = size
+        self.hosts = hosts
         url = f'http://{self.addr}/api/v1/cfssl/info'
         response = requests.post(url, json={}).json()
         self.ca = response["result"]["certificate"].encode()
@@ -28,12 +29,11 @@ class CFSSL(object):
                 hosts = [""]
             else:
                 profile = "peer"
+                hosts += self.hosts
         else:
             cn = set_credentials(name, image, version, None, groups)
             profile = "peer"
-            hosts = ["127.0.0.1", "localhost", name]
-
-        hosts = [""]
+            hosts = [name] + self.hosts
 
         return self._get_certificate(cn, hosts, profile, algo, size)
 

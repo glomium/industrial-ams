@@ -2,8 +2,12 @@
 # vim: set fileencoding=utf-8 :
 
 import json
+import logging
 import grpc
 from functools import wraps
+
+
+logger = logging.getLogger(__name__)
 
 
 def set_credentials(agent=None, image=None, version=None, username=None, groups=None):
@@ -18,8 +22,8 @@ def set_credentials(agent=None, image=None, version=None, username=None, groups=
 def get_credentials(credentials):
     data = json.loads(credentials)
     if len(data) == 2:
-        return None, None, None, data[0], data[1]
-    return data[0], data[1], data[2], data[0], data[3]
+        return None, None, None, data[0], set(data[1])
+    return data[0], data[1], data[2], data[0], set(data[3])
 
 
 def permissions(function=None, has_agent=False, has_groups=[], is_optional=False):
@@ -48,8 +52,10 @@ def permissions(function=None, has_agent=False, has_groups=[], is_optional=False
                 context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
             elif has_groups:
                 groups = set(has_groups)
-                if groups.intersection(context._groups):
-                    message = "Client needs to be in one of %s" % groups
+                logger.debug("Check if groups %s has members in %s", groups, context._groups)
+
+                if not groups.intersection(context._groups):
+                    message = "Client needs to be in one of %s" % (groups)
                     context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
 
             return func(self, request, context)

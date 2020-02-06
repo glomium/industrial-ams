@@ -21,11 +21,9 @@ def get_credentials():
 
     with open('/run/secrets/ca.pem', 'rb') as f:
         ca_public = f.read()
-
-    with open('/run/secrets/own.key', 'rb') as f:
+    with open('/run/secrets/peer.key', 'rb') as f:
         private_key = f.read()
-
-    with open('/run/secrets/own.crt', 'rb') as f:
+    with open('/run/secrets/peer.crt', 'rb') as f:
         certificate = f.read()
 
     return ca_public, private_key, certificate
@@ -73,8 +71,9 @@ class Grpc(object):
 
 
 @contextmanager
-def framework_channel(credentials, proxy=None, port=AGENT_PORT):
+def framework_channel(credentials, proxy=None, port=None):
     server = proxy or credentials[0]
+    port = port or AGENT_PORT
     options = [
         ('grpc.default_authority', credentials[0]),
         ('grpc.ssl_target_name_override', credentials[0]),

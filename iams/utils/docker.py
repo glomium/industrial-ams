@@ -99,6 +99,55 @@ class Docker(object):
             secret.reload()  # workarround for https://github.com/docker/docker-py/issues/2025
         return secret, old_secrets
 
+    def update_secret(self, name, data):
+
+        secret = self.client.secrets.get(name)
+        try:
+            secret.remove()
+            self.client.secrets.create(
+                name=name,
+                data=data,
+                labels=secret.attrs["Spec"].get("Labels", {}),
+            )
+
+        # There is no public api which selects the services related to an agent
+        # This hack tries to remove the secret to obtain a list of connected services
+        except docker.errors.APIError as e:
+            names = e.explanation.rsplit(':', 1)[1].strip().split(', ')
+
+            services = {}
+            # remove secrets from service
+            for s in names:
+                service = self.client.services.get(s)
+                secrets = []
+                for obj in service.attrs["Spec"]["TaskTemplate"]["ContainerSpec"]["Secrets"]:
+                    if obj["SecretName"] == name:
+                        services[name] = obj
+                    else:
+                        secrets.append(obj)
+
+                service.update(secrets=secrets)
+
+            # remove secret
+            secret.reload()
+            secret.remove()
+
+            # create new secret
+            new_secret = self.client.secrets.create(
+                name=name,
+                data=data,
+                labels=secret.attrs["Spec"].get("Labels", {}),
+            )
+
+            for s in names:
+                service = self.client.services.get(s)
+                add = services[name]
+                add["SecretID"] = new_secret.id
+
+                secrets = service.attrs["Spec"]["TaskTemplate"]["ContainerSpec"].get("Secrets", {})
+                secrets.append(add)
+                service.update(secrets=secrets)
+
     def set_service(
         self, name, image=None, version=None, address=None, port=None, config=None,
         autostart=True, create=False, update=False,
@@ -223,12 +272,12 @@ class Docker(object):
         # === START TODO ======================================================
         # this works but is ugly and hardcoded
         # get private_key and certificate
-        secrets["%s_ca.pem" % self.namespace["docker"]] = "ca.pem"
+        secrets["%s_ca.crt" % self.namespace["docker"]] = "ca.crt"
         response = self.cfssl.get_certificate(name, image=image, version=version)
         certificate = response["result"]["certificate"]
         private_key = response["result"]["private_key"]
-        generated.append(("own.crt", "own.crt", certificate.encode()))
-        generated.append(("own.key", "own.key", private_key.encode()))
+        generated.append(("peer.crt", "peer.crt", certificate.encode()))
+        generated.append(("peer.key", "peer.key", private_key.encode()))
         # === END TODO ========================================================
 
         # update all secrets from agent

@@ -32,8 +32,10 @@ RUN mkdir -p iams/proto \
  && python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/simulation.proto \
  && sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
 
+COPY examples ./examples
+
 # run static tests
-RUN doc8 iams && flake8 iams
+RUN doc8 iams examples && flake8 iams examples
 
 # run unit tests
 RUN coverage run setup.py test
@@ -45,6 +47,7 @@ RUN python3 setup.py bdist_wheel && mv dist/iams-*-py3-none-any.whl iams-build-p
 # === build stage =============================================================
 FROM basestage as build
 MAINTAINER Sebastian Braun <sebastian.braun@fh-aachen.de>
+ENV PYTHONUNBUFFERED=1
 
 COPY --from=test /usr/src/app/iams-build-py3-none-any.whl /tmp/iams-build-py3-none-any.whl
 RUN pip3 install --no-index /tmp/iams-build-py3-none-any.whl && rm /tmp/requirements.txt

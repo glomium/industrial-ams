@@ -153,7 +153,6 @@ def execute_command_line():
 
     # load certificate data (used to shutdown service after certificate became invalid)
     cert = x509.load_pem_x509_certificate(certificate, default_backend())
-    tol = cert.not_valid_after - datetime.datetime.now()
 
     credentials = grpc.ssl_server_credentials(
         ((private_key, certificate),),
@@ -191,13 +190,23 @@ def execute_command_line():
 
     # service running
     logger.info("container manager running")
-    logger.debug("certificate valid for %s days and %.2f hours", tol.days, tol.seconds / 3600)
     try:
-        tol -= datetime.timedelta(seconds=3600)
-        sleep(tol.total_seconds())
-        if container:
-            container.restart()
-    except ValueError:
-        logger.error("certificate livetime less then 60 seconds")
+        while True:
+            eta = cert.not_valid_after - datetime.datetime.now()
+            logger.debug("certificate valid for %s days", eta.days)
+
+            if eta.days > 1:
+                if container is not None and not args.simulation:
+                    # TODO update certificates from apps?
+                    pass
+                sleep(86400.0)
+            else:
+                if container:
+                    logger.debug("restart container")
+                    container.reload()
+                    container.restart()
+                else:
+                    break
+                sleep(3600)
     except KeyboardInterrupt:
         pass

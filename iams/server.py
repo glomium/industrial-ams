@@ -21,7 +21,9 @@ from .constants import AGENT_PORT
 from .exceptions import SkipPlugin
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
+from .proto.simulation_pb2_grpc import add_SimulationServicer_to_server
 from .servicer import FrameworkServicer
+from .servicer import SimulationServicer
 from .utils.cfssl import CFSSL
 from .utils.plugins import get_plugins
 
@@ -179,13 +181,10 @@ def execute_command_line():
     ), server)
 
     if args.simulation is True:
-        '''
-        simulation_pb2_grpc.add_SimulationServicer_to_server(
-            SimulationServicer(self),
-            self.server,
+        add_SimulationServicer_to_server(
+            SimulationServicer(threadpool),
+            server,
         )
-        '''
-        pass
     server.start()
 
     # service running

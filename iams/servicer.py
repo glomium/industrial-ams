@@ -11,69 +11,17 @@ import grpc
 from docker import errors as docker_errors
 from google.protobuf.empty_pb2 import Empty
 
-# from .proto import agent_pb2
-# from .proto import agent_pb2_grpc
-# from .proto import simulation_pb2
+from .simulation import Runtime
+from .proto import simulation_pb2
 from .proto import simulation_pb2_grpc
 from .proto import framework_pb2
 from .proto import framework_pb2_grpc
-
 from .utils.auth import permissions
 from .utils.docker import Docker
 from .utils.ssl import validate_certificate
 
 
 logger = logging.getLogger(__name__)
-
-
-class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
-
-    def __init__(self, parent):
-        self.parent = parent
-
-    def test(self, request, context):
-        if not self.parent._iams.simulation:
-            message = 'No simulation is currently running'
-            context.abort(grpc.StatusCode.NOT_FOUND, message)
-
-    def add_event(self, agent, uuid, delay, allow_next):
-        pass
-        # if uuid:
-        #     time, start_next = self._simulation.add_event(agent, uuid, delay)
-        #     logger.debug(
-        #         "%s scheduled a new event with a delay of %s at %s",
-        #         agent,
-        #         delay,
-        #         time,
-        #     )
-        #     return start_next and allow_next, simulation_pb2.EventSchedule(time=time)
-        # return allow_next, simulation_pb2.EventSchedule()
-
-    @permissions(has_groups=["root", "web"])
-    def start(self, request, context):
-        # TODO
-        start_next, response = self.add_event(context._agent, request.uuid, request.delay, True)
-        if start_next:
-            logger.debug("%s requested the next step", context._agent)
-            # resume simulation runtime
-            self.parent.simulation.event.set()
-        return response
-
-    @permissions(has_agent=True)
-    def schedule(self, request, context):
-        self.test(context)
-
-        # TODO
-        start_next, response = self.add_event(context._agent, request.uuid, request.delay, False)
-        return response
-
-    @permissions(has_agent=True)
-    def resume(self, request, context):
-        self.test(context)
-
-        # TODO
-        start_next, response = self.add_event(context._agent, request.uuid, request.delay, False)
-        return response
 
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
@@ -278,3 +226,37 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 #           logger.debug('scale service %s to 1', context._agent)
 #           service.scale(1)
 #       return Empty()
+
+
+class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
+
+    def __init__(self, threadpool):
+        self.threadpool = threadpool
+        self.simulations = None
+
+    @permissions(has_groups=["root", "web"])
+    def start(self, request, context):
+        if self.simulations is not None:
+            message = 'A simulation is currently running'
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, message)
+
+        self.simulations = Runtime(self.threadpool, request)
+
+        for x in range(100):
+
+            yield simulation_pb2.SimulationLog(
+                time=x,
+            )
+
+        logger.info("EXIT")
+        self.simulations = None
+
+    @permissions(has_agent=True)
+    def schedule(self, request, context):
+        # TODO
+        pass
+
+    @permissions(has_agent=True)
+    def resume(self, request, context):
+        # TODO
+        pass

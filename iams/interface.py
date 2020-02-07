@@ -14,7 +14,7 @@ import grpc
 from .agent import Servicer
 from .exceptions import Continue
 from .exceptions import EventNotFound
-from .simulation import Runtime
+from .simulation import Scheduler
 from .utils.grpc import Grpc
 from .utils.grpc import get_channel_credentials
 from .utils.grpc import get_server_credentials
@@ -39,7 +39,7 @@ class Agent(object):
         self._grpc = Grpc(self._iams, self._executor, get_server_credentials())
 
         if self._iams.simuation:
-            self._simulation = Runtime(self)
+            self._simulation = Scheduler(self)
         else:
             self._simulation = None
 

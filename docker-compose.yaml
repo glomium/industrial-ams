@@ -3,10 +3,13 @@ version: '3.5'
 
 x-defaults: &defaults
     logging:
-        driver: json-file
-        options:
-            max-size: 2m
-            max-file: 5
+      driver: json-file
+      options:
+        max-size: 2m
+        max-file: 5
+    # environment:
+    #   GRPC_VERBOSITY: debug
+    #   GRPC_TRACE: tcp,http,secure_endpoint,transport_security
 
 
 services:
@@ -25,7 +28,6 @@ services:
                 constraints: [node.role == manager]
         networks:
             - cfssl
-            - envoy
             - iams
 
     # Simulation
@@ -33,6 +35,10 @@ services:
         <<: *defaults
         image: registry:5000/iams:latest
         command: --simulation tasks.cfssl:8888 -d
+        environment:
+            IAMS_HOSTS: 10.6.30.69,192.168.42.65
+        ports:
+            - "443:443"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         deploy:
@@ -42,7 +48,6 @@ services:
                 constraints: [node.role == manager]
         networks:
             - cfssl
-            - envoy
             - iams
 
     cfssl:
@@ -59,37 +64,17 @@ services:
                 preferences:
                     - spread: node.labels.worker
         secrets:
-            - ca.csr
-            - ca-key.pem
-            - ca.pem
+            - ca.crt
+            - ca.key
         networks:
             - cfssl
 
-    envoy:
-        <<: *defaults
-        image: registry:5000/envoy:v1.11.1
-        ports:
-            - "5005:5005"
-        deploy:
-            mode: replicated
-            replicas: 1
-            update_config:
-                order: start-first
-            placement:
-                preferences:
-                    - spread: node.labels.worker
-        networks:
-            - envoy
-
 networks:
     cfssl:
-    envoy:
     iams:
 
 secrets:
-    ca.csr:
-        file: ./secrets/ca.csr
-    ca-key.pem:
-        file: ./secrets/ca-key.pem
-    ca.pem:
-        file: ./secrets/ca.pem
+    ca.key:
+        file: ./secrets/ca.key
+    ca.crt:
+        file: ./secrets/ca.crt

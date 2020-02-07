@@ -71,7 +71,7 @@ class Grpc(object):
 
 
 @contextmanager
-def framework_channel(credentials, proxy=None, port=None):
+def framework_channel(credentials, proxy=None, port=None, secure=True):
     server = proxy or credentials[0]
     port = port or AGENT_PORT
     options = [
@@ -81,8 +81,12 @@ def framework_channel(credentials, proxy=None, port=None):
 
     logger.debug(f"connecting to %s:%s with options %s", server, port, options)
 
-    with grpc.secure_channel(f'{server!s}:{port!s}', credentials[1], options=options) as channel:
-        yield channel
+    if secure:
+        with grpc.secure_channel(f'{server!s}:{port!s}', credentials[1], options=options) as channel:
+            yield channel
+    else:
+        with grpc.insecure_channel(f'{server!s}:{port!s}', options=options) as channel:
+            yield channel
 
 
 def grpc_retry(f, transactional=False, internal=1, aborted=3, unavailable=10, deadline_exceeded=3, *args, **kwargs):

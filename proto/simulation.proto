@@ -2,19 +2,26 @@ syntax = "proto3";
 
 package iams.servicer;
 
-// import "google/protobuf/empty.proto";
+import "google/protobuf/empty.proto";
 
 /*
 */
 service Simulation {
+
     /*
+    Start simulation with config
     */
     rpc start(SimulationConfig) returns (stream SimulationLog) {}
+
     /*
+    Schedule a new event at the simulation runtime
     */
-    rpc schedule(SimulationRegister) returns (SimulationSchedule) {}
+    rpc schedule(EventScheduleRequest) returns (EventScheduleResponse) {}
+
     /*
+    Resume simulation with with different agent
     */
+    rpc resume(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }
 
 message SimulationConfig {
@@ -27,11 +34,11 @@ message SimulationLog {
     bytes data = 4;
 }
 
-message SimulationRegister {
+message EventScheduleRequest {
     bytes uuid = 1;
     float delay = 2;
 }
 
-message SimulationSchedule {
+message EventScheduleResponse {
     float time = 1;
 }

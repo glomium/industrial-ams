@@ -4,11 +4,7 @@
 import logging
 import os
 
-# from uuid import uuid1
-from time import sleep
-
 import grpc
-# import msgpack
 
 from google.protobuf.empty_pb2 import Empty
 
@@ -47,20 +43,14 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         if not self.simulation:
             message = 'This function is only availabe when agenttype is set to simulation'
             context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
-        logger.debug("simulation_continue called")
-        # TODO
-        # self.parent._simulation.event_trigger(request.uuid, request.time)
+
+        logger.debug("resume_simulation called")
+        self._simulation.set_event(request.uuid, request.time)
         return Empty()
 
     @permissions(has_agent=True, has_groups=["root"])
     def ping(self, request, context):
         return Empty()
-
-    def validate_connection(self):
-        # TODO: try to connect to iams server
-        # if the connections fails due to an ssl-error -> renew certificate or else wait 1s
-        sleep(1.0)
-        return False
 
     # === calls to iams =======================================================
 

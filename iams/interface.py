@@ -12,12 +12,13 @@ from time import sleep
 import grpc
 
 from .agent import Servicer
+from .exceptions import Continue
+from .exceptions import EventNotFound
+from .simulation import Runtime
 from .utils.grpc import Grpc
 from .utils.grpc import get_channel_credentials
 from .utils.grpc import get_server_credentials
 from .utils.ssl import validate_certificate
-from .exceptions import Continue
-from .exceptions import EventNotFound
 
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ class Agent(object):
         self._grpc = Grpc(self._iams, self._executor, get_server_credentials())
 
         if self._iams.simuation:
-            self._simulation = None  # TODO: Add simulation runtime
+            self._simulation = Runtime(self)
         else:
             self._simulation = None
 
@@ -65,6 +66,18 @@ class Agent(object):
         self._grpc_setup()  # definition on mixins
         self._grpc.start()
 
+        logger.debug("Informing the runtime that %s is booted", self._iams.agent)
+        while True:
+            if self._iams.call_booted():
+                break
+            if not validate_certificate():
+                if self._iams.call_renew():
+                    logger.info("Certificate needs to be renewed")
+                    sleep(600)
+                else:
+                    logger.debug("Could not connect to manager")
+                    sleep(1)
+
         # run agent configuration
         try:
             self.configure()  # local module specification
@@ -78,19 +91,6 @@ class Agent(object):
                 self.start_simulation()
             except NotImplementedError:
                 logger.debug("start_simulation not implemented at %s", self.__class__.__qualname__)
-
-        logger.debug("Informing the runtime that %s is booted", self._iams.agent)
-        while True:
-            if self._iams.call_booted():
-                break
-            if not validate_certificate():
-                if self._iams.call_renew():
-                    logger.info("Certificate needs to be renewed")
-                    sleep(600)
-                else:
-                    logger.debug("Could not connect to manager")
-                    sleep(1)
-
         if self._iams.simulation:
             # simulation loop
             while True:
@@ -106,7 +106,7 @@ class Agent(object):
                 try:
                     callback, kwargs = next(self._simulation)
                 except EventNotFound:
-                    logger.debug("Skipping - scheduled event was not found")
+                    logger.debug("Skip ekecution of next step - scheduled event was not found")
                     self._simulation.resume()
                     continue
 
@@ -116,6 +116,7 @@ class Agent(object):
                     getattr(self, callback)(**kwargs)
                 except Continue:
                     pass
+
                 logger.debug("calling resume")
                 self._simulation.resume()
         else:

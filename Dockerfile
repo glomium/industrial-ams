@@ -1,4 +1,4 @@
-ARG ALPINE
+ARG ALPINE=latest
 FROM alpine:$ALPINE as basestage
 
 WORKDIR /usr/src/app

@@ -7,7 +7,7 @@ import signal
 from concurrent import futures
 from threading import Event
 from threading import Lock
-# from time import sleep
+from time import sleep
 
 import grpc
 
@@ -15,6 +15,7 @@ from .agent import Servicer
 from .utils.grpc import Grpc
 from .utils.grpc import get_channel_credentials
 from .utils.grpc import get_server_credentials
+from .utils.ssl import validate_certificate
 from .exceptions import Continue
 from .exceptions import EventNotFound
 
@@ -82,8 +83,13 @@ class Agent(object):
         while True:
             if self._iams.call_booted():
                 break
-            else:
-                self._iams.validate_connection()
+            if not validate_certificate():
+                if self._iams.call_renew():
+                    logger.info("Certificate needs to be renewed")
+                    sleep(600)
+                else:
+                    logger.debug("Could not connect to manager")
+                    sleep(1)
 
         if self._iams.simulation:
             # simulation loop

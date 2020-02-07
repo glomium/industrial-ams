@@ -10,10 +10,9 @@ from iams.utils.grpc import framework_channel
 from iams.utils.cfssl import CFSSL
 from iams.stub import FrameworkStub
 
-HOST = "192.168.42.65"
-HOST = "10.6.30.69"
+HOST = "127.0.0.1"
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

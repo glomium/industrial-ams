@@ -9,29 +9,29 @@ package iams.servicer;
 service Simulation {
     /*
     */
-    rpc resume(EventRegister) returns (EventSchedule) {}
+    rpc start(SimulationConfig) returns (stream SimulationLog) {}
     /*
     */
-    rpc schedule(EventRegister) returns (EventSchedule) {}
-    // /*
-    // */
-    // rpc log(EventLog) returns (google.protobuf.Empty) {}
+    rpc schedule(SimulationRegister) returns (SimulationSchedule) {}
+    /*
+    */
 }
 
-message EventRegister {
+message SimulationConfig {
+}
+
+message SimulationLog {
+    float time = 1;
+    bytes agent = 2;
+    bytes state = 3;
+    bytes data = 4;
+}
+
+message SimulationRegister {
     bytes uuid = 1;
     float delay = 2;
 }
 
-message EventSchedule {
+message SimulationSchedule {
     float time = 1;
 }
-
-/*
-message EventLog {
-    uint32 level = 1;
-    uint32 lineno = 2;
-    string name = 3;
-    string msg = 4;
-}
-*/

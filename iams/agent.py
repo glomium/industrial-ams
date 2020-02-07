@@ -5,6 +5,7 @@ import logging
 import os
 
 # from uuid import uuid1
+from time import sleep
 
 import grpc
 # import msgpack
@@ -12,18 +13,11 @@ import grpc
 from google.protobuf.empty_pb2 import Empty
 
 from .proto import agent_pb2_grpc
-# from .proto import framework_pb2_grpc
 from .proto import framework_pb2
-# from .proto import simulation_pb2_grpc
-# from .proto.agent_pb2 import ConnectionResponse
-# from .proto.agent_pb2 import PingResponse
-# from .proto.agent_pb2 import ServiceResponse
-# from .proto.framework_pb2 import WakeAgent
-# from .proto.simulation_pb2 import EventRegister
+from .stub import AgentStub
 from .stub import FrameworkStub
 from .utils.auth import permissions
 from .utils.grpc import framework_channel
-# from .utils.grpc import grpc_retry
 
 
 logger = logging.getLogger(__name__)
@@ -49,78 +43,91 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         self.threadpool = threadpool
 
     @permissions(has_groups=["root"])
-    def resume(self, request, context):
+    def resume_simulation(self, request, context):
         if not self.simulation:
             message = 'This function is only availabe when agenttype is set to simulation'
             context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
         logger.debug("simulation_continue called")
-        self.parent._simulation.event_trigger(request.uuid, request.time)
+        # TODO
+        # self.parent._simulation.event_trigger(request.uuid, request.time)
         return Empty()
 
-    # @permissions(has_agent=True, has_groups=["root"])
-    # def ping(self, request, context):
-    #     return Empty()
+    @permissions(has_agent=True, has_groups=["root"])
+    def ping(self, request, context):
+        return Empty()
+
+    def validate_connection(self):
+        # TODO: try to connect to iams server
+        # if the connections fails due to an ssl-error -> renew certificate or else wait 1s
+        sleep(1.0)
+        return False
+
+    # === calls to iams =======================================================
 
     def call_booted(self) -> bool:
-        with framework_channel() as channel:
-            stub = FrameworkStub(channel)
-            stub.booted(Empty(), timeout=10)
-        return True
+        try:
+            with framework_channel() as channel:
+                stub = FrameworkStub(channel)
+                stub.booted(Empty(), timeout=10)
+            return True
+        except grpc.RpcError:
+            return False
 
-    # def call_destroy(self) -> bool:
-    #     logger.debug("calling AMS to be killed")
-    #     with framework_channel() as channel:
-    #         stub = FrameworkStub(channel)
-    #         stub.destroy(Empty(), timeout=10)
-    #     return True
-    # def call_sleep(self) -> bool:
-    #     logger.debug("calling AMS to be sent to sleep")
-    #     with framework_channel() as channel:
-    #         stub = FrameworkStub(channel)
-    #         stub.sleep(Empty(), timeout=10)
-    #     return True
-    # def call_upgrade(self) -> bool:
-    #     with framework_channel() as channel:
-    #         stub = FrameworkStub(channel)
-    #         stub.upgrade(Empty(), timeout=10)
-    #     return True
-    # def call_wake(self, other) -> bool:
-    #     with framework_channel() as channel:
-    #         stub = FrameworkStub(channel)
-    #         stub.upgrade(WakeAgent(agent=other), timeout=10)
-    #     return True
+    def call_destroy(self) -> bool:
+        try:
+            with framework_channel() as channel:
+                stub = FrameworkStub(channel)
+                stub.booted(Empty(), timeout=10)
+            return True
+        except grpc.RpcError:
+            return False
 
-    # self.validate_connection
+    def call_renew(self, hard=True) -> bool:
+        try:
+            with framework_channel() as channel:
+                stub = FrameworkStub(channel)
+                response = stub.renew(framework_pb2.RenewRequest(hard=hard), timeout=10)
+            return response.private_key, response.certificate
+        except grpc.RpcError:
+            return False
 
-#   def agent_ping(self, agent):
-#       try:
-#           with framework_channel(agent) as channel:
-#               stub = AgentStub(channel)
-#               response = stub.ping(Empty(), timeout=10)
-#           logger.debug("Ping response (%s) %s:%s", agent, response.image, response.version)
-#           return True
-#       except grpc.RpcError as e:
-#           logger.debug("Ping response %s: %s from %s", e.code(), e.details(), agent)
-#           return False
+    def call_sleep(self) -> bool:
+        try:
+            with framework_channel() as channel:
+                stub = FrameworkStub(channel)
+                stub.sleep(Empty(), timeout=10)
+            return True
+        except grpc.RpcError:
+            return False
 
-#   # def simulation_resume(self, delay=None) -> bool:
-#   #     if self.simulation is None:
-#   #         return False
-#   #     logger.error("Deprecation!!")
-#   #     if delay is None:
-#   #         request = EventRegister()
-#   #     else:
-#   #         request = EventRegister(uuid=uuid1().bytes, delay=delay)
-#   #     try:
-#   #         with framework_channel() as channel:
-#   #             stub = SimulationStub(channel)
-#   #             stub.resume(request, timeout=10)
-#   #         if delay is not None:
-#   #             logger.debug("continue with execution in %s seconds", delay)
-#   #         return True
-#   #     except grpc.RpcError as e:
-#   #         logger.exception("error %s in simulation_resume: %s", e.code(), e.details())
-#   #         return False
+    def call_upgrade(self) -> bool:
+        try:
+            with framework_channel() as channel:
+                stub = FrameworkStub(channel)
+                stub.upgrade(Empty(), timeout=10)
+            return True
+        except grpc.RpcError:
+            return False
+
+    def call_wake(self, agent) -> bool:
+        try:
+            with framework_channel() as channel:
+                stub = FrameworkStub(channel)
+                stub.wake(framework_pb2.WakeAgent(agent=agent), timeout=10)
+            return True
+        except grpc.RpcError:
+            return False
+
+    def call_ping(self, agent):
+        try:
+            with framework_channel(agent) as channel:
+                stub = AgentStub(channel)
+                stub.ping(Empty(), timeout=10)
+            logger.debug("Ping response (%s)", agent)
+            return True
+        except grpc.RpcError as e:
+            logger.debug("Ping response %s: %s from %s", e.code(), e.details(), agent)
+            return False
 
 
 Servicer.__doc__ = agent_pb2_grpc.AgentServicer.__doc__

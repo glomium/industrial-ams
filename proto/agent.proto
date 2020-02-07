@@ -10,7 +10,7 @@ service Agent {
     /*
     Receive scheduled events in simulation run
     */
-    rpc resume(SimulationData) returns (google.protobuf.Empty) {}
+    rpc resume_simulation(SimulationData) returns (google.protobuf.Empty) {}
 
     // /*
     // Receive scheduled events in simulation run

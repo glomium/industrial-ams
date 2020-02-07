@@ -20,6 +20,7 @@ from .proto import framework_pb2_grpc
 
 from .utils.auth import permissions
 from .utils.docker import Docker
+from .utils.ssl import validate_certificate
 
 
 logger = logging.getLogger(__name__)
@@ -85,20 +86,12 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             request.name = context._agent
         else:
             # connect to ping-rpc on name and check if connection breaks due to an invalid certificate
-            try:
-                with grpc.secure_channel('%s:%s' % (request.name, self.args.agent_port), self.credentials) as channel:
-                    stub = agent_pb2_grpc.PingStub(channel)
-                    stub.ping(Empty())
-            except grpc.RpcError as e:
-                code = e.code()
-                if code in [grpc.StatusCode.UNAVAILABLE]:
-                    request.hard = True
-                else:
-                    message = "Client-validation failed"
-                    context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
-            else:
+
+            if validate_certificate(request.name):
                 message = "Client-validation failed"
                 context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+            else:
+                request.hard = True
 
         if not request.name:
             message = "Agent name not set"
@@ -117,14 +110,14 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             certificate=response["result"]["certificate"],
         )
 
-#   # RPCs
+    # RPCs
 
-#   # === TODO ===
-    @permissions(has_agent=True, has_groups=["root", "web"])
+    @permissions(has_agent=True)
     def booted(self, request, context):
         logger.debug('booted called from %s', context._agent)
         return Empty()
 
+#   # === TODO ===
 #   def images(self, request, context):
 #       """
 #       """

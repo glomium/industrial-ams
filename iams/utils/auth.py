@@ -31,6 +31,11 @@ def permissions(function=None, has_agent=False, has_groups=[], is_optional=False
     def decorator(func):
         @wraps(func)
         def wrapped(self, request, context):
+
+            # internal request
+            if hasattr(context, "_username"):
+                return func(self, request, context)
+
             auth = context.auth_context()
 
             if not auth:

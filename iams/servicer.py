@@ -5,7 +5,6 @@ import json
 import logging
 import queue
 import re
-# import os
 
 from heapq import heappush
 from heapq import heappop
@@ -46,7 +45,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         self.docker = Docker(client, cfssl, namespace, args.namespace, args.simulation, plugins)
 
-        self.RE_NAME = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.namespace[0:4])
+        self.RE_NAME = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.args.namespace[0:4])
 
     def set_booting(self, name):
         self.booting.add(name)
@@ -114,7 +113,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     def agents(self, request, context):
         """
         """
-        for service in self.docker.client.services.list(filters={'label': [f"iams.namespace={self.namespace}"]}):
+        for service in self.docker.client.services.list(filters={'label': [f"iams.namespace={self.args.namespace}"]}):
             name, address, image, version, config, autostart = self.get_service_data(service)
             yield framework_pb2.AgentData(
                 name=service.name,
@@ -158,11 +157,11 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     @permissions(has_agent=True, has_groups=["root", "web"])
     def create(self, request, context):
-        logger.debug('create called from %s', context._agent)
+        logger.debug('create called from %s', context._username)
 
         regex = self.RE_NAME.match(request.name)
         if regex:
-            name = self.namespace[0:4] + '_' + regex.group(2)
+            name = self.args.namespace[0:4] + '_' + regex.group(2)
         else:
             message = 'A name with starting with a letter, ending with an alphanumerical chars and' \
                       'only containing alphanumerical values and hyphens is required to define agents'
@@ -254,17 +253,27 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
 class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
-    def __init__(self, agent_servicer, threadpool):
+    def __init__(self, agent_servicer):
         self.event = Event()
         self.servicer = agent_servicer
-        self.threadpool = threadpool
+
+        self.heap = []
+        self.queue = None
         self.simulation = False
 
-    def reset(self):
-        logger.info("Simulation canceled - resetting")
-        self.simulation = True
+    def reset(self, callback=True):
+        if callback:
+            logger.error("Simulation canceled - resetting")
+        else:
+            logger.info("Simulation finished - resetting")
+
         self.heap = []
-        self.queue = queue.Queue()
+        self.queue = None
+        self.simulation = False
+
+        # kill all agents
+        for service in self.servicer.docker.get_service():
+            self.servicer.docker.del_service(service)
 
     @permissions(is_optional=True)
     def start(self, request, context):
@@ -277,11 +286,16 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         self.queue = queue.Queue()
         time = 0.0
         agent = None
+        context._isinternal = True
 
-        # TODO: start agents
+        # create agents
+        logger.info("Creating agents from config")
+        for agent in request.agents:
+            self.servicer.create(agent.container, context)
 
         logger.info("Starting simulation")
         context.add_callback(self.reset)
+
         while True:
 
             # waiting for containers to boot
@@ -325,9 +339,8 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
             except queue.Empty:
                 pass
 
-        logger.info("Simulation finished")
-        # TODO: kill agents
-        self.simulation = False
+        # End simulation
+        self.reset(callback=False)
 
     @permissions(has_agent=True)
     def schedule(self, request, context):

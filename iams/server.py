@@ -183,7 +183,7 @@ def execute_command_line():
 
     if args.simulation is True:
         add_SimulationServicer_to_server(
-            SimulationServicer(servicer, threadpool),
+            SimulationServicer(servicer),
             server,
         )
     server.start()
@@ -196,8 +196,8 @@ def execute_command_line():
             logger.debug("certificate valid for %s days", eta.days)
 
             if eta.days > 1:
+                # The following block can be used for maintenance tasks
                 if container is not None and not args.simulation:
-                    # TODO update certificates from apps?
                     pass
                 sleep(86400.0)
             else:

@@ -27,7 +27,12 @@ class Docker(object):
         self.plugins = plugins
 
     def del_service(self, name):
-        service = self.get_service(name)
+        if isinstance(name, docker.models.services.Service):
+            service = name
+            name = service.name
+        else:
+            service = self.get_service(name)
+
         image, version = service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].rsplit(':', 1)  # noqa
         service.remove()
 
@@ -45,18 +50,26 @@ class Docker(object):
                 # apply plugin
                 plugin.remove(name, image_object.labels[plugin.label])
 
-    def get_service(self, name):
-        services = self.client.services.list(filters={
-            'name': name,
-            'label': [
-                f"com.docker.stack.namespace={self.namespace['docker']}",
-                f"iams.namespace={self.namespace['iams']}",
-            ],
-        })
-        if len(services) == 1:
-            return services[0]
+    def get_service(self, name=None):
+        if name:
+            services = self.client.services.list(filters={
+                'name': name,
+                'label': [
+                    f"com.docker.stack.namespace={self.namespace['docker']}",
+                    f"iams.namespace={self.namespace['iams']}",
+                ],
+            })
+            if len(services) == 1:
+                return services[0]
+            else:
+                raise docker.errors.NotFound('Could not find service %s' % name)
         else:
-            raise docker.errors.NotFound('Could not find service %s' % name)
+            return self.client.services.list(filters={
+                'label': [
+                    f"com.docker.stack.namespace={self.namespace['docker']}",
+                    f"iams.namespace={self.namespace['iams']}",
+                ],
+            })
 
     def set_scale(self, name, scale):
         service = self.get_service(name)
@@ -269,8 +282,7 @@ class Docker(object):
         })
         networks = list(networks)
 
-        # === START TODO ======================================================
-        # this works but is ugly and hardcoded
+        # TODO this works but is ugly and hardcoded
         # get private_key and certificate
         secrets["%s_ca.crt" % self.namespace["docker"]] = "ca.crt"
         response = self.cfssl.get_certificate(name, image=image, version=version)
@@ -278,7 +290,6 @@ class Docker(object):
         private_key = response["result"]["private_key"]
         generated.append(("peer.crt", "peer.crt", certificate.encode()))
         generated.append(("peer.key", "peer.key", private_key.encode()))
-        # === END TODO ========================================================
 
         # update all secrets from agent
         old_secrets = []
@@ -306,7 +317,7 @@ class Docker(object):
                 "max-size": "1m",
             },
             "mode": docker.types.ServiceMode("replicated", scale),
-            # "preferences": Placement(preferences=[("spread", "node.labels.worker")]),
+            "preferences": [docker.types.Placement(preferences=[("spread", "node.labels.worker")])],
         }
 
         if create:

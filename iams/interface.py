@@ -14,7 +14,7 @@ import grpc
 from .agent import Servicer
 from .exceptions import Continue
 from .exceptions import EventNotFound
-from .simulation import Scheduler
+from .scheduler import Scheduler
 from .utils.grpc import Grpc
 from .utils.grpc import get_channel_credentials
 from .utils.grpc import get_server_credentials

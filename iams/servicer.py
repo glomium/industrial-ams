@@ -3,21 +3,29 @@
 
 import json
 import logging
+import queue
 import re
 # import os
+
+from heapq import heappush
+from heapq import heappop
+from threading import Event
+from uuid import UUID
 
 import grpc
 
 from docker import errors as docker_errors
 from google.protobuf.empty_pb2 import Empty
 
-from .simulation import Runtime
+from .proto import agent_pb2
 from .proto import simulation_pb2
 from .proto import simulation_pb2_grpc
 from .proto import framework_pb2
 from .proto import framework_pb2_grpc
+from .stub import AgentStub
 from .utils.auth import permissions
 from .utils.docker import Docker
+from .utils.grpc import framework_channel
 from .utils.ssl import validate_certificate
 
 
@@ -32,10 +40,24 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         self.credentials = credentials
         self.threadpool = threadpool
         self.namespace = namespace
+        self.booting = set()
+        self.event = Event()
 
         self.docker = Docker(client, cfssl, namespace, args.namespace, args.simulation, plugins)
 
-        self.RE_NAME = re.compile(r'^(%s_)?([\w]+)$' % self.namespace[0])
+        self.RE_NAME = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.namespace[0:4])
+
+    def set_booting(self, name):
+        self.booting.add(name)
+        self.event.clear()
+
+    def del_booting(self, name):
+        try:
+            self.booting.remove(name)
+            if not self.booting:
+                self.booting.set()
+        except KeyError:
+            pass
 
     # RPCs
     @permissions(is_optional=True)
@@ -61,6 +83,9 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             self.threadpool.submit(self.docker.set_service, name=request.name, update=True)
             return framework_pb2.RenewResponse()
 
+        # mark container as booting
+        self.set_booting(request.name)
+
         # generate pk and certificate and send it
         # the request is authenticated and origins from an agent, i.e it contains image and version
         response = self.cfssl.get_certificate(request.name, image=context._image, version=context._version)
@@ -74,28 +99,16 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     @permissions(has_agent=True)
     def booted(self, request, context):
         logger.debug('booted called from %s', context._agent)
+        self.del_booting(context._agent)
         return Empty()
 
-#   # === TODO ===
-#   def images(self, request, context):
-#       """
-#       """
-#       for image in self.client.images.list(filters={'label': ["ams.services.agent=true"]}):
-#           for tag in image.tags:
-#               pass
-#           # TODO yield data
-
-#   @agent_required
-#   def booted(self, request, context):
-#       logger.debug('booted called from %s', context._agent)
-#       try:
-#           self.parent.agent_booted(context._agent)
-#       except docker_errors.NotFound:
-#           message = 'Could not find %s' % context._agent
-#           context.abort(grpc.StatusCode.NOT_FOUND, message)
-#       return Empty()
-
-#   # === END TODO
+    def images(self, request, context):
+        """
+        """
+        for image in self.client.images.list(filters={'label': ["ams.services.agent=true"]}):
+            for tag in image.tags:
+                pass
+            # TODO yield data
 
     def agents(self, request, context):
         """
@@ -113,10 +126,14 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     @permissions(has_agent=True, has_groups=["root", "web"])
     def update(self, request, context):
+
         logger.debug('update called from %s', context._agent)
+        if context._agent:
+            request.name = context._agent
+
         try:
-            self.docker.set_service(
-                context._agent,
+            created = self.docker.set_service(
+                request.name,
                 image=request.image,
                 version=request.version,
                 address=request.address,
@@ -126,12 +143,15 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             )
 
         except docker_errors.ImageNotFound:
-            message = 'Could not find %s' % context._agent
+            message = f'Could not find {request.image}:{request.version}'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         except docker_errors.NotFound:
-            message = 'Could not find %s' % context._agent
+            message = f'Could not find {request.name}'
             context.abort(grpc.StatusCode.NOT_FOUND, message)
+
+        if created:
+            self.set_booting(request.name)
 
         return framework_pb2.AgentData()
 
@@ -139,10 +159,12 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     def create(self, request, context):
         logger.debug('create called from %s', context._agent)
 
-        if self.RE_NAME.match(request.name):
-            name = self.namespace[0] + '_' + request.name
+        regex = self.RE_NAME.match(request.name)
+        if regex:
+            name = self.namespace[0:4] + '_' + regex.group(2)
         else:
-            message = 'A name containing no special chars is required to define agents'
+            message = 'A name with starting with a letter, ending with an alphanumerical chars and' \
+                      'only containing alphanumerical values and hyphens is required to define agents'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         if not request.image:
@@ -187,6 +209,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         except ValueError as e:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, e)
 
+        self.set_booting(name)
         return framework_pb2.AgentData()
 
     @permissions(has_agent=True, has_groups=["root", "web"])
@@ -230,33 +253,83 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
 class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
-    def __init__(self, threadpool):
+    def __init__(self, agent_servicer, threadpool):
+        self.event = Event()
+        self.servicer = agent_servicer
         self.threadpool = threadpool
-        self.simulations = None
+        self.simulation = False
 
-    @permissions(has_groups=["root", "web"])
+    def runtime(self):
+        pass
+
+    @permissions(is_optional=True)
     def start(self, request, context):
-        if self.simulations is not None:
+        if self.simulation:
             message = 'A simulation is currently running'
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, message)
+        self.simulation = True
 
-        self.simulations = Runtime(self.threadpool, request)
+        self.heap = []
+        self.queue = queue.Queue()
+        time = 0.0
+        agent = None
 
-        for x in range(100):
+        # TODO: start agents
 
-            yield simulation_pb2.SimulationLog(
-                time=x,
-            )
+        while True:
+            # waiting for containers to boot
+            self.servicer.booting.wait()
 
-        logger.info("EXIT")
-        self.simulations = None
+            # stop simulation if agent does not reply for 60 seconds
+            if agent is not None and not self.event.wait(30):
+                logger.info("waited 30s on the respone of agent %s", self.agent)
+            if agent is not None and not self.event.wait(30):
+                logger.warning("waited 60s on the respone of agent %s - closing simulation", self.agent)
+                break
+
+            try:
+                time, agent, uuid = heappop(self.heap)
+            except IndexError:
+                logger.info("Simulation finished - no more events in queue")
+                break
+
+            # Stop simulation if time is reached
+            if request.until is not None and time > request.until:
+                logger.info("Simulation finished - time limit reached")
+                break
+
+            with framework_channel(agent) as channel:
+                logger.info(
+                    "continue execution of simulation on %s at %s (%s)",
+                    agent,
+                    time,
+                    UUID(bytes=uuid),
+                )
+                stub = AgentStub(channel)
+                stub.resume_simulation(agent_pb2.SimulationData(uuid=uuid, time=time), timeout=10)
+
+            # send information from last step to client
+            try:
+                while True:
+                    kwargs = self.queue.get()
+                    yield simulation_pb2.SimulationData(**kwargs)
+                    self.queue.task_done()
+            except queue.Empty:
+                pass
+
+        logger.info("Simulation finished")
+        # TODO: kill agents
+        self.simulation = False
 
     @permissions(has_agent=True)
     def schedule(self, request, context):
-        # TODO
-        pass
+        time = self.time + request.delay
+        logger.debug("Adding event at %s for agent %s (delay=%s)", time, context._agent, request.delay)
+        heappush(self.heap, (time, context._agent, request.uuid))
+        return simulation_pb2.EventScheduleResponse(time=time)
 
     @permissions(has_agent=True)
     def resume(self, request, context):
-        # TODO
-        pass
+        logger.debug("Simulation resumed from agent %s", context._agent)
+        self.event.set()
+        return Empty()

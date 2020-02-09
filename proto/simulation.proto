@@ -3,6 +3,7 @@ syntax = "proto3";
 package iams.servicer;
 
 import "google/protobuf/empty.proto";
+import "framework.proto";
 
 /*
 */
@@ -11,7 +12,7 @@ service Simulation {
     /*
     Start simulation with config
     */
-    rpc start(SimulationConfig) returns (stream SimulationLog) {}
+    rpc start(SimulationConfig) returns (stream SimulationData) {}
 
     /*
     Schedule a new event at the simulation runtime
@@ -24,10 +25,17 @@ service Simulation {
     rpc resume(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }
 
-message SimulationConfig {
+message AgentConfig {
+    AgentData container = 1;
 }
 
-message SimulationLog {
+message SimulationConfig {
+    float until = 1;
+    bytes seed = 2;
+    repeated AgentConfig agents = 3;
+}
+
+message SimulationData {
     float time = 1;
     bytes agent = 2;
     bytes state = 3;

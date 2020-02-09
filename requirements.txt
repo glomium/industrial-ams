@@ -1,6 +1,6 @@
-docker==4.1.0
+docker==4.2.0
 PyYAML==5.3
 requests==2.22.0
-grpcio==1.26.0
+grpcio==1.27.1
 googleapis-common-protos==1.51.0
 cryptography==2.8

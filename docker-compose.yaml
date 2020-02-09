@@ -24,6 +24,8 @@ services:
         deploy:
             mode: replicated
             replicas: 1
+            update_config:
+                order: start-first
             placement:
                 constraints: [node.role == manager]
         networks:
@@ -38,12 +40,14 @@ services:
         environment:
             IAMS_HOSTS: 10.6.30.69,192.168.42.65
         ports:
-            - "443:443"
+            - "5115:80"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         deploy:
             mode: replicated
             replicas: 1
+            update_config:
+                order: start-first
             placement:
                 constraints: [node.role == manager]
         networks:

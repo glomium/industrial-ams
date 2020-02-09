@@ -71,9 +71,10 @@ class Grpc(object):
 
 
 @contextmanager
-def framework_channel(credentials, proxy=None, port=None, secure=True):
+def framework_channel(credentials=None, proxy=None, port=None, secure=True):
     server = proxy or credentials[0]
     port = port or AGENT_PORT
+
     options = [
         ('grpc.default_authority', credentials[0]),
         ('grpc.ssl_target_name_override', credentials[0]),

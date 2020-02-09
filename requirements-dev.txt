@@ -1,5 +1,5 @@
 invoke==1.4.1
-grpcio-tools==1.26.0
+grpcio-tools==1.27.1
 pip==20.0.2
 pip-upgrader==1.4.15
 wheel==0.34.2

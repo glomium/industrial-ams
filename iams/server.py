@@ -109,9 +109,9 @@ def execute_command_line():
     # manipulate user inputs
     if not args.namespace:
         if args.simulation:
-            args.namespace = "simulation"
+            args.namespace = "sim"
         else:
-            args.namespace = "production"
+            args.namespace = "prod"
         logger.info("setting namespace to %s", args.namespace)
     else:
         logger.info("reading namespace - %s", args.namespace)
@@ -170,7 +170,7 @@ def execute_command_line():
     server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
     server.add_insecure_port('[::]:%s' % args.insecure_port)
 
-    add_FrameworkServicer_to_server(FrameworkServicer(
+    servicer = FrameworkServicer(
         client,
         cfssl,
         namespace,
@@ -178,11 +178,12 @@ def execute_command_line():
         channel_credentials,
         threadpool,
         plugins,
-    ), server)
+    )
+    add_FrameworkServicer_to_server(servicer, server)
 
     if args.simulation is True:
         add_SimulationServicer_to_server(
-            SimulationServicer(threadpool),
+            SimulationServicer(servicer, threadpool),
             server,
         )
     server.start()

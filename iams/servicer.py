@@ -42,6 +42,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         self.namespace = namespace
         self.booting = set()
         self.event = Event()
+        self.event.set()
 
         self.docker = Docker(client, cfssl, namespace, args.namespace, args.simulation, plugins)
 
@@ -259,8 +260,11 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         self.threadpool = threadpool
         self.simulation = False
 
-    def runtime(self):
-        pass
+    def reset(self):
+        logger.info("Simulation canceled - resetting")
+        self.simulation = True
+        self.heap = []
+        self.queue = queue.Queue()
 
     @permissions(is_optional=True)
     def start(self, request, context):
@@ -276,9 +280,13 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
         # TODO: start agents
 
+        logger.info("Starting simulation")
+        context.add_callback(self.reset)
         while True:
+
             # waiting for containers to boot
-            self.servicer.booting.wait()
+            logger.debug("Waiting for containers to boot")
+            self.servicer.event.wait()
 
             # stop simulation if agent does not reply for 60 seconds
             if agent is not None and not self.event.wait(30):

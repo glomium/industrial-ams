@@ -44,6 +44,13 @@ class Docker(object):
         ]}):
             secret.remove()
 
+        for config in self.client.configs.list(filters={"label": [
+            f"com.docker.stack.namespace={self.namespace['docker']}",
+            f"iams.namespace={self.namespace['iams']}",
+            f"iams.agent={name}",
+        ]}):
+            config.remove()
+
         # plugin system
         image_object = self.client.images.get(f'{image!s}:{version!s}')
         for plugin in self.plugins:
@@ -344,8 +351,13 @@ class Docker(object):
             old_secrets += old
 
         # update config
-        config, old_configs = self.set_config(name, config)
-        config = docker.types.ConfigReference(config.id, config.name, filename="config")
+        logger.debug("using config %s", config)
+        if config:
+            config, old_configs = self.set_config(name, config)
+            configs = [docker.types.ConfigReference(config.id, config.name, filename="config")]
+        else:
+            configs = []
+            old_configs = []
 
         # update all secrets from agent
         for key, filename in secrets.items():
@@ -358,7 +370,7 @@ class Docker(object):
             "labels": labels,
             "env": env,
             "networks": networks,
-            "configs": [config],
+            "configs": configs,
             "secrets": new_secrets,
             "log_driver": "json-file",
             "log_driver_options": {

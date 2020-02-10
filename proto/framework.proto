@@ -80,7 +80,7 @@ message AgentData {
     uint32 port = 3;
     string image = 4;
     string version = 5;
-    string config = 6;
+    bytes config = 6;
     bool autostart = 7;
 }
 

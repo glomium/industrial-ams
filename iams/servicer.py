@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 # vim: set fileencoding=utf-8 :
 
-import json
 import logging
 import queue
 import re
@@ -175,17 +174,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             message = 'A version is required to define agents'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        if request.config:
-            try:
-                config = json.loads(request.config)
-            except json.JSONDecodeError:
-                message = 'Config is not JSON parsable'
-                context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-
-            if not isinstance(config, dict):
-                message = 'Config needs to be a json-dictionary %s' % request.config
-                context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-
         try:
             self.docker.set_service(
                 name,
@@ -291,7 +279,11 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         # create agents
         logger.info("Creating agents from config")
         for agent in request.agents:
-            self.servicer.create(agent.container, context)
+            try:
+                self.servicer.create(agent.container, context)
+            except Exception:
+                self.reset(False)
+                raise
 
         logger.info("Starting simulation")
         context.add_callback(self.reset)

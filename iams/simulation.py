@@ -61,12 +61,18 @@ def execute_command_line():
     # read agent config
     agents = {}
     for name, data in simulation_config.get("agents", {}).items():
+        if "config" in data and data["config"]:
+            cfg = yaml.dump(data["config"]).encode()
+        else:
+            cfg = None
+
         config = simulation_pb2.AgentConfig(
             container=framework_pb2.AgentData(
                 name=name,
                 image=data["image"]["name"],
                 version=data["image"]["version"],
                 autostart=data["image"].get("autostart", True),
+                config=cfg,
             ),
         )
         agents[name] = config
@@ -100,7 +106,7 @@ def execute_command_line():
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.RESOURCE_EXHAUSTED:
                 logger.debug("got error message: %s", e.details())
-                logger.info("simulation running on %s - try next runtime")
+                logger.info("simulation running on %s - try next runtime", server)
                 continue
             raise
 

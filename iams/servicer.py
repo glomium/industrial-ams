@@ -32,17 +32,18 @@ logger = logging.getLogger(__name__)
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
-    def __init__(self, client, cfssl, namespace, args, credentials, threadpool, plugins):
+    def __init__(self, client, cfssl, servername, namespace, args, credentials, threadpool, plugins):
         self.args = args
         self.cfssl = cfssl
         self.credentials = credentials
         self.threadpool = threadpool
+        self.servername = servername
         self.namespace = namespace
         self.booting = set()
         self.event = Event()
         self.event.set()
 
-        self.docker = Docker(client, cfssl, namespace, args.namespace, args.simulation, plugins)
+        self.docker = Docker(client, cfssl, servername, namespace, args.namespace, args.simulation, plugins)
 
         self.RE_NAME = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.args.namespace[0:4])
 

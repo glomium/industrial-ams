@@ -173,6 +173,7 @@ def execute_command_line():
     servicer = FrameworkServicer(
         client,
         cfssl,
+        servername,
         namespace,
         args,
         channel_credentials,

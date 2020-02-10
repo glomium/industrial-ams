@@ -6,3 +6,4 @@ ip addr show | grep wlp2s0 | grep inet | sed -r 's/.*inet ([0-9]+\.[0-9]+\.[0-9]
 > pip wheel .
 > python -m twine upload iams-0.0.1a0-py3-none-any.whl
 
+load config from /config

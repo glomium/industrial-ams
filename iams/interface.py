@@ -38,7 +38,7 @@ class Agent(object):
         # grpc communication (via threadpoolexecutor)
         self._grpc = Grpc(self._iams, self._executor, get_server_credentials())
 
-        if self._iams.simuation:
+        if self._iams.simulation:
             self._simulation = Scheduler(self)
         else:
             self._simulation = None

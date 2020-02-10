@@ -99,7 +99,7 @@ def execute_command_line():
         logger.info("connect to runtime at %s:%s", server, port)
 
         try:
-            with framework_channel((server, None), port=port, secure=False) as channel:
+            with framework_channel(server, port=port, secure=False) as channel:
                 stub = SimulationStub(channel)
                 for response in stub.start(request):
                     logger.info('got: %s', response)

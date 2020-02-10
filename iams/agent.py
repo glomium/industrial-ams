@@ -56,7 +56,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
 
     def call_booted(self) -> bool:
         try:
-            with framework_channel() as channel:
+            with framework_channel(credentials=self.parent._credentials) as channel:
                 stub = FrameworkStub(channel)
                 stub.booted(Empty(), timeout=10)
             return True

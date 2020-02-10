@@ -19,6 +19,8 @@ services:
         <<: *defaults
         image: registry:5000/iams:latest
         command: tasks.cfssl:8888 -d
+        environment:
+            IAMS_NETWORK: iams_ams
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         deploy:
@@ -39,6 +41,7 @@ services:
         command: --simulation tasks.cfssl:8888 -d
         environment:
             IAMS_HOSTS: 10.6.30.69,192.168.42.65
+            IAMS_NETWORK: iams_test
         ports:
             - "5115:80"
         volumes:
@@ -52,7 +55,7 @@ services:
                 constraints: [node.role == manager]
         networks:
             - cfssl
-            - iams
+            - test
 
     cfssl:
         <<: *defaults
@@ -76,6 +79,7 @@ services:
 networks:
     cfssl:
     iams:
+    test:
 
 secrets:
     ca.key:

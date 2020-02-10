@@ -4,8 +4,8 @@
 import base64
 import hashlib
 import logging
-import os
 import re
+import os
 
 import docker
 
@@ -17,13 +17,14 @@ class Docker(object):
 
     RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT)=(.*)$')
 
-    def __init__(self, client, cfssl, namespace_docker, namespace_iams, simulation, plugins):
+    def __init__(self, client, cfssl, servername, namespace_docker, namespace_iams, simulation, plugins):
         self.client = client
         self.cfssl = cfssl
         self.namespace = {
             "docker": namespace_docker,
             "iams": namespace_iams,
         }
+        self.servername = servername
         self.simulation = simulation
         self.plugins = plugins
 
@@ -323,7 +324,7 @@ class Docker(object):
 
         env.update({
             'IAMS_AGENT': name,
-            'IAMS_SERVICE': 'tasks.%s' % os.environ.get('SERVICE_NAME'),
+            'IAMS_SERVICE': self.servername,
             'IAMS_SIMULATION': str(self.simulation).lower(),
         })
         labels.update({
@@ -331,6 +332,9 @@ class Docker(object):
             'iams.namespace': self.namespace['iams'],
             'iams.agent': name,
         })
+        if "IAMS_NETWORK" in os.environ:
+            networks.add(os.environ.get("IAMS_NETWORK"))
+
         networks = list(networks)
 
         # TODO this works but is ugly and hardcoded
@@ -354,7 +358,7 @@ class Docker(object):
         logger.debug("using config %s", config)
         if config:
             config, old_configs = self.set_config(name, config)
-            configs = [docker.types.ConfigReference(config.id, config.name, filename="config")]
+            configs = [docker.types.ConfigReference(config.id, config.name, filename="/config")]
         else:
             configs = []
             old_configs = []

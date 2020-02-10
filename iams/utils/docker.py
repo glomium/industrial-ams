@@ -1,12 +1,14 @@
 #!/usr/bin/python
 # ex:set fileencoding=utf-8:
 
+import base64
 import hashlib
 import logging
 import os
 import re
 
 import docker
+import yaml
 
 
 logger = logging.getLogger(__name__)
@@ -14,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class Docker(object):
 
-    RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT|CONFIG)=(.*)$')
+    RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT)=(.*)$')
 
     def __init__(self, client, cfssl, namespace_docker, namespace_iams, simulation, plugins):
         self.client = client
@@ -50,6 +52,23 @@ class Docker(object):
                 # apply plugin
                 plugin.remove(name, image_object.labels[plugin.label])
 
+    def get_config(self, service):
+        configs = self.client.configs.list(filters={
+            'name': service,
+            'label': [
+                f"com.docker.stack.namespace={self.namespace['docker']}",
+                f"iams.namespace={self.namespace['iams']}",
+                f"iams.agent={service}",
+            ],
+        })
+        if len(configs) == 1:
+            return yaml.load(
+                base64.decodestring(configs[0].attrs["Spec"]["Data"].encode()),
+                Loader=yaml.SafeLoader,
+            )
+        else:
+            return None
+
     def get_service(self, name=None):
         if name:
             services = self.client.services.list(filters={
@@ -76,6 +95,46 @@ class Docker(object):
         if service.attrs['Spec']['Mode']['Replicated']['Replicas'] != scale:
             logger.debug('scale service %s to %s', name, scale)
             service.scale(scale)
+
+    def set_config(self, service, data):
+        if data:
+            if not isinstance(data, (bytes, str)):
+                data = yaml.dump(data)
+            if isinstance(data, str):
+                data = data.encode()
+
+            md5 = hashlib.md5(data)
+            md5 = md5.hexdigest()[0:8]
+            config_name = f"{service}_{md5}"
+        else:
+            config_name = None
+
+        # select
+        config = None
+        old_configs = []
+        for c in self.client.configs.list(filters={"label": [
+            f"com.docker.stack.namespace={self.namespace['docker']}",
+            f"iams.namespace={self.namespace['iams']}",
+            f"iams.agent={service}",
+        ]}):
+            if c.name == config_name:
+                config = c
+            else:
+                old_configs.append(c)
+
+        if config_name is not None and config is None:
+            logger.debug('creating config for %s', service)
+            config = self.client.configs.create(
+                name=config_name,
+                data=data,
+                labels={
+                    'com.docker.stack.namespace': self.namespace['docker'],
+                    'iams.namespace': self.namespace['iams'],
+                    'iams.agent': service,
+                },
+            )
+            config.reload()  # workarround for https://github.com/docker/docker-py/issues/2025
+        return config, old_configs
 
     def set_secret(self, service, name, data):
         md5 = hashlib.md5(service.encode())
@@ -172,7 +231,6 @@ class Docker(object):
 
             service_image, service_version = service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].rsplit(':', 1)  # noqa
             service_address = None
-            service_config = None
             service_port = None
             for env in filter(self.RE_ENV.match, service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Env']):
                 name, value = self.RE_ENV.match(env).groups()
@@ -180,8 +238,6 @@ class Docker(object):
                     service_address = value
                 if name == "PORT":
                     service_port = value
-                if name == "CONFIG":
-                    service_config = value
 
             # update if image changed
             if image is None or image == service_image:
@@ -212,10 +268,11 @@ class Docker(object):
                 update = True
 
             # update if config changed
+            service_config = self.get_config(name)
             if config is None or config == service_config:
                 config = service_config
             else:
-                if not config == '-':
+                if config == '-':
                     config = None
                 update = True
 
@@ -265,10 +322,6 @@ class Docker(object):
             env.update({
                 'IAMS_PORT': port,
             })
-        if config:
-            env.update({
-                'IAMS_CONFIG': config,
-            })
 
         env.update({
             'IAMS_AGENT': name,
@@ -299,6 +352,10 @@ class Docker(object):
             new_secrets.append(docker.types.SecretReference(secret.id, secret.name, filename=filename))
             old_secrets += old
 
+        # update config
+        config, old_configs = self.set_config(name, config)
+        config = docker.types.ConfigReference(config.id, config.name, filename="config.yaml")
+
         # update all secrets from agent
         for key, filename in secrets.items():
             secret = self.client.secrets.get(key)
@@ -310,6 +367,7 @@ class Docker(object):
             "labels": labels,
             "env": env,
             "networks": networks,
+            "configs": [config],
             "secrets": new_secrets,
             "log_driver": "json-file",
             "log_driver_options": {
@@ -329,5 +387,9 @@ class Docker(object):
         # delete old screts
         for secret in old_secrets:
             secret.remove()
+
+        # delete old configs
+        for config in old_configs:
+            config.remove()
 
         return False

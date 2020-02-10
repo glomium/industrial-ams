@@ -8,7 +8,6 @@ import os
 import re
 
 import docker
-import yaml
 
 
 logger = logging.getLogger(__name__)
@@ -62,10 +61,7 @@ class Docker(object):
             ],
         })
         if len(configs) == 1:
-            return yaml.load(
-                base64.decodestring(configs[0].attrs["Spec"]["Data"].encode()),
-                Loader=yaml.SafeLoader,
-            )
+            return base64.decodebytes(configs[0].attrs["Spec"]["Data"].encode())
         else:
             return None
 
@@ -98,11 +94,6 @@ class Docker(object):
 
     def set_config(self, service, data):
         if data:
-            if not isinstance(data, (bytes, str)):
-                data = yaml.dump(data)
-            if isinstance(data, str):
-                data = data.encode()
-
             md5 = hashlib.md5(data)
             md5 = md5.hexdigest()[0:8]
             config_name = f"{service}_{md5}"
@@ -354,7 +345,7 @@ class Docker(object):
 
         # update config
         config, old_configs = self.set_config(name, config)
-        config = docker.types.ConfigReference(config.id, config.name, filename="config.yaml")
+        config = docker.types.ConfigReference(config.id, config.name, filename="config")
 
         # update all secrets from agent
         for key, filename in secrets.items():

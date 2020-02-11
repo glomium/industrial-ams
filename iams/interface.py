@@ -10,6 +10,7 @@ from threading import Lock
 from time import sleep
 
 import grpc
+import yaml
 
 from .agent import Servicer
 from .exceptions import Continue
@@ -37,6 +38,12 @@ class Agent(object):
         self._iams = Servicer(self, self._executor)
         # grpc communication (via threadpoolexecutor)
         self._grpc = Grpc(self._iams, self._executor, get_server_credentials())
+
+        try:
+            with open('/config', 'rb') as fobj:
+                self._config = yaml.load(fobj, Loader=yaml.SafeLoader)
+        except FileNotFoundError:
+            self._config = {}
 
         if self._iams.simulation:
             self._simulation = Scheduler(self)

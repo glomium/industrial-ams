@@ -55,7 +55,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         try:
             self.booting.remove(name)
             if not self.booting:
-                self.booting.set()
+                self.event.set()
         except KeyError:
             pass
 
@@ -252,9 +252,9 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
     def reset(self, callback=True):
         if callback:
-            logger.error("Simulation canceled - resetting")
+            logger.info("Resetting simulation runtime")
         else:
-            logger.info("Simulation finished - resetting")
+            logger.error("Simulatddion canceled - resetting")
 
         self.heap = []
         self.queue = None
@@ -288,6 +288,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
         logger.info("Starting simulation")
         context.add_callback(self.reset)
+        agent = None
 
         while True:
 
@@ -297,9 +298,9 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
             # stop simulation if agent does not reply for 60 seconds
             if agent is not None and not self.event.wait(30):
-                logger.info("waited 30s on the respone of agent %s", self.agent)
+                logger.info("waited 30s on the respone of agent %s", agent)
             if agent is not None and not self.event.wait(30):
-                logger.warning("waited 60s on the respone of agent %s - closing simulation", self.agent)
+                logger.warning("waited 60s on the respone of agent %s - closing simulation", agent)
                 break
 
             try:
@@ -331,9 +332,6 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                     self.queue.task_done()
             except queue.Empty:
                 pass
-
-        # End simulation
-        self.reset(callback=False)
 
     @permissions(has_agent=True)
     def schedule(self, request, context):

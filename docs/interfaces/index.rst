@@ -1,9 +1,10 @@
-Tutorials
-=========
+Interfaces
+==========
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   simple_agent
+   agent
+   framework
    simulation

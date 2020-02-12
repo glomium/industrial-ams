@@ -6,8 +6,10 @@ Welcome to Industrial AMS's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   about
    installation
    tutorial/index
+   interfaces/index
    mixins/index
    plugins/index
    development

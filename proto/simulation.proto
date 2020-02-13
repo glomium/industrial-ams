@@ -31,7 +31,7 @@ message AgentConfig {
 
 message SimulationConfig {
     float until = 1;
-    bytes seed = 2;
+    string seed = 2;
     repeated AgentConfig agents = 3;
 }
 

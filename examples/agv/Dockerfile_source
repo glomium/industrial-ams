@@ -1,0 +1,7 @@
+FROM registry:5000/iams:latest
+
+LABEL iams.services.agent=true
+
+COPY run_source.py ./run.py
+
+ENTRYPOINT ["/usr/bin/python3", "run.py"]

@@ -3,6 +3,7 @@
 
 import logging
 import queue
+import random
 import re
 
 from heapq import heappush
@@ -155,7 +156,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         return framework_pb2.AgentData()
 
     @permissions(has_agent=True, has_groups=["root", "web"])
-    def create(self, request, context):
+    def create(self, request, context, seed=None):
         logger.debug('create called from %s', context._username)
 
         regex = self.RE_NAME.match(request.name)
@@ -184,6 +185,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 config=request.config,
                 autostart=request.autostart,
                 create=True,
+                seed=seed,
             )
 
         except docker_errors.ImageNotFound:
@@ -274,13 +276,20 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         self.queue = queue.Queue()
         time = 0.0
         agent = None
-        context._isinternal = True
+
+        # generate a seed for pseudo-random function (make simulations repeatable)
+        if request.seed:
+            seed = request.seed
+        else:
+            seed = str(random.randint(10000000000000, 99999999999999))
+        random.seed(seed)
+        logger.info("setting seed for random values to %s", seed)
 
         # create agents
         logger.info("Creating agents from config")
         for agent in request.agents:
             try:
-                self.servicer.create(agent.container, context)
+                self.servicer.create(agent.container, context, seed=random.randint(10000000000000, 99999999999999))
             except Exception:
                 self.reset(False)
                 raise

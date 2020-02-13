@@ -221,7 +221,7 @@ class Docker(object):
 
     def set_service(
         self, name, image=None, version=None, address=None, port=None, config=None,
-        autostart=True, create=False, update=False,
+        autostart=True, create=False, update=False, seed=None,
     ):
 
         try:
@@ -320,6 +320,10 @@ class Docker(object):
         if port:
             env.update({
                 'IAMS_PORT': port,
+            })
+        if seed:
+            env.update({
+                'IAMS_SEED': seed,
             })
 
         env.update({

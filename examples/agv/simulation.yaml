@@ -1,0 +1,128 @@
+seed: agv_example
+agents:
+    source1:
+        image:
+            name: example_source
+            version: latest
+            autostart: True
+        config:
+            buffer: 4
+            position:
+                x: 1
+                y: 0
+
+    source2:
+        image:
+            name: example_source
+            version: latest
+            autostart: True
+        config:
+            buffer: 4
+            position:
+                x: 2
+                y: 0
+
+    source3:
+        image:
+            name: example_source
+            version: latest
+            autostart: True
+        config:
+            buffer: 4
+            position:
+                x: 3
+                y: 0
+    source4:
+        image:
+            name: example_source
+            version: latest
+            autostart: True
+        config:
+            buffer: 4
+            position:
+                x: 4
+                y: 0
+
+    sink1:
+        image:
+            name: example_sink
+            version: latest
+            autostart: True
+        config:
+            buffer: 4
+            position:
+                x: 1
+                y: 1
+
+    sink2:
+        image:
+            name: example_sink
+            version: latest
+            autostart: True
+        config:
+            buffer: 4
+            position:
+                x: 2
+                y: 1
+
+    sink3:
+        image:
+            name: example_sink
+            version: latest
+            autostart: True
+        config:
+            buffer: 4
+            position:
+                x: 3
+                y: 1
+
+    sink4:
+        image:
+            name: example_sink
+            version: latest
+            autostart: True
+        config:
+            buffer: 4
+            position:
+                x: 4
+                y: 1
+
+    vehicle1:
+        image:
+            name: example_vehicle
+            version: latest
+            autostart: True
+        config:
+            position:
+                x: 1
+                y: 1
+
+    vehicle2:
+        image:
+            name: example_vehicle
+            version: latest
+            autostart: True
+        config:
+            position:
+                x: 2
+                y: 1
+
+    vehicle3:
+        image:
+            name: example_vehicle
+            version: latest
+            autostart: True
+        config:
+            position:
+                x: 3
+                y: 1
+
+    vehicle4:
+        image:
+            name: example_vehicle
+            version: latest
+            autostart: True
+        config:
+            position:
+                x: 4
+                y: 1

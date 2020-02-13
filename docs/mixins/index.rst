@@ -7,5 +7,6 @@ Mixins
 
    event
    influxdb
+   mqtt
    tcp
    opcua

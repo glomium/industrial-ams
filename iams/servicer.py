@@ -31,6 +31,10 @@ from .utils.ssl import validate_certificate
 logger = logging.getLogger(__name__)
 
 
+def generate_seed():
+    return bytearray(random.getrandbits(8) for x in range(12)).hex()
+
+
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     def __init__(self, client, cfssl, servername, namespace, args, credentials, threadpool, plugins):
@@ -281,7 +285,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         if request.seed:
             seed = request.seed
         else:
-            seed = str(random.randint(10000000000000, 99999999999999))
+            seed = generate_seed()
         random.seed(seed)
         logger.info("setting seed for random values to %s", seed)
 
@@ -289,7 +293,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         logger.info("Creating agents from config")
         for agent in request.agents:
             try:
-                self.servicer.create(agent.container, context, seed=random.randint(10000000000000, 99999999999999))
+                self.servicer.create(agent.container, context, seed=generate_seed())
             except Exception:
                 self.reset(False)
                 raise

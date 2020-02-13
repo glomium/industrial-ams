@@ -8,6 +8,11 @@ import "google/protobuf/empty.proto";
 */
 service Framework {
     /*
+    List all agents on with all of the specified filters applies to
+    */
+    rpc agents(AgentRequest) returns (stream AgentData) {}
+
+    /*
     agent sends this command to signalize its operational
     */
     rpc booted(google.protobuf.Empty) returns (google.protobuf.Empty) {}
@@ -57,12 +62,18 @@ service Framework {
 
     // /*
     // */
-    // rpc agents(google.protobuf.Empty) returns (stream AgentData) {}
-
-    // /*
-    // */
     // rpc images(google.protobuf.Empty) returns (ImagesData) {}
 
+}
+
+message AgentRequest {
+    repeated string filter = 1;
+}
+
+message AgentResponse {
+    string name = 1;
+    string image = 2;
+    string version = 3;
 }
 
 message RenewRequest {

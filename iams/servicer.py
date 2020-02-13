@@ -110,18 +110,17 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 pass
             # TODO yield data
 
+    @permissions(has_agent=True, has_groups=["root", "web"])
     def agents(self, request, context):
         """
         """
-        for service in self.docker.client.services.list(filters={'label': [f"iams.namespace={self.args.namespace}"]}):
-            name, address, image, version, config, autostart = self.get_service_data(service)
-            yield framework_pb2.AgentData(
+        filters = request.filter + [f"iams.namespace={self.args.namespace}"]
+        for service in self.docker.client.services.list(filters={'label': filters}):
+            image, version = service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].rsplit(':', 1)  # noqa
+            yield framework_pb2.AgentResponse(
                 name=service.name,
                 image=image,
                 version=version,
-                address=address,
-                config=config,
-                autostart=autostart,
             )
 
     @permissions(has_agent=True, has_groups=["root", "web"])

@@ -12,6 +12,9 @@ from iams.interface import Agent
 
 class Vehicle(Agent):
 
+    def simulation_start(self):
+        pass
+
     def _loop(self):
         while True:
             time.sleep(10)

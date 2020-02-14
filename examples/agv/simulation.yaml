@@ -6,9 +6,11 @@ agents:
             version: latest
             autostart: True
         config:
-            buffer: 4
+            buffer: 5
+            mean: 120
+            sigma: 30
             position:
-                x: 1
+                x: 0
                 y: 0
 
     source2:
@@ -17,9 +19,11 @@ agents:
             version: latest
             autostart: True
         config:
-            buffer: 4
+            buffer: 5
+            mean: 120
+            sigma: 30
             position:
-                x: 2
+                x: 10
                 y: 0
 
     source3:
@@ -28,9 +32,11 @@ agents:
             version: latest
             autostart: True
         config:
-            buffer: 4
+            buffer: 5
+            mean: 120
+            sigma: 30
             position:
-                x: 3
+                x: 20
                 y: 0
     source4:
         image:
@@ -38,9 +44,23 @@ agents:
             version: latest
             autostart: True
         config:
-            buffer: 4
+            buffer: 5
+            mean: 120
+            sigma: 30
             position:
-                x: 4
+                x: 30
+                y: 0
+    source5:
+        image:
+            name: example_source
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 40
                 y: 0
 
     sink1:
@@ -49,10 +69,12 @@ agents:
             version: latest
             autostart: True
         config:
-            buffer: 4
+            buffer: 5
+            mean: 120
+            sigma: 30
             position:
-                x: 1
-                y: 1
+                x: 0
+                y: 20
 
     sink2:
         image:
@@ -60,10 +82,12 @@ agents:
             version: latest
             autostart: True
         config:
-            buffer: 4
+            buffer: 5
+            mean: 120
+            sigma: 30
             position:
-                x: 2
-                y: 1
+                x: 10
+                y: 20
 
     sink3:
         image:
@@ -71,10 +95,12 @@ agents:
             version: latest
             autostart: True
         config:
-            buffer: 4
+            buffer: 5
+            mean: 120
+            sigma: 30
             position:
-                x: 3
-                y: 1
+                x: 20
+                y: 20
 
     sink4:
         image:
@@ -82,10 +108,25 @@ agents:
             version: latest
             autostart: True
         config:
-            buffer: 4
+            buffer: 5
+            mean: 120
+            sigma: 30
             position:
-                x: 4
-                y: 1
+                x: 30
+                y: 20
+
+    sink5:
+        image:
+            name: example_sink
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 40
+                y: 20
 
     vehicle1:
         image:
@@ -93,9 +134,12 @@ agents:
             version: latest
             autostart: True
         config:
+            load: 20
+            unload: 20
+            speed: 1
             position:
-                x: 1
-                y: 1
+                x: 25
+                y: 25
 
     vehicle2:
         image:
@@ -103,9 +147,12 @@ agents:
             version: latest
             autostart: True
         config:
+            load: 20
+            unload: 20
+            speed: 1
             position:
-                x: 2
-                y: 1
+                x: 25
+                y: 25
 
     vehicle3:
         image:
@@ -113,9 +160,12 @@ agents:
             version: latest
             autostart: True
         config:
+            load: 20
+            unload: 20
+            speed: 1
             position:
-                x: 3
-                y: 1
+                x: 25
+                y: 25
 
     vehicle4:
         image:
@@ -123,6 +173,9 @@ agents:
             version: latest
             autostart: True
         config:
+            load: 20
+            unload: 20
+            speed: 1
             position:
-                x: 4
-                y: 1
+                x: 25
+                y: 25

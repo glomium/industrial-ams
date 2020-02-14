@@ -2,6 +2,6 @@ FROM registry:5000/iams:latest
 
 LABEL iams.services.agent=true
 
-COPY run_vehicle.py ./run.py
+COPY agv_pb2_grpc.py agv_pb2.py run_vehicle.py ./
 
-ENTRYPOINT ["/usr/bin/python3", "run.py"]
+ENTRYPOINT ["/usr/bin/python3", "run_vehicle.py"]

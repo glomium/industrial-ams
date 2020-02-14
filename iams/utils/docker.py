@@ -335,6 +335,7 @@ class Docker(object):
             'com.docker.stack.namespace': self.namespace['docker'],
             'iams.namespace': self.namespace['iams'],
             'iams.agent': name,
+            'iams.image': image,
         })
         if "IAMS_NETWORK" in os.environ:
             networks.add(os.environ.get("IAMS_NETWORK"))

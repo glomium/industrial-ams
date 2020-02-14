@@ -95,9 +95,9 @@ class Agent(object):
 
         if self._iams.simulation:
             try:
-                self.start_simulation()
+                self.simulation_start()
             except NotImplementedError:
-                logger.debug("start_simulation not implemented at %s", self.__class__.__qualname__)
+                logger.debug("simulation_start not implemented at %s", self.__class__.__qualname__)
         if self._iams.simulation:
             # simulation loop
             while True:
@@ -211,7 +211,7 @@ class Agent(object):
         """
         pass
 
-    def start_simulation(self):
+    def simulation_start(self):
         """
         This gets executed on teardown
         """

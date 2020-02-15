@@ -30,18 +30,19 @@ class Servicer(agv_pb2_grpc.SourceServicer):
 
     @permissions(has_agent=True)
     def reserve_next(self, request, context):
-        self.parent.on_route = True
+        self.parent.on_route += 1
         return agv_pb2.Data(x=self.parent._config["position"]["x"], y=self.parent._config["position"]["y"])
 
     @permissions(has_agent=True)
     def next_order(self, request, context):
-        if not self.parent.on_route and self.parent.storage:
-            return agv_pb2.Time(time=self.parent.storage[0])
+        if self.parent.on_route < len(self.parent.storage):
+            return agv_pb2.Time(time=self.parent.storage[self.parent.on_route][0])
         context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "resource empty")
 
     @permissions(has_agent=True)
     def get_part(self, request, context):
         time, data = self.parent.storage.pop(0)
+        self.parent.on_route -= 1
         return data
 
 
@@ -53,7 +54,7 @@ class Source(Agent):
         self.part_missed = 0
         self.part_generated = 0
         self.storage = []
-        self.on_route = False
+        self.on_route = 0
 
     def simulation_start(self):
         # schedule next event with framework
@@ -101,8 +102,8 @@ class Source(Agent):
         else:
             self.part_generated += 1
             sink = random.choice(self.sinks)
-            logger.info("selected sink: %s", sink)
             self.storage.append((self._simulation.time, sink))
+            logger.info("generated part: %s - queue %s/%s", sink.name, len(self.storage), self._config["buffer"])
 
             # call all vehicles and select nearest first
             times = {}
@@ -116,20 +117,23 @@ class Source(Agent):
                 except grpc.RpcError:
                     pass
 
+            logger.debug("free vehicles: %s", times)
+
             # select nearest vehicle first
             if times:
                 vehicle = min(times, key=times.get)
+                logger.info("calling vehicle: %s", vehicle)
 
                 with self._channel(vehicle) as channel:
                     stub = agv_pb2_grpc.VehicleStub(channel)
                     stub.drive(request)
-                    self.on_route = True
+                    self.on_route += 1
 
         # schedule next part generation
         self._simulation.schedule(self.get_next_time(), 'generate_part')
 
 
 if __name__ == "__main__":
-    dictConfig(get_logging_config(["iams"], logging.DEBUG))
+    dictConfig(get_logging_config(["iams"], logging.INFO))
     run = Source()
     run()

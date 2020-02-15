@@ -86,6 +86,7 @@ class Vehicle(Agent):
             stub = agv_pb2_grpc.SourceStub(channel)
             response = stub.get_part(Empty())
         eta = self.get_eta(response.x, response.y)
+        logger.info("part picked up at %s", self.station)
         self.station = response.name
         self.x = response.x
         self.y = response.y
@@ -99,10 +100,13 @@ class Vehicle(Agent):
             stub = agv_pb2_grpc.SinkStub(channel)
             response = stub.put_part(Empty())
 
+        logger.info("part droped at %s", self.station)
+
         if response.time:
             # station full -> wait
             self._simulation.schedule(response.time, 'drop_part')
         else:
+
             # call all sources and select oldest order (fifo)
             times = {}
             for source in self.sources:
@@ -111,8 +115,8 @@ class Vehicle(Agent):
                         stub = agv_pb2_grpc.SourceStub(channel)
                         response = stub.next_order(Empty())
                         times[source] = response.time
-                except grpc.RpcError:
-                    pass
+                except grpc.RpcError as e:
+                    logger.info(str(e))
 
             logger.debug("valid sources: %s", times)
 
@@ -121,10 +125,10 @@ class Vehicle(Agent):
                 source = min(times, key=times.get)
 
                 with self._channel(source) as channel:
-                    stub = agv_pb2_grpc.VehicleStub(channel)
+                    stub = agv_pb2_grpc.SourceStub(channel)
                     response = stub.reserve_next(Empty())
 
-                logger.debug("driving to %s", source)
+                logger.info("driving to %s", source)
 
                 eta = self.get_eta(response.x, response.y)
                 self.station = source
@@ -138,6 +142,6 @@ class Vehicle(Agent):
 
 
 if __name__ == "__main__":
-    dictConfig(get_logging_config(["iams"], logging.DEBUG))
+    dictConfig(get_logging_config(["iams"], logging.INFO))
     run = Vehicle()
     run()

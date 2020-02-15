@@ -1,5 +1,6 @@
 seed: agv_example
-until: 86400
+# until: 86400
+until: 7200
 
 agents:
     source1:

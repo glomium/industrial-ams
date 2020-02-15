@@ -3,10 +3,16 @@ syntax = "proto3";
 package iams.agent;
 
 import "google/protobuf/empty.proto";
+// import "simulation.proto";
 
 /*
 */
 service Agent {
+    // /*
+    // Receive scheduled events in simulation run
+    // */
+    // rpc simulation(SimulationData) returns (stream SimulationResponse) {}
+
     /*
     Receive scheduled events in simulation run
     */

@@ -37,6 +37,7 @@ class Servicer(agv_pb2_grpc.SinkServicer):
             # start consumation of products after the first product arrives
             if not self.parent.started:
                 self.parent._simulation.schedule(self.parent.get_next_time(), 'consume_part')
+                self.parent.started = True
             # queue not full -> dont wait
             self.parent.storage += 1
             return agv_pb2.Time()
@@ -69,13 +70,13 @@ class Sink(Agent):
         else:
             self.part_consumed += 1
             self.storage -= 1
-            logger.info("part consumed")
+            logger.info("part consumed - queue %s/%s", self.storage, self._config["buffer"])
 
         # schedule next consume
         self.eta = self._simulation.schedule(self.get_next_time(), 'consume_part')
 
 
 if __name__ == "__main__":
-    dictConfig(get_logging_config(["iams"], logging.DEBUG))
+    dictConfig(get_logging_config(["iams"], logging.INFO))
     run = Sink()
     run()

@@ -27,7 +27,7 @@ service Sink {
     /*
     loads coordinates of sink
     */
-    rpc get_coordinate(google.protobuf.Empty) returns (Data);
+    rpc get_coordinates(google.protobuf.Empty) returns (Data);
 
     /*
     puts a part into the sink. if it is full it returns a time to wait

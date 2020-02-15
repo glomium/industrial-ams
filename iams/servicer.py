@@ -119,7 +119,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     def agents(self, request, context):
         """
         """
-        filters = request.filter + [f"iams.namespace={self.args.namespace}"]
+        filters = list(request.filter) + [f"iams.namespace={self.args.namespace}"]
         for service in self.docker.client.services.list(filters={'label': filters}):
             image, version = service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].rsplit(':', 1)  # noqa
             yield framework_pb2.AgentResponse(

@@ -94,8 +94,8 @@ class SinkStub(object):
     Args:
       channel: A grpc.Channel.
     """
-    self.get_coordinate = channel.unary_unary(
-        '/agv.proto.Sink/get_coordinate',
+    self.get_coordinates = channel.unary_unary(
+        '/agv.proto.Sink/get_coordinates',
         request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
         response_deserializer=agv__pb2.Data.FromString,
         )
@@ -110,7 +110,7 @@ class SinkServicer(object):
   # missing associated documentation comment in .proto file
   pass
 
-  def get_coordinate(self, request, context):
+  def get_coordinates(self, request, context):
     """
     loads coordinates of sink
     """
@@ -129,8 +129,8 @@ class SinkServicer(object):
 
 def add_SinkServicer_to_server(servicer, server):
   rpc_method_handlers = {
-      'get_coordinate': grpc.unary_unary_rpc_method_handler(
-          servicer.get_coordinate,
+      'get_coordinates': grpc.unary_unary_rpc_method_handler(
+          servicer.get_coordinates,
           request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
           response_serializer=agv__pb2.Data.SerializeToString,
       ),

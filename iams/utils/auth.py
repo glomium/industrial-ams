@@ -52,18 +52,25 @@ def permissions(function=None, has_agent=False, has_groups=[], is_optional=False
 
             context._agent, context._version, context._image, context._username, context._groups = get_credentials(auth["x509_common_name"][0])  # noqa
 
-            if has_agent and not has_groups and context._agent is None:
-                message = "Client needs to be an agent"
-                context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+            # request is allowed to identify as an agent
+            if has_agent and context._agent is not None:
+                return func(self, request, context)
+
+            # check groups
             elif has_groups:
                 groups = set(has_groups)
                 logger.debug("Check if groups %s has members in %s", groups, context._groups)
 
-                if not groups.intersection(context._groups):
+                # check if agent is in one of the required groups
+                if groups.intersection(context._groups):
+                    return func(self, request, context)
+                else:
                     message = "Client needs to be in one of %s" % (groups)
                     context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
 
-            return func(self, request, context)
+            else:
+                message = "Client needs to be authentifacted"
+                context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
         return wrapped
 
     if function:

@@ -24,7 +24,7 @@ class Servicer(agv_pb2_grpc.SinkServicer):
         self.parent = parent
 
     def get_coordinates(self, request, response):
-        return agv_pb2.Data(x=self._config["position"]["x"], y=self._config["position"]["y"])
+        return agv_pb2.Data(x=self.parent._config["position"]["x"], y=self.parent._config["position"]["y"])
 
     def put_part(self, request, response):
         if self.parent.part_storage >= self.parent._config["buffer"]:

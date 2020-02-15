@@ -7,6 +7,8 @@ from uuid import uuid1
 
 import grpc
 
+from google.protobuf.empty_pb2 import Empty
+
 from .exceptions import EventNotFound
 from .proto.simulation_pb2 import EventScheduleRequest
 from .stub import SimulationStub
@@ -38,6 +40,14 @@ class Scheduler(object):
 
     def __iter__(self):
         return self
+
+    def resume(self):
+        try:
+            with framework_channel(credentials=self.parent._credentials) as channel:
+                stub = SimulationStub(channel)
+                stub.schedule(Empty(), timeout=10)
+        except grpc.RpcError as e:
+            logger.exception("error %s in calling SimulationStub.resume: %s", e.code(), e.details())
 
     def schedule(self, delay, callback, **kwargs):
         """

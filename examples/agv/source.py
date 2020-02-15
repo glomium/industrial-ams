@@ -69,7 +69,7 @@ class Source(Agent):
             self.sinks.append(sink.name)
             with self._channel(sink.name) as channel:
                 stub = agv_pb2_grpc.SinkStub(channel)
-                response = stub.get_coodinates(Empty())
+                response = stub.get_coordinates(Empty())
 
             response.name = sink.name
             self.sinks.append(response)

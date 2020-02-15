@@ -21,7 +21,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='agv.proto',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\tagv.proto\x12\tagv.proto\x1a\x1bgoogle/protobuf/empty.proto\"*\n\x04\x44\x61ta\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\t\n\x01x\x18\x02 \x01(\x02\x12\t\n\x01y\x18\x03 \x01(\x02\"\x14\n\x04Time\x12\x0c\n\x04time\x18\x01 \x01(\x02\x32\xaf\x01\n\x06Source\x12\x39\n\x0eget_coordinate\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data\x12\x35\n\nnext_order\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Time\x12\x33\n\x08get_part\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data2v\n\x04Sink\x12\x39\n\x0eget_coordinate\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data\x12\x33\n\x08put_part\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Time2v\n\x07Vehicle\x12\x39\n\x0eget_coordinate\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data\x12\x30\n\x05\x64rive\x12\x0f.agv.proto.Data\x1a\x16.google.protobuf.Emptyb\x06proto3')
+  serialized_pb=_b('\n\tagv.proto\x12\tagv.proto\x1a\x1bgoogle/protobuf/empty.proto\"*\n\x04\x44\x61ta\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\t\n\x01x\x18\x02 \x01(\x02\x12\t\n\x01y\x18\x03 \x01(\x02\"\x14\n\x04Time\x12\x0c\n\x04time\x18\x01 \x01(\x02\x32\xb4\x01\n\x06Source\x12\x35\n\nnext_order\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Time\x12\x33\n\x08get_part\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data\x12>\n\x0creserve_next\x12\x16.google.protobuf.Empty\x1a\x16.google.protobuf.Empty2v\n\x04Sink\x12\x39\n\x0eget_coordinate\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data\x12\x33\n\x08put_part\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Time2h\n\x07Vehicle\x12+\n\x07get_eta\x12\x0f.agv.proto.Data\x1a\x0f.agv.proto.Time\x12\x30\n\x05\x64rive\x12\x0f.agv.proto.Data\x1a\x16.google.protobuf.Emptyb\x06proto3')
   ,
   dependencies=[google_dot_protobuf_dot_empty__pb2.DESCRIPTOR,])
 
@@ -130,21 +130,12 @@ _SOURCE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   serialized_start=120,
-  serialized_end=295,
+  serialized_end=300,
   methods=[
-  _descriptor.MethodDescriptor(
-    name='get_coordinate',
-    full_name='agv.proto.Source.get_coordinate',
-    index=0,
-    containing_service=None,
-    input_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
-    output_type=_DATA,
-    serialized_options=None,
-  ),
   _descriptor.MethodDescriptor(
     name='next_order',
     full_name='agv.proto.Source.next_order',
-    index=1,
+    index=0,
     containing_service=None,
     input_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
     output_type=_TIME,
@@ -153,10 +144,19 @@ _SOURCE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='get_part',
     full_name='agv.proto.Source.get_part',
-    index=2,
+    index=1,
     containing_service=None,
     input_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
     output_type=_DATA,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
+    name='reserve_next',
+    full_name='agv.proto.Source.reserve_next',
+    index=2,
+    containing_service=None,
+    input_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
+    output_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
     serialized_options=None,
   ),
 ])
@@ -171,8 +171,8 @@ _SINK = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=1,
   serialized_options=None,
-  serialized_start=297,
-  serialized_end=415,
+  serialized_start=302,
+  serialized_end=420,
   methods=[
   _descriptor.MethodDescriptor(
     name='get_coordinate',
@@ -204,16 +204,16 @@ _VEHICLE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=2,
   serialized_options=None,
-  serialized_start=417,
-  serialized_end=535,
+  serialized_start=422,
+  serialized_end=526,
   methods=[
   _descriptor.MethodDescriptor(
-    name='get_coordinate',
-    full_name='agv.proto.Vehicle.get_coordinate',
+    name='get_eta',
+    full_name='agv.proto.Vehicle.get_eta',
     index=0,
     containing_service=None,
-    input_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
-    output_type=_DATA,
+    input_type=_DATA,
+    output_type=_TIME,
     serialized_options=None,
   ),
   _descriptor.MethodDescriptor(

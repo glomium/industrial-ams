@@ -54,6 +54,8 @@ class Scheduler(object):
         logger.debug("Register execution event at %s", response.time)
         self.events[uuid] = (callback, kwargs)
 
+        return self.time + delay
+
     def set_event(self, uuid, time):
         self.uuid = uuid
         self.time = time

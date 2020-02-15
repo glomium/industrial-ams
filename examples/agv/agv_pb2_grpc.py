@@ -15,11 +15,6 @@ class SourceStub(object):
     Args:
       channel: A grpc.Channel.
     """
-    self.get_coordinate = channel.unary_unary(
-        '/agv.proto.Source/get_coordinate',
-        request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-        response_deserializer=agv__pb2.Data.FromString,
-        )
     self.next_order = channel.unary_unary(
         '/agv.proto.Source/next_order',
         request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
@@ -30,23 +25,20 @@ class SourceStub(object):
         request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
         response_deserializer=agv__pb2.Data.FromString,
         )
+    self.reserve_next = channel.unary_unary(
+        '/agv.proto.Source/reserve_next',
+        request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+        response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+        )
 
 
 class SourceServicer(object):
   # missing associated documentation comment in .proto file
   pass
 
-  def get_coordinate(self, request, context):
-    """
-    loads coordinates of source
-    """
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details('Method not implemented!')
-    raise NotImplementedError('Method not implemented!')
-
   def next_order(self, request, context):
     """
-    returns the time when the next order in queue was created (first come first serve)
+    returns the time when the next order is in queue or none if no orders availale or a vehicle is on route
     """
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
     context.set_details('Method not implemented!')
@@ -54,7 +46,15 @@ class SourceServicer(object):
 
   def get_part(self, request, context):
     """
-    loads the next part to the carrier
+    loads the next part to the carrier, resets the on_route flag
+    """
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def reserve_next(self, request, context):
+    """
+    sets the on_route flag on parent
     """
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
     context.set_details('Method not implemented!')
@@ -63,11 +63,6 @@ class SourceServicer(object):
 
 def add_SourceServicer_to_server(servicer, server):
   rpc_method_handlers = {
-      'get_coordinate': grpc.unary_unary_rpc_method_handler(
-          servicer.get_coordinate,
-          request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-          response_serializer=agv__pb2.Data.SerializeToString,
-      ),
       'next_order': grpc.unary_unary_rpc_method_handler(
           servicer.next_order,
           request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
@@ -77,6 +72,11 @@ def add_SourceServicer_to_server(servicer, server):
           servicer.get_part,
           request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
           response_serializer=agv__pb2.Data.SerializeToString,
+      ),
+      'reserve_next': grpc.unary_unary_rpc_method_handler(
+          servicer.reserve_next,
+          request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+          response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(
@@ -155,10 +155,10 @@ class VehicleStub(object):
     Args:
       channel: A grpc.Channel.
     """
-    self.get_coordinate = channel.unary_unary(
-        '/agv.proto.Vehicle/get_coordinate',
-        request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-        response_deserializer=agv__pb2.Data.FromString,
+    self.get_eta = channel.unary_unary(
+        '/agv.proto.Vehicle/get_eta',
+        request_serializer=agv__pb2.Data.SerializeToString,
+        response_deserializer=agv__pb2.Time.FromString,
         )
     self.drive = channel.unary_unary(
         '/agv.proto.Vehicle/drive',
@@ -171,7 +171,7 @@ class VehicleServicer(object):
   # missing associated documentation comment in .proto file
   pass
 
-  def get_coordinate(self, request, context):
+  def get_eta(self, request, context):
     """
     loads coordinates of vehicle, if vehicle is idle, otherwise returns a not available error (closes vehicle first)
     """
@@ -190,10 +190,10 @@ class VehicleServicer(object):
 
 def add_VehicleServicer_to_server(servicer, server):
   rpc_method_handlers = {
-      'get_coordinate': grpc.unary_unary_rpc_method_handler(
-          servicer.get_coordinate,
-          request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-          response_serializer=agv__pb2.Data.SerializeToString,
+      'get_eta': grpc.unary_unary_rpc_method_handler(
+          servicer.get_eta,
+          request_deserializer=agv__pb2.Data.FromString,
+          response_serializer=agv__pb2.Time.SerializeToString,
       ),
       'drive': grpc.unary_unary_rpc_method_handler(
           servicer.drive,

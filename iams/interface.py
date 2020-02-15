@@ -98,6 +98,7 @@ class Agent(object):
                 self.simulation_start()
             except NotImplementedError:
                 logger.debug("simulation_start not implemented at %s", self.__class__.__qualname__)
+
         if self._iams.simulation:
             # simulation loop
             while True:

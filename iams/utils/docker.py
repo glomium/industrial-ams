@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 class Docker(object):
 
     RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT)=(.*)$')
+    RE_ABILITY = re.compile(r'^iams\.ability\.([a-z][a-z0-9]+)$')
 
     def __init__(self, client, cfssl, servername, namespace_docker, namespace_iams, simulation, plugins):
         self.client = client
@@ -331,6 +332,12 @@ class Docker(object):
             'IAMS_SERVICE': self.servername,
             'IAMS_SIMULATION': str(self.simulation).lower(),
         })
+        for label in image_object.labels:
+            if self.RE_ABILITY.match(label):
+                labels.update({
+                    label: image_object.labels[label],
+                })
+
         labels.update({
             'com.docker.stack.namespace': self.namespace['docker'],
             'iams.namespace': self.namespace['iams'],

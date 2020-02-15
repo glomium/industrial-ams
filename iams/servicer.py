@@ -316,7 +316,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                 break
 
             try:
-                time, agent, uuid = heappop(self.heap)
+                time, delay, agent, uuid = heappop(self.heap)
             except IndexError:
                 logger.info("Simulation finished - no more events in queue")
                 break
@@ -349,7 +349,11 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
     def schedule(self, request, context):
         time = self.time + request.delay
         logger.debug("Adding event at %s for agent %s (delay=%s)", time, context._agent, request.delay)
-        heappush(self.heap, (time, context._agent, request.uuid))
+        # If we have two events at the same time, we use the negative delay
+        # to decide which event was added first. this reduces the
+        # possibility to run into infinite loops if one agents decides to wait
+        # for an event on another agent
+        heappush(self.heap, (time, -request.delay, context._agent, request.uuid))
         return simulation_pb2.EventScheduleResponse(time=time)
 
     @permissions(has_agent=True)

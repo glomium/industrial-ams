@@ -7,19 +7,19 @@ import "google/protobuf/empty.proto";
 
 service Source {
     /*
-    loads coordinates of source
-    */
-    rpc get_coordinate(google.protobuf.Empty) returns (Data);
-
-    /*
-    returns the time when the next order in queue was created (first come first serve)
+    returns the time when the next order is in queue or none if no orders availale or a vehicle is on route
     */
     rpc next_order(google.protobuf.Empty) returns (Time);
 
     /*
-    loads the next part to the carrier
+    loads the next part to the carrier, resets the on_route flag
     */
     rpc get_part(google.protobuf.Empty) returns (Data);
+
+    /*
+    sets the on_route flag on parent
+    */
+    rpc reserve_next(google.protobuf.Empty) returns (google.protobuf.Empty);
 }
 
 
@@ -40,7 +40,7 @@ service Vehicle {
     /*
     loads coordinates of vehicle, if vehicle is idle, otherwise returns a not available error (closes vehicle first)
     */
-    rpc get_coordinate(google.protobuf.Empty) returns (Data);
+    rpc get_eta(Data) returns (Time);
 
     /*
     drive to requested position and pickup a workpiece

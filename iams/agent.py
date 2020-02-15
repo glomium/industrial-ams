@@ -10,6 +10,7 @@ from google.protobuf.empty_pb2 import Empty
 
 from .proto import agent_pb2_grpc
 from .proto import framework_pb2
+from .proto import framework_pb2_grpc
 from .stub import AgentStub
 from .stub import FrameworkStub
 from .utils.auth import permissions
@@ -45,7 +46,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
         logger.debug("resume_simulation called")
-        self._simulation.set_event(request.uuid, request.time)
+        self.parent._simulation.set_event(request.uuid, request.time)
         return Empty()
 
     @permissions(has_agent=True, has_groups=["root"])
@@ -53,6 +54,15 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         return Empty()
 
     # === calls to iams =======================================================
+
+    def get_agents(self, labels=[]) -> list:
+        try:
+            with framework_channel(credentials=self.parent._credentials) as channel:
+                stub = FrameworkStub(channel)
+                for response in stub.agents(framework_pb2_grpc.AgentRequest(filter=labels), timeout=10):
+                    yield response
+        except grpc.RpcError:
+            raise StopIteration
 
     def call_booted(self) -> bool:
         try:

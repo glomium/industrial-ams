@@ -28,7 +28,7 @@ class SourceStub(object):
     self.reserve_next = channel.unary_unary(
         '/agv.proto.Source/reserve_next',
         request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-        response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+        response_deserializer=agv__pb2.Data.FromString,
         )
 
 
@@ -76,7 +76,7 @@ def add_SourceServicer_to_server(servicer, server):
       'reserve_next': grpc.unary_unary_rpc_method_handler(
           servicer.reserve_next,
           request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-          response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+          response_serializer=agv__pb2.Data.SerializeToString,
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(

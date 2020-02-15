@@ -53,10 +53,12 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         self.RE_NAME = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.args.namespace[0:4])
 
     def set_booting(self, name):
+        logger.debug("adding %s to %s", name, self.booting)
         self.booting.add(name)
         self.event.clear()
 
     def del_booting(self, name):
+        logger.debug("removing %s from %s", name, self.booting)
         try:
             self.booting.remove(name)
             if not self.booting:
@@ -308,8 +310,9 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         while True:
 
             # waiting for containers to boot
-            logger.debug("Waiting for containers to boot")
-            self.servicer.event.wait()
+            if not self.servicer.event.is_set():
+                logger.debug("Waiting for containers to boot")
+                self.servicer.event.wait()
 
             # stop simulation if agent does not reply for 60 seconds
             if agent is not None and not self.event.wait(30):
@@ -323,6 +326,17 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
             except IndexError:
                 logger.info("Simulation finished - no more events in queue")
                 break
+
+            # send information from last step to client
+            logger.debug("Dumping data to client")
+            try:
+                while True:
+                    kwargs = self.queue.get_nowait()
+                    yield simulation_pb2.SimulationData(**kwargs)  # TODO?
+                    self.queue.task_done()
+            except queue.Empty:
+                logger.debug("Dumped all data to client")
+                pass
 
             # Stop simulation if time is reached
             if request.until is not None and self.time > request.until:
@@ -339,14 +353,10 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                 stub = AgentStub(channel)
                 stub.resume_simulation(agent_pb2.SimulationData(uuid=uuid, time=self.time), timeout=10)
 
-            # send information from last step to client
-            try:
-                while True:
-                    kwargs = self.queue.get()
-                    yield simulation_pb2.SimulationData(**kwargs)
-                    self.queue.task_done()
-            except queue.Empty:
-                pass
+            # clear event to wait for the finish of the next simulation step
+            self.event.clear()
+
+            logger.debug("Execute next simulation step")
 
     @permissions(has_agent=True)
     def schedule(self, request, context):

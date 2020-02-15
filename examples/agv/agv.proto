@@ -19,7 +19,7 @@ service Source {
     /*
     sets the on_route flag on parent
     */
-    rpc reserve_next(google.protobuf.Empty) returns (google.protobuf.Empty);
+    rpc reserve_next(google.protobuf.Empty) returns (Data);
 }
 
 

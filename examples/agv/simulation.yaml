@@ -1,4 +1,6 @@
 seed: agv_example
+until: 86400
+
 agents:
     source1:
         image:

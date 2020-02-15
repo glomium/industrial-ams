@@ -9,6 +9,7 @@ from logging.config import dictConfig
 
 from iams.helper import get_logging_config
 from iams.interface import Agent
+from iams.utils.auth import permissions
 
 import agv_pb2
 import agv_pb2_grpc
@@ -23,11 +24,13 @@ class Servicer(agv_pb2_grpc.SinkServicer):
     def __init__(self, parent):
         self.parent = parent
 
+    @permissions(has_agent=True)
     def get_coordinates(self, request, response):
         return agv_pb2.Data(x=self.parent._config["position"]["x"], y=self.parent._config["position"]["y"])
 
+    @permissions(has_agent=True)
     def put_part(self, request, response):
-        if self.parent.part_storage >= self.parent._config["buffer"]:
+        if self.parent.storage >= self.parent._config["buffer"]:
             # queue full, wait for next event to unload
             return agv_pb2.Time(time=self.parent.eta - self.parent._simulation.time)
         else:
@@ -35,6 +38,7 @@ class Servicer(agv_pb2_grpc.SinkServicer):
             if not self.parent.started:
                 self.parent._simulation.schedule(self.parent.get_next_time(), 'consume_part')
             # queue not full -> dont wait
+            self.parent.storage += 1
             return agv_pb2.Time()
 
 
@@ -45,7 +49,7 @@ class Sink(Agent):
         self.servicer = Servicer(self)
         self.part_missed = 0
         self.part_consumed = 0
-        self.part_storage = 0
+        self.storage = 0
         self.started = False
         self.eta = None
 
@@ -59,12 +63,12 @@ class Sink(Agent):
         return 0.0
 
     def consume_part(self):
-        if self.part_storage == 0:
+        if self.storage == 0:
             self.part_missed += 1
             logger.info("missed part")
         else:
             self.part_consumed += 1
-            self.part_storage -= 1
+            self.storage -= 1
             logger.info("part consumed")
 
         # schedule next consume

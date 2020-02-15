@@ -45,7 +45,7 @@ class Scheduler(object):
         try:
             with framework_channel(credentials=self.parent._credentials) as channel:
                 stub = SimulationStub(channel)
-                stub.schedule(Empty(), timeout=10)
+                stub.resume(Empty(), timeout=10)
         except grpc.RpcError as e:
             logger.exception("error %s in calling SimulationStub.resume: %s", e.code(), e.details())
 
@@ -61,7 +61,7 @@ class Scheduler(object):
         except grpc.RpcError as e:
             logger.exception("error %s in calling SimulationStub.schedule: %s", e.code(), e.details())
 
-        logger.debug("Register execution event at %s", response.time)
+        logger.debug("Register execution event '%s' at %s", callback, response.time)
         self.events[uuid] = (callback, kwargs)
 
         return self.time + delay

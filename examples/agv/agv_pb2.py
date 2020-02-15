@@ -21,7 +21,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='agv.proto',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\tagv.proto\x12\tagv.proto\x1a\x1bgoogle/protobuf/empty.proto\"*\n\x04\x44\x61ta\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\t\n\x01x\x18\x02 \x01(\x02\x12\t\n\x01y\x18\x03 \x01(\x02\"\x14\n\x04Time\x12\x0c\n\x04time\x18\x01 \x01(\x02\x32\xb4\x01\n\x06Source\x12\x35\n\nnext_order\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Time\x12\x33\n\x08get_part\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data\x12>\n\x0creserve_next\x12\x16.google.protobuf.Empty\x1a\x16.google.protobuf.Empty2w\n\x04Sink\x12:\n\x0fget_coordinates\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data\x12\x33\n\x08put_part\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Time2h\n\x07Vehicle\x12+\n\x07get_eta\x12\x0f.agv.proto.Data\x1a\x0f.agv.proto.Time\x12\x30\n\x05\x64rive\x12\x0f.agv.proto.Data\x1a\x16.google.protobuf.Emptyb\x06proto3')
+  serialized_pb=_b('\n\tagv.proto\x12\tagv.proto\x1a\x1bgoogle/protobuf/empty.proto\"*\n\x04\x44\x61ta\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\t\n\x01x\x18\x02 \x01(\x02\x12\t\n\x01y\x18\x03 \x01(\x02\"\x14\n\x04Time\x12\x0c\n\x04time\x18\x01 \x01(\x02\x32\xad\x01\n\x06Source\x12\x35\n\nnext_order\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Time\x12\x33\n\x08get_part\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data\x12\x37\n\x0creserve_next\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data2w\n\x04Sink\x12:\n\x0fget_coordinates\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Data\x12\x33\n\x08put_part\x12\x16.google.protobuf.Empty\x1a\x0f.agv.proto.Time2h\n\x07Vehicle\x12+\n\x07get_eta\x12\x0f.agv.proto.Data\x1a\x0f.agv.proto.Time\x12\x30\n\x05\x64rive\x12\x0f.agv.proto.Data\x1a\x16.google.protobuf.Emptyb\x06proto3')
   ,
   dependencies=[google_dot_protobuf_dot_empty__pb2.DESCRIPTOR,])
 
@@ -130,7 +130,7 @@ _SOURCE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   serialized_start=120,
-  serialized_end=300,
+  serialized_end=293,
   methods=[
   _descriptor.MethodDescriptor(
     name='next_order',
@@ -156,7 +156,7 @@ _SOURCE = _descriptor.ServiceDescriptor(
     index=2,
     containing_service=None,
     input_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
-    output_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
+    output_type=_DATA,
     serialized_options=None,
   ),
 ])
@@ -171,8 +171,8 @@ _SINK = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=1,
   serialized_options=None,
-  serialized_start=302,
-  serialized_end=421,
+  serialized_start=295,
+  serialized_end=414,
   methods=[
   _descriptor.MethodDescriptor(
     name='get_coordinates',
@@ -204,8 +204,8 @@ _VEHICLE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=2,
   serialized_options=None,
-  serialized_start=423,
-  serialized_end=527,
+  serialized_start=416,
+  serialized_end=520,
   methods=[
   _descriptor.MethodDescriptor(
     name='get_eta',

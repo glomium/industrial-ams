@@ -13,6 +13,7 @@ from google.protobuf.empty_pb2 import Empty
 
 from iams.helper import get_logging_config
 from iams.interface import Agent
+from iams.utils.auth import permissions
 
 import agv_pb2
 import agv_pb2_grpc
@@ -27,18 +28,20 @@ class Servicer(agv_pb2_grpc.SourceServicer):
     def __init__(self, parent):
         self.parent = parent
 
-    def reserve_next(self, request, response):
+    @permissions(has_agent=True)
+    def reserve_next(self, request, context):
         self.parent.on_route = True
-        return Empty()
+        return agv_pb2.Data(x=self.parent._config["position"]["x"], y=self.parent._config["position"]["y"])
 
-    def next_order(self, request, response):
-        if not self.parent.on_route and self.parent.part_storage:
-            return agv_pb2.Time(time=self.parent.part_storage[0])
-        else:
-            return agv_pb2.Time()
+    @permissions(has_agent=True)
+    def next_order(self, request, context):
+        if not self.parent.on_route and self.parent.storage:
+            return agv_pb2.Time(time=self.parent.storage[0])
+        context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "resource empty")
 
-    def get_part(self, request, response):
-        time, data = self.parent.part_storage.pop(0)
+    @permissions(has_agent=True)
+    def get_part(self, request, context):
+        time, data = self.parent.storage.pop(0)
         return data
 
 
@@ -49,7 +52,7 @@ class Source(Agent):
         self.servicer = Servicer(self)
         self.part_missed = 0
         self.part_generated = 0
-        self.part_storage = []
+        self.storage = []
         self.on_route = False
 
     def simulation_start(self):
@@ -61,23 +64,28 @@ class Source(Agent):
         self._grpc.add(agv_pb2_grpc.add_SourceServicer_to_server, self.servicer)
 
     def get_cache(self):
-        self.sinks = []
-        self.vehicles = []
-
         # get all sinks
+        sinks = []
         for sink in self._iams.get_agents(['iams.image=example_sink']):
-            self.sinks.append(sink.name)
-            with self._channel(sink.name) as channel:
+            sinks.append(sink.name)
+        sinks = sorted(sinks)
+
+        self.sinks = []
+        for sink in sinks:
+            with self._channel(sink) as channel:
                 stub = agv_pb2_grpc.SinkStub(channel)
                 response = stub.get_coordinates(Empty())
 
-            response.name = sink.name
+            response.name = sink
             self.sinks.append(response)
             logger.info("got sink: %s", response)
 
         # get all vehicles
+        self.vehicles = []
         for vehicle in self._iams.get_agents(['iams.image=example_vehicle']):
             self.vehicles.append(vehicle.name)
+        self.vehicles = sorted(self.vehicles)
+
         logger.info("got vehicles: %s", self.vehicles)
 
     def get_next_time(self):
@@ -87,14 +95,14 @@ class Source(Agent):
         return 0.0
 
     def generate_part(self):
-        if len(self.part_storage) == self._config["buffer"]:
+        if len(self.storage) == self._config["buffer"]:
             self.part_missed += 1
             logger.info("missed part")
         else:
             self.part_generated += 1
             sink = random.choice(self.sinks)
             logger.info("selected sink: %s", sink)
-            self.storage.append((self.parent._simulation.time, sink))
+            self.storage.append((self._simulation.time, sink))
 
             # call all vehicles and select nearest first
             times = {}
@@ -118,7 +126,7 @@ class Source(Agent):
                     self.on_route = True
 
         # schedule next part generation
-        # self._simulation.schedule(self.get_next_time(), 'generate_part')
+        self._simulation.schedule(self.get_next_time(), 'generate_part')
 
 
 if __name__ == "__main__":

@@ -24,10 +24,10 @@ class Servicer(agv_pb2_grpc.SinkServicer):
         self.parent = parent
 
     def get_coordinates(self, request, response):
-        return agv_pb2.Data(x=self._config.position.x, y=self._config.position.y)
+        return agv_pb2.Data(x=self._config["position"]["x"], y=self._config["position"]["y"])
 
     def put_part(self, request, response):
-        if self.parent.part_storage >= self.parent._config.buffer:
+        if self.parent.part_storage >= self.parent._config["buffer"]:
             # queue full, wait for next event to unload
             return agv_pb2.Time(time=self.parent.eta - self.parent._simulation.time)
         else:
@@ -53,7 +53,7 @@ class Sink(Agent):
         self._grpc.add(agv_pb2_grpc.add_SinkServicer_to_server, self.servicer)
 
     def get_next_time(self):
-        time = random.gauss(self._config.mean, self._config.sigma)
+        time = random.gauss(self._config["mean"], self._config["sigma"])
         if time > 0:
             return time
         return 0.0

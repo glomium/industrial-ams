@@ -11,7 +11,6 @@ import grpc
 
 from google.protobuf.empty_pb2 import Empty
 
-from iams.agent import framework_channel
 from iams.helper import get_logging_config
 from iams.interface import Agent
 
@@ -68,7 +67,7 @@ class Source(Agent):
         # get all sinks
         for sink in self._iams.get_agents(['iams.image=example_sink']):
             self.sinks.append(sink.name)
-            with framework_channel(sink.name, credentials=self.parent._credentials) as channel:
+            with self._channel(sink.name) as channel:
                 stub = agv_pb2_grpc.SinkStub(channel)
                 response = stub.get_coodinates(Empty())
 
@@ -82,13 +81,13 @@ class Source(Agent):
         logger.info("got vehicles: %s", self.vehicles)
 
     def get_next_time(self):
-        time = random.gauss(self._config.mean, self._config.sigma)
+        time = random.gauss(self._config["mean"], self._config["sigma"])
         if time > 0:
             return time
         return 0.0
 
     def generate_part(self):
-        if len(self.part_storage) == self._config.buffer:
+        if len(self.part_storage) == self._config["buffer"]:
             self.part_missed += 1
             logger.info("missed part")
         else:
@@ -99,10 +98,10 @@ class Source(Agent):
 
             # call all vehicles and select nearest first
             times = {}
-            request = agv_pb2.Data(x=self._config.position.x, y=self._config.position.y)
+            request = agv_pb2.Data(x=self._config["position"]["x"], y=self._config["position"]["y"])
             for vehicle in self.vehicles:
                 try:
-                    with framework_channel(vehicle, credentials=self.parent._credentials) as channel:
+                    with self._channel(vehicle) as channel:
                         stub = agv_pb2_grpc.VehicleStub(channel)
                         response = stub.get_eta(request)
                         times[vehicle] = response.time
@@ -113,7 +112,7 @@ class Source(Agent):
             if times:
                 vehicle = min(times, key=times.get)
 
-                with framework_channel(vehicle, credentials=self.parent._credentials) as channel:
+                with self._channel(vehicle) as channel:
                     stub = agv_pb2_grpc.VehicleStub(channel)
                     stub.drive(request)
                     self.on_route = True

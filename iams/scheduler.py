@@ -45,7 +45,7 @@ class Scheduler(object):
         """
         uuid = uuid1().bytes
         try:
-            with framework_channel() as channel:
+            with framework_channel(credentials=self.parent._credentials) as channel:
                 stub = SimulationStub(channel)
                 response = stub.schedule(EventScheduleRequest(uuid=uuid, delay=delay), timeout=10)
         except grpc.RpcError as e:

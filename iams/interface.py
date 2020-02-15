@@ -5,6 +5,7 @@ import logging
 import signal
 
 from concurrent import futures
+from contextlib import contextmanager
 from threading import Event
 from threading import Lock
 from time import sleep
@@ -17,6 +18,7 @@ from .exceptions import Continue
 from .exceptions import EventNotFound
 from .scheduler import Scheduler
 from .utils.grpc import Grpc
+from .utils.grpc import framework_channel
 from .utils.grpc import get_channel_credentials
 from .utils.grpc import get_server_credentials
 from .utils.ssl import validate_certificate
@@ -146,6 +148,11 @@ class Agent(object):
     def __stop(self, signum, frame):
         logger.info("Exit requested with code %s", signum)
         self.stop()
+
+    @contextmanager
+    def _channel(self, agent=None):
+        with framework_channel(hostname=agent, credentials=self._credentials) as channel:
+            yield channel
 
     def _grpc_setup(self):
         """

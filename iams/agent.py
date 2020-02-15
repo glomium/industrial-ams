@@ -10,7 +10,6 @@ from google.protobuf.empty_pb2 import Empty
 
 from .proto import agent_pb2_grpc
 from .proto import framework_pb2
-from .proto import framework_pb2_grpc
 from .stub import AgentStub
 from .stub import FrameworkStub
 from .utils.auth import permissions
@@ -59,7 +58,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         try:
             with framework_channel(credentials=self.parent._credentials) as channel:
                 stub = FrameworkStub(channel)
-                for response in stub.agents(framework_pb2_grpc.AgentRequest(filter=labels), timeout=10):
+                for response in stub.agents(framework_pb2.AgentRequest(filter=labels), timeout=10):
                     yield response
         except grpc.RpcError:
             raise StopIteration

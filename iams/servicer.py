@@ -160,7 +160,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         return framework_pb2.AgentData()
 
     @permissions(has_agent=True, has_groups=["root", "web"])
-    def create(self, request, context, seed=None):
+    def create(self, request, context):
         logger.debug('create called from %s', context._username)
 
         regex = self.RE_NAME.match(request.name)
@@ -189,7 +189,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 config=request.config,
                 autostart=request.autostart,
                 create=True,
-                seed=seed,
+                seed=getattr(context, '_seed', None),
             )
 
         except docker_errors.ImageNotFound:
@@ -254,6 +254,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         self.heap = []
         self.queue = None
         self.simulation = False
+        self.time = 0.0
 
     def reset(self, callback=True):
         if callback:
@@ -275,10 +276,11 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
             message = 'A simulation is currently running'
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, message)
         self.simulation = True
+        self.time = 0.0
 
         self.heap = []
         self.queue = queue.Queue()
-        time = 0.0
+        self.time = 0.0
         agent = None
 
         # generate a seed for pseudo-random function (make simulations repeatable)
@@ -293,7 +295,8 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         logger.info("Creating agents from config")
         for agent in request.agents:
             try:
-                self.servicer.create(agent.container, context, seed=generate_seed())
+                context._seed = generate_seed()
+                self.servicer.create(agent.container, context)
             except Exception:
                 self.reset(False)
                 raise
@@ -316,25 +319,25 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                 break
 
             try:
-                time, delay, agent, uuid = heappop(self.heap)
+                self.time, delay, agent, uuid = heappop(self.heap)
             except IndexError:
                 logger.info("Simulation finished - no more events in queue")
                 break
 
             # Stop simulation if time is reached
-            if request.until is not None and time > request.until:
+            if request.until is not None and self.time > request.until:
                 logger.info("Simulation finished - time limit reached")
                 break
 
-            with framework_channel(agent) as channel:
+            with framework_channel(hostname=agent, credentials=self.servicer.credentials) as channel:
                 logger.info(
                     "continue execution of simulation on %s at %s (%s)",
                     agent,
-                    time,
+                    self.time,
                     UUID(bytes=uuid),
                 )
                 stub = AgentStub(channel)
-                stub.resume_simulation(agent_pb2.SimulationData(uuid=uuid, time=time), timeout=10)
+                stub.resume_simulation(agent_pb2.SimulationData(uuid=uuid, time=self.time), timeout=10)
 
             # send information from last step to client
             try:

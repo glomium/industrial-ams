@@ -277,6 +277,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, message)
         self.simulation = True
         self.time = 0.0
+        self.until = request.until or None
 
         self.heap = []
         self.time = 0.0
@@ -306,8 +307,8 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         # create startevent for all agents
         for service in self.servicer.docker.get_service():
             heappush(self.heap, (0.0, 0.0, service.name, None))
-            if request.until:
-                heappush(self.heap, (request.until, 0.0, service.name, None))
+            if self.until:
+                heappush(self.heap, (self.until, 0.0, service.name, None))
 
         logger.info("Starting simulation")
         agent = None
@@ -355,7 +356,12 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
                     elif r.metric.ByteSize() or r.log.ByteSize():
                         logger.debug("got metric or log - %s %s", r.metric, r.log)
-                        yield simulation_pb2.SimulationData(name=agent, time=self.time, log=r.log, metric=r.metric)
+                        yield simulation_pb2.SimulationData(
+                            name=self.servicer.RE_NAME.match(agent).group(2),
+                            time=self.time,
+                            log=r.log,
+                            metric=r.metric,
+                        )
             logger.info("Connection to %s closed", agent)
 
             count += 1
@@ -363,6 +369,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
         dt = time.time() - dt
         yield simulation_pb2.SimulationData(
+            time=self.time,
             log=agent_pb2.SimulationLog(text="simulation ended - simulated %s steps (%.1f/s)" % (count, count / dt)),
         )
 
@@ -373,6 +380,9 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
     def add_event(self, delay, agent, uuid):
         scheduled_time = self.time + delay
+        if self.until and scheduled_time > self.until:
+            return None
+
         logger.debug("Adding event at %s for agent %s (delay=%s)", scheduled_time, agent, delay)
         # If we have two events at the same time, we use the negative delay
         # to decide which event was added first. this reduces the

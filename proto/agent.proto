@@ -8,23 +8,39 @@ import "google/protobuf/empty.proto";
 /*
 */
 service Agent {
-    // /*
-    // Receive scheduled events in simulation run
-    // */
-    // rpc simulation(SimulationData) returns (stream SimulationResponse) {}
+    /*
+    Receive scheduled events in simulation run
+    */
+    rpc run_simulation(SimulationRequest) returns (stream SimulationResponse) {}
 
     /*
     Receive scheduled events in simulation run
     */
-    rpc resume_simulation(SimulationData) returns (google.protobuf.Empty) {}
-
-    // /*
-    // Receive scheduled events in simulation run
-    // */
     rpc ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }
 
-message SimulationData {
+message SimulationRequest {
     bytes uuid = 1;
     float time = 2;
+}
+
+message SimulationLog {
+    string text = 2;
+}
+
+message SimulationMetric {
+    string key = 1;
+    float value = 2;
+}
+
+message SimulationSchedule {
+    bytes uuid = 1;
+    float delay = 2;
+}
+
+message SimulationResponse {
+    string name = 1;
+    SimulationLog log = 2;
+    repeated SimulationMetric metric = 3;
+    SimulationSchedule schedule = 4;
 }

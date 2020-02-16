@@ -4,10 +4,13 @@
 import logging
 import os
 
+from queue import Queue
+
 import grpc
 
 from google.protobuf.empty_pb2 import Empty
 
+from .proto import agent_pb2
 from .proto import agent_pb2_grpc
 from .proto import framework_pb2
 from .stub import AgentStub
@@ -36,17 +39,34 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         assert self.service is not None, 'Must define AMS_CORE in environment'
 
         self.parent = parent
+        self.queue = None
         self.threadpool = threadpool
 
     @permissions(has_groups=["root"])
-    def resume_simulation(self, request, context):
+    def run_simulation(self, request, context):
         if not self.simulation:
             message = 'This function is only availabe when agenttype is set to simulation'
             context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
-        logger.debug("resume_simulation called")
+        logger.debug("run simulation called")
+
+        self.queue = Queue()
         self.parent._simulation.set_event(request.uuid, request.time)
-        return Empty()
+
+        while True:
+            data = self.queue.get()
+            logger.debug("found %s in queue", type(data))
+            if isinstance(data, agent_pb2.SimulationLog):
+                yield agent_pb2.SimulationResponse(log=data)
+            elif isinstance(data, list) and data and isinstance(data[0], agent_pb2.SimulationMetric):
+                yield agent_pb2.SimulationResponse(metric=data)
+            elif isinstance(data, agent_pb2.SimulationSchedule):
+                yield agent_pb2.SimulationResponse(schedule=data)
+            elif isinstance(data, agent_pb2.SimulationResponse):
+                yield data
+            else:
+                break
+        self.queue = None
 
     @permissions(has_agent=True, has_groups=["root"])
     def ping(self, request, context):

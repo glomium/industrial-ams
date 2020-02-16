@@ -57,6 +57,9 @@ class Sink(Agent):
     def grpc_setup(self):
         self._grpc.add(agv_pb2_grpc.add_SinkServicer_to_server, self.servicer)
 
+    def simulation_start(self):
+        pass
+
     def get_next_time(self):
         time = random.gauss(self._config["mean"], self._config["sigma"])
         if time > 0:

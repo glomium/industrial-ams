@@ -4,6 +4,7 @@ package iams.servicer;
 
 import "google/protobuf/empty.proto";
 import "framework.proto";
+import "agent.proto";
 
 /*
 */
@@ -17,12 +18,7 @@ service Simulation {
     /*
     Schedule a new event at the simulation runtime
     */
-    rpc schedule(EventScheduleRequest) returns (EventScheduleResponse) {}
-
-    /*
-    Resume simulation with with different agent
-    */
-    rpc resume(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    rpc schedule(EventScheduleRequest) returns (google.protobuf.Empty) {}
 }
 
 message AgentConfig {
@@ -36,17 +32,13 @@ message SimulationConfig {
 }
 
 message SimulationData {
-    float time = 1;
-    bytes agent = 2;
-    bytes state = 3;
-    bytes data = 4;
+    string name = 1;
+    float time = 2;
+    iams.agent.SimulationLog log = 3;
+    repeated iams.agent.SimulationMetric metric = 4;
 }
 
 message EventScheduleRequest {
     bytes uuid = 1;
     float delay = 2;
-}
-
-message EventScheduleResponse {
-    float time = 1;
 }

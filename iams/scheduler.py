@@ -7,9 +7,10 @@ from uuid import uuid1
 
 import grpc
 
-from google.protobuf.empty_pb2 import Empty
+# from google.protobuf.empty_pb2 import Empty
 
 from .exceptions import EventNotFound
+from .proto import agent_pb2
 from .proto.simulation_pb2 import EventScheduleRequest
 from .stub import SimulationStub
 from .utils.grpc import framework_channel
@@ -23,15 +24,19 @@ class Scheduler(object):
     Event scheduler on agents
     """
 
-    def __init__(self, parent):
+    def __init__(self, parent, servicer):
         self.parent = parent
+        self.servicer = servicer
 
         self.uuid = None
         self.time = 0.0
 
-        self.events = {}
+        self.events = {
+            b'': ("simulation_start", {}),
+        }
 
     def __next__(self):
+        logger.debug("selecting next event: %s", self.uuid)
         try:
             callback, kwargs = self.events.pop(self.uuid)
         except KeyError:
@@ -42,26 +47,37 @@ class Scheduler(object):
         return self
 
     def resume(self):
-        try:
-            with framework_channel(credentials=self.parent._credentials) as channel:
-                stub = SimulationStub(channel)
-                stub.resume(Empty(), timeout=10)
-        except grpc.RpcError as e:
-            logger.exception("error %s in calling SimulationStub.resume: %s", e.code(), e.details())
+        self.servicer.queue.put(None)
+
+    def metric(self, data):
+        self.servicer.queue.put(list([
+            agent_pb2.SimulationMetric(key=k, value=float(v)) for k, v in data.items()
+        ]))
+
+    def log(self, message):
+        self.servicer.queue.put(agent_pb2.SimulationLog(
+            text=message,
+        ))
 
     def schedule(self, delay, callback, **kwargs):
         """
         Schedule a new event in simulation runtime
         """
         uuid = uuid1().bytes
-        try:
-            with framework_channel(credentials=self.parent._credentials) as channel:
-                stub = SimulationStub(channel)
-                response = stub.schedule(EventScheduleRequest(uuid=uuid, delay=delay), timeout=10)
-        except grpc.RpcError as e:
-            logger.exception("error %s in calling SimulationStub.schedule: %s", e.code(), e.details())
+        if self.servicer.queue is None:
+            try:
+                with framework_channel(credentials=self.parent._credentials) as channel:
+                    stub = SimulationStub(channel)
+                    stub.schedule(EventScheduleRequest(uuid=uuid, delay=delay), timeout=10)
+            except grpc.RpcError as e:
+                logger.exception("error %s in calling SimulationStub.schedule: %s", e.code(), e.details())
+        else:
+            self.servicer.queue.put(agent_pb2.SimulationSchedule(
+                uuid=uuid,
+                delay=delay,
+            ))
 
-        logger.debug("Register execution event '%s' at %s", callback, response.time)
+        logger.debug("Register execution event '%s' with a delay of %s", callback, delay)
         self.events[uuid] = (callback, kwargs)
 
         return self.time + delay

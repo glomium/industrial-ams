@@ -48,7 +48,7 @@ class Agent(object):
             self._config = {}
 
         if self._iams.simulation:
-            self._simulation = Scheduler(self)
+            self._simulation = Scheduler(self, self._iams)
         else:
             self._simulation = None
 
@@ -96,12 +96,6 @@ class Agent(object):
             exit()
 
         if self._iams.simulation:
-            try:
-                self.simulation_start()
-            except NotImplementedError:
-                logger.debug("simulation_start not implemented at %s", self.__class__.__qualname__)
-
-        if self._iams.simulation:
             # simulation loop
             while True:
                 # wait for event loop
@@ -116,7 +110,7 @@ class Agent(object):
                 try:
                     callback, kwargs = next(self._simulation)
                 except EventNotFound:
-                    logger.debug("Skip ekecution of next step - scheduled event was not found")
+                    logger.debug("Skip execution of next step - scheduled event was not found")
                     self._simulation.resume()
                     continue
 

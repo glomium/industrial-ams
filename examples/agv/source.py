@@ -129,11 +129,20 @@ class Source(Agent):
                     stub.drive(request)
                     self.on_route += 1
 
+        # generate data for analysis
+        data = {
+            "generated": self.part_generated,
+            "missed": self.part_missed,
+            "queue": len(self.storage),
+        }
+        logger.debug(data)
+        self._simulation.metric(data)
+
         # schedule next part generation
         self._simulation.schedule(self.get_next_time(), 'generate_part')
 
 
 if __name__ == "__main__":
-    dictConfig(get_logging_config(["iams"], logging.INFO))
+    dictConfig(get_logging_config(["iams"], logging.DEBUG))
     run = Source()
     run()

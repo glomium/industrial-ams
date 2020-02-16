@@ -2,7 +2,6 @@
 # vim: set fileencoding=utf-8 :
 
 import logging
-import queue
 import random
 import re
 
@@ -250,11 +249,10 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
     def __init__(self, agent_servicer):
-        self.event = Event()
+        # self.event = Event()
         self.servicer = agent_servicer
 
         self.heap = []
-        self.queue = None
         self.simulation = False
         self.time = 0.0
 
@@ -265,7 +263,6 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
             logger.error("Simulatddion canceled - resetting")
 
         self.heap = []
-        self.queue = None
         self.simulation = False
 
         # kill all agents
@@ -281,7 +278,6 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         self.time = 0.0
 
         self.heap = []
-        self.queue = queue.Queue()
         self.time = 0.0
         agent = None
 
@@ -303,8 +299,14 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                 self.reset(False)
                 raise
 
-        logger.info("Starting simulation")
+        # create callback if connection breaks
         context.add_callback(self.reset)
+
+        # create startevent for all agents
+        for service in self.servicer.docker.get_service():
+            heappush(self.heap, (0.0, 0.0, service.name, None))
+
+        logger.info("Starting simulation")
         agent = None
 
         while True:
@@ -314,63 +316,53 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                 logger.debug("Waiting for containers to boot")
                 self.servicer.event.wait()
 
-            # stop simulation if agent does not reply for 60 seconds
-            if agent is not None and not self.event.wait(30):
-                logger.info("waited 30s on the respone of agent %s", agent)
-            if agent is not None and not self.event.wait(30):
-                logger.warning("waited 60s on the respone of agent %s - closing simulation", agent)
-                break
-
             try:
                 self.time, delay, agent, uuid = heappop(self.heap)
             except IndexError:
                 logger.info("Simulation finished - no more events in queue")
                 break
 
-            # send information from last step to client
-            logger.debug("Dumping data to client")
-            try:
-                while True:
-                    kwargs = self.queue.get_nowait()
-                    yield simulation_pb2.SimulationData(**kwargs)  # TODO?
-                    self.queue.task_done()
-            except queue.Empty:
-                logger.debug("Dumped all data to client")
-                pass
-
-            # Stop simulation if time is reached
-            if request.until is not None and self.time > request.until:
-                logger.info("Simulation finished - time limit reached")
-                break
-
-            with framework_channel(hostname=agent, credentials=self.servicer.credentials) as channel:
+            if uuid:
                 logger.info(
                     "continue execution of simulation on %s at %s (%s)",
                     agent,
                     self.time,
                     UUID(bytes=uuid),
                 )
-                stub = AgentStub(channel)
-                stub.resume_simulation(agent_pb2.SimulationData(uuid=uuid, time=self.time), timeout=10)
+            else:
+                logger.info(
+                    "start execution of simulation on %s",
+                    agent,
+                )
 
-            # clear event to wait for the finish of the next simulation step
-            self.event.clear()
+            with framework_channel(hostname=agent, credentials=self.servicer.credentials) as channel:
+                stub = AgentStub(channel)
+                for r in stub.run_simulation(agent_pb2.SimulationRequest(uuid=uuid, time=self.time), timeout=10):
+                    if r.schedule.ByteSize():
+                        self.add_event(r.schedule.delay, agent, r.schedule.uuid)
+
+                    elif len(r.metric) or r.log.ByteSize():
+                        logger.debug("got metric or log - %s %s", r.metric, r.log)
+                        yield simulation_pb2.SimulationData(name=agent, time=self.time, log=r.log, metric=r.metric)
+            logger.info("Connection to %s closed", agent)
+
+            # Stop simulation if time is reached
+            if request.until is not None and self.time > request.until:
+                logger.info("Simulation finished - time limit reached")
+                break
 
             logger.debug("Execute next simulation step")
 
     @permissions(has_agent=True)
     def schedule(self, request, context):
-        time = self.time + request.delay
-        logger.debug("Adding event at %s for agent %s (delay=%s)", time, context._agent, request.delay)
+        self.add_event(request.delay, context._agent, request.uuid)
+        return Empty()
+
+    def add_event(self, delay, agent, uuid):
+        time = self.time + delay
+        logger.debug("Adding event at %s for agent %s (delay=%s)", time, agent, delay)
         # If we have two events at the same time, we use the negative delay
         # to decide which event was added first. this reduces the
         # possibility to run into infinite loops if one agents decides to wait
         # for an event on another agent
-        heappush(self.heap, (time, -request.delay, context._agent, request.uuid))
-        return simulation_pb2.EventScheduleResponse(time=time)
-
-    @permissions(has_agent=True)
-    def resume(self, request, context):
-        logger.debug("Simulation resumed from agent %s", context._agent)
-        self.event.set()
-        return Empty()
+        heappush(self.heap, (time, -delay, agent, uuid))

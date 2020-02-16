@@ -4,7 +4,6 @@ FROM ubuntu:$UBUNTU as basestage
 RUN apt-get update && apt-get install --no-install-recommends -y -q \
     python3 \
     python3-cryptography \
-    python3-docker \
     python3-grpcio \
     python3-pip \
     python3-protobuf \
@@ -13,6 +12,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
     python3-yaml \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
+
+# installing "python3-docker" via apt delivers on 19.10 an old version not working with the framework
+RUN pip3 install --no-cache-dir docker
 
 # === test stage ==============================================================
 FROM basestage as test

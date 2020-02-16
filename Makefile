@@ -12,6 +12,11 @@ test:
 	docker build --build-arg ALPINE=$(ALPINE) --cache-from iams-base:latest --target basestage -t iams-base:latest .
 	docker build --build-arg ALPINE=$(ALPINE) --cache-from iams-base:latest --cache-from iams-test:latest --target test -t iams-test:latest .
 
+certs:
+	mkdir -p secrets
+	openssl genrsa -out secrets/ca.key 8192
+	openssl req -x509 -new -SHA384 -key secrets/ca.key -out secrets/ca.crt -days 36525
+
 grpc:
 	mkdir -p iams/proto
 	${VENV_NAME}/bin/python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/agent.proto

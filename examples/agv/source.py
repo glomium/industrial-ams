@@ -56,15 +56,12 @@ class Source(Agent):
         self.storage = []
         self.on_route = 0
 
-    def simulation_start(self):
-        # schedule next event with framework
-        self._simulation.schedule(0.0, 'get_cache')
-        self._simulation.schedule(self.get_next_time(), 'generate_part')
-
     def grpc_setup(self):
         self._grpc.add(agv_pb2_grpc.add_SourceServicer_to_server, self.servicer)
 
-    def get_cache(self):
+    def simulation_start(self):
+        self._simulation.schedule(self.get_next_time(), 'generate_part')
+
         # get all sinks
         sinks = []
         for sink in self._iams.get_agents(['iams.image=example_sink']):
@@ -99,11 +96,28 @@ class Source(Agent):
         if len(self.storage) == self._config["buffer"]:
             self.part_missed += 1
             logger.info("missed part")
+            self._simulation.log("missed part")
+            self._simulation.metric({
+                "total_generated": self.part_generated,
+                "total_missed": self.part_missed,
+                "generated": 0,
+                "missed": 1,
+                "queue": len(self.storage),
+            })
         else:
             self.part_generated += 1
             sink = random.choice(self.sinks)
             self.storage.append((self._simulation.time, sink))
             logger.info("generated part: %s - queue %s/%s", sink.name, len(self.storage), self._config["buffer"])
+
+            self._simulation.log("generated part")
+            self._simulation.metric({
+                "total_generated": self.part_generated,
+                "total_missed": self.part_missed,
+                "generated": 1,
+                "missed": 0,
+                "queue": len(self.storage),
+            })
 
             # call all vehicles and select nearest first
             times = {}
@@ -128,14 +142,6 @@ class Source(Agent):
                     stub = agv_pb2_grpc.VehicleStub(channel)
                     stub.drive(request)
                     self.on_route += 1
-
-        # generate data for analysis
-        data = {
-            "generated": self.part_generated,
-            "missed": self.part_missed,
-            "queue": len(self.storage),
-        }
-        self._simulation.metric(data)
 
         # schedule next part generation
         self._simulation.schedule(self.get_next_time(), 'generate_part')

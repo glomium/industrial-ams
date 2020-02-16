@@ -102,7 +102,11 @@ def execute_command_line():
             with framework_channel(server, port=port, secure=False) as channel:
                 stub = SimulationStub(channel)
                 for response in stub.start(request):
-                    logger.info('got: %s', response)
+                    if response.log.ByteSize():
+                        logger.info('[%s] %s: %s', response.time, response.name, response.log.text)
+                    if response.metric.ByteSize():
+                        logger.info('[%s] %s: %s', response.time, response.name, dict(response.metric.metrics))
+
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.RESOURCE_EXHAUSTED:
                 logger.debug("got error message: %s", e.details())

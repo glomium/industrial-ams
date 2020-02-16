@@ -63,10 +63,6 @@ class Vehicle(Agent):
         self._grpc.add(agv_pb2_grpc.add_VehicleServicer_to_server, self.servicer)
 
     def simulation_start(self):
-        # schedule next event with framework
-        self._simulation.schedule(0.0, 'get_cache')
-
-    def get_cache(self):
         self.sources = []
 
         # get all sources

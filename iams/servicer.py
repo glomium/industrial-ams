@@ -4,6 +4,7 @@
 import logging
 import random
 import re
+import time
 
 from heapq import heappush
 from heapq import heappop
@@ -311,6 +312,10 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         logger.info("Starting simulation")
         agent = None
 
+        yield simulation_pb2.SimulationData(log=agent_pb2.SimulationLog(text="simulation started"))
+        count = 0
+        dt = time.time()
+
         while True:
 
             # waiting for containers to boot
@@ -322,6 +327,11 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                 self.time, delay, agent, uuid = heappop(self.heap)
             except IndexError:
                 logger.info("Simulation finished - no more events in queue")
+                break
+
+            # Stop simulation if time is reached
+            if self.time > request.until:
+                logger.info("Simulation finished - time limit reached")
                 break
 
             if uuid:
@@ -348,12 +358,13 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                         yield simulation_pb2.SimulationData(name=agent, time=self.time, log=r.log, metric=r.metric)
             logger.info("Connection to %s closed", agent)
 
-            # Stop simulation if time is reached
-            if self.time > request.until:
-                logger.info("Simulation finished - time limit reached")
-                break
-
+            count += 1
             logger.debug("Execute next simulation step")
+
+        dt = time.time() - dt
+        yield simulation_pb2.SimulationData(
+            log=agent_pb2.SimulationLog(text="simulation ended - simulated %s steps (%.1f/s)" % (count, count / dt)),
+        )
 
     @permissions(has_agent=True)
     def schedule(self, request, context):
@@ -361,10 +372,10 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         return Empty()
 
     def add_event(self, delay, agent, uuid):
-        time = self.time + delay
-        logger.debug("Adding event at %s for agent %s (delay=%s)", time, agent, delay)
+        scheduled_time = self.time + delay
+        logger.debug("Adding event at %s for agent %s (delay=%s)", scheduled_time, agent, delay)
         # If we have two events at the same time, we use the negative delay
         # to decide which event was added first. this reduces the
         # possibility to run into infinite loops if one agents decides to wait
         # for an event on another agent
-        heappush(self.heap, (time, -delay, agent, uuid))
+        heappush(self.heap, (scheduled_time, -delay, agent, uuid))

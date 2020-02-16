@@ -57,9 +57,6 @@ class Sink(Agent):
     def grpc_setup(self):
         self._grpc.add(agv_pb2_grpc.add_SinkServicer_to_server, self.servicer)
 
-    def simulation_start(self):
-        pass
-
     def get_next_time(self):
         time = random.gauss(self._config["mean"], self._config["sigma"])
         if time > 0:
@@ -70,18 +67,26 @@ class Sink(Agent):
         if self.storage == 0:
             self.part_missed += 1
             logger.info("missed part")
+            self._simulation.log("missed part")
+            self._simulation.metric({
+                "total_consumed": self.part_consumed,
+                "total_missed": self.part_missed,
+                "consumed": 0,
+                "missed": 1,
+                "queue": self.storage,
+            })
         else:
             self.part_consumed += 1
             self.storage -= 1
             logger.info("part consumed - queue %s/%s", self.storage, self._config["buffer"])
-
-        # generate data for analysis
-        data = {
-            "consumed": self.part_consumed,
-            "missed": self.part_missed,
-            "queue": self.storage,
-        }
-        self._simulation.metric(data)
+            self._simulation.log("consumed part")
+            self._simulation.metric({
+                "total_consumed": self.part_consumed,
+                "total_missed": self.part_missed,
+                "consumed": 1,
+                "missed": 0,
+                "queue": self.storage,
+            })
 
         # schedule next consume
         self.eta = self._simulation.schedule(self.get_next_time(), 'consume_part')

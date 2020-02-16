@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
     python3-cryptography \
     python3-docker \
     python3-grpcio \
+    python3-pip \
     python3-protobuf \
     python3-requests \
     python3-yaml \
@@ -14,14 +15,14 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
 
 # === test stage ==============================================================
 FROM basestage as test
-
 WORKDIR /usr/src/app
 
-COPY requirements-dev.txt requirements-test.txt ./
 RUN apt-get update && apt-get install -y -q \
     python3-dev \
-    python3-pip \
- && pip3 install --no-cache-dir -r requirements-dev.txt -r requirements-test.txt
+    python3-setuptools
+
+COPY requirements-dev.txt requirements-test.txt ./
+RUN pip3 install --no-cache-dir -r requirements-dev.txt -r requirements-test.txt
 
 COPY LICENSE setup.py setup.cfg ./
 COPY iams ./iams
@@ -51,15 +52,7 @@ FROM basestage as build
 COPY --from=test /usr/src/app/dist/iams-*-py3-none-any.whl /tmp/
 
 # TODO delete iams-build-py3-none-any.whl (when there is a official release on pypi)
-RUN apt-get update && apt-get install --no-install-recommends -y -q \
-    python3-dev \
-    python3-pip \
- && pip3 install --no-index /tmp/iams-*-py3-none-any.whl \
- && apt-get remove --purge --autoremove -y -q \
-    python3-dev \
-    python3-pip \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+RUN pip3 install --no-index /tmp/iams-*-py3-none-any.whl
 
 MAINTAINER Sebastian Braun <sebastian.braun@fh-aachen.de>
 # ENV PYTHONUNBUFFERED=1

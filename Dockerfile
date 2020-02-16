@@ -57,8 +57,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
     python3-dev \
     python3-pip \
  && pip3 install --no-index /tmp/iams-*-py3-none-any.whl \
- && apt-get purge python3-dev python3-pip -y -q \
- && apt-get autoremove -y -q \
+ && apt-get remove --purge --autoremove -y -q \
+    python3-dev \
+    python3-pip \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 

@@ -1,31 +1,32 @@
-ARG ALPINE=latest
-FROM alpine:$ALPINE as basestage
+ARG UBUNTU=rolling
+FROM ubuntu:$UBUNTU as basestage
 
 WORKDIR /usr/src/app
-RUN apk add --no-cache python3
 
-COPY requirements.txt /tmp/requirements.txt
-RUN apk add --no-cache openssl-dev libffi-dev libstdc++ \
- && apk add --no-cache --virtual build-dependencies \
-    python3-dev \
-    build-base \
- && pip3 install --no-cache-dir -r /tmp/requirements.txt \
- && apk del build-dependencies
+RUN apt-get update && apt-get install --no-install-recommends -y -q \
+    python3 \
+    python3-cryptography \
+    python3-docker \
+    python3-grpcio \
+    python3-protobuf \
+    python3-requests \
+    python3-yaml \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 # === test stage ==============================================================
 FROM basestage as test
 
 COPY requirements-dev.txt requirements-test.txt ./
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y -q \
     python3-dev \
-    build-base \
+    python3-pip \
  && pip3 install --no-cache-dir -r requirements-dev.txt -r requirements-test.txt
 
 COPY LICENSE setup.py setup.cfg ./
 COPY iams ./iams
 COPY proto ./proto
 
-# create protofiles
 RUN mkdir -p iams/proto \
  && python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/agent.proto \
  && python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/framework.proto \
@@ -42,16 +43,23 @@ RUN coverage run setup.py test
 # TODO copy coverage results
 
 # build wheel package
-RUN python3 setup.py bdist_wheel && mv dist/iams-*-py3-none-any.whl iams-build-py3-none-any.whl
+RUN python3 setup.py bdist_wheel  # && mv dist/iams-*-py3-none-any.whl iams-build-py3-none-any.whl
 
 # === build stage =============================================================
 FROM basestage as build
 MAINTAINER Sebastian Braun <sebastian.braun@fh-aachen.de>
 ENV PYTHONUNBUFFERED=1
 
-COPY --from=test /usr/src/app/iams-build-py3-none-any.whl /tmp/iams-build-py3-none-any.whl
-RUN pip3 install --no-index /tmp/iams-build-py3-none-any.whl && rm /tmp/requirements.txt
+COPY --from=test /usr/src/app/dist/iams-*-py3-none-any.whl /tmp/
+
 # TODO delete iams-build-py3-none-any.whl (when there is a official release on pypi)
-# RUN pip3 install --no-index /tmp/iams-build-py3-none-any.whl && rm /tmp/iams-build-py3-none-any.whl /tmp/requirements.txt
+RUN apt-get update && apt-get install --no-install-recommends -y -q \
+    python3-dev \
+    python3-pip \
+ && pip3 install --no-index /tmp/iams-*-py3-none-any.whl \
+ && apt-get purge python3-dev python3-pip -y -q \
+ && apt-get autoremove -y -q \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["/usr/bin/iams-server"]

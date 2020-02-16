@@ -1,16 +1,16 @@
 VENV_NAME?=.venv
-ALPINE=3.11.3
+UBUNTU=19.10
 REGISTRY=registry:5000
 
 build: test
-	docker build --build-arg ALPINE=$(ALPINE) --cache-from iams-base:latest --cache-from iams-test:latest --cache-from iams-build:latest --cache-from $(REGISTRY)/iams:$(ALPINE) -t $(REGISTRY)/iams:latest -t $(REGISTRY)/iams:$(ALPINE) .
-	docker push $(REGISTRY)/iams:$(ALPINE)
+	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:latest --cache-from iams-test:latest --cache-from iams-build:latest --cache-from $(REGISTRY)/iams:$(UBUNTU) -t $(REGISTRY)/iams:latest -t $(REGISTRY)/iams:$(UBUNTU) .
+	docker push $(REGISTRY)/iams:$(UBUNTU)
 	docker push $(REGISTRY)/iams:latest
 
 test:
-	docker pull $(REGISTRY)/iams:$(ALPINE) || true
-	docker build --build-arg ALPINE=$(ALPINE) --cache-from iams-base:latest --target basestage -t iams-base:latest .
-	docker build --build-arg ALPINE=$(ALPINE) --cache-from iams-base:latest --cache-from iams-test:latest --target test -t iams-test:latest .
+	docker pull $(REGISTRY)/iams:$(UBUNTU) || true
+	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:latest --target basestage -t iams-base:latest .
+	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:latest --cache-from iams-test:latest --target test -t iams-test:latest .
 
 certs:
 	mkdir -p secrets
@@ -26,4 +26,4 @@ grpc:
 	${VENV_NAME}/bin/python3 -m grpc_tools.protoc -Iexamples/agv --python_out=examples/agv --grpc_python_out=examples/agv examples/agv/agv.proto
 
 pip:
-	${VENV_NAME}/bin/pip-upgrade requirements.txt requirements-dev.txt requirements-test.txt --skip-package-installation
+	${VENV_NAME}/bin/pip-upgrade requirements-dev.txt requirements-test.txt --skip-package-installation

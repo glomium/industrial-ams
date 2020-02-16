@@ -2,14 +2,14 @@ version: '3.5'
 
 
 x-defaults: &defaults
-    logging:
-      driver: json-file
-      options:
-        max-size: 2m
-        max-file: 5
-    # environment:
-    #   GRPC_VERBOSITY: debug
-    #   GRPC_TRACE: tcp,http,secure_endpoint,transport_security
+  logging:
+    driver: json-file
+    options:
+      max-size: 2m
+      max-file: 5
+# environment:
+#   GRPC_VERBOSITY: debug
+#   GRPC_TRACE: tcp,http,secure_endpoint,transport_security
 
 
 services:
@@ -40,7 +40,6 @@ services:
         image: registry:5000/iams:latest
         command: --simulation tasks.cfssl:8888 -d
         environment:
-            IAMS_HOSTS: 10.6.30.69,192.168.42.65
             IAMS_NETWORK: iams_test
         ports:
             - "5115:80"

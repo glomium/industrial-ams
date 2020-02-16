@@ -1,8 +1,6 @@
 ARG UBUNTU=rolling
 FROM ubuntu:$UBUNTU as basestage
 
-WORKDIR /usr/src/app
-
 RUN apt-get update && apt-get install --no-install-recommends -y -q \
     python3 \
     python3-cryptography \
@@ -16,6 +14,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
 
 # === test stage ==============================================================
 FROM basestage as test
+
+WORKDIR /usr/src/app
 
 COPY requirements-dev.txt requirements-test.txt ./
 RUN apt-get update && apt-get install -y -q \
@@ -47,8 +47,6 @@ RUN python3 setup.py bdist_wheel  # && mv dist/iams-*-py3-none-any.whl iams-buil
 
 # === build stage =============================================================
 FROM basestage as build
-MAINTAINER Sebastian Braun <sebastian.braun@fh-aachen.de>
-ENV PYTHONUNBUFFERED=1
 
 COPY --from=test /usr/src/app/dist/iams-*-py3-none-any.whl /tmp/
 
@@ -63,4 +61,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-ENTRYPOINT ["/usr/bin/iams-server"]
+MAINTAINER Sebastian Braun <sebastian.braun@fh-aachen.de>
+# ENV PYTHONUNBUFFERED=1
+WORKDIR /usr/src/app
+ENTRYPOINT ["/usr/local/bin/iams-server"]

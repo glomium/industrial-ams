@@ -75,6 +75,14 @@ class Sink(Agent):
             self.storage -= 1
             logger.info("part consumed - queue %s/%s", self.storage, self._config["buffer"])
 
+        # generate data for analysis
+        data = {
+            "consumed": self.part_consumed,
+            "missed": self.part_missed,
+            "queue": self.storage,
+        }
+        self._simulation.metric(data)
+
         # schedule next consume
         self.eta = self._simulation.schedule(self.get_next_time(), 'consume_part')
 

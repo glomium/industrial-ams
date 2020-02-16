@@ -135,7 +135,6 @@ class Source(Agent):
             "missed": self.part_missed,
             "queue": len(self.storage),
         }
-        logger.debug(data)
         self._simulation.metric(data)
 
         # schedule next part generation
@@ -143,6 +142,6 @@ class Source(Agent):
 
 
 if __name__ == "__main__":
-    dictConfig(get_logging_config(["iams"], logging.DEBUG))
+    dictConfig(get_logging_config(["iams"], logging.INFO))
     run = Source()
     run()

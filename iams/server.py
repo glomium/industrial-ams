@@ -99,6 +99,10 @@ def execute_command_line():
         namespace = "undefined"
         servername = "localhost"
         logger.warning("Could not connect to docker container - please start iams-server as a docker-swarm service")
+    except KeyError:
+        namespace = "undefined"
+        servername = "localhost"
+        logger.warning("Could not read namespace or servername labels - please start iams-server with docker-swarm")
 
     # read variables from environment
     if not args.namespace:

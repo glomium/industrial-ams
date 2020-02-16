@@ -58,7 +58,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             logger.debug("found %s in queue", type(data))
             if isinstance(data, agent_pb2.SimulationLog):
                 yield agent_pb2.SimulationResponse(log=data)
-            elif isinstance(data, list) and data and isinstance(data[0], agent_pb2.SimulationMetric):
+            elif isinstance(data, agent_pb2.SimulationMetric):
                 yield agent_pb2.SimulationResponse(metric=data)
             elif isinstance(data, agent_pb2.SimulationSchedule):
                 yield agent_pb2.SimulationResponse(schedule=data)

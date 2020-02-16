@@ -215,9 +215,13 @@ class Agent(object):
 
     def simulation_start(self):
         """
-        This gets executed on teardown
         """
-        raise NotImplementedError
+        pass
+
+    def simulation_finish(self):
+        """
+        """
+        pass
 
 #   def sleep(self, delay=None):
 #       if self._iams.simulation is None:

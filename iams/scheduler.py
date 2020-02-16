@@ -28,15 +28,19 @@ class Scheduler(object):
         self.parent = parent
         self.servicer = servicer
 
-        self.uuid = None
+        self.uuid = b''
         self.time = 0.0
 
-        self.events = {
-            b'': ("simulation_start", {}),
-        }
+        self.events = {}
 
     def __next__(self):
         logger.debug("selecting next event: %s", self.uuid)
+        if self.uuid == b'':
+            if self.time == 0.0:
+                return "simulation_start", {}
+            else:
+                return "simulation_finish", {}
+
         try:
             callback, kwargs = self.events.pop(self.uuid)
         except KeyError:
@@ -50,9 +54,7 @@ class Scheduler(object):
         self.servicer.queue.put(None)
 
     def metric(self, data):
-        self.servicer.queue.put(list([
-            agent_pb2.SimulationMetric(key=k, value=float(v)) for k, v in data.items()
-        ]))
+        self.servicer.queue.put(agent_pb2.SimulationMetric(metrics=data))
 
     def log(self, message):
         self.servicer.queue.put(agent_pb2.SimulationLog(

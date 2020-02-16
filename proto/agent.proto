@@ -25,12 +25,11 @@ message SimulationRequest {
 }
 
 message SimulationLog {
-    string text = 2;
+    string text = 1;
 }
 
 message SimulationMetric {
-    string key = 1;
-    float value = 2;
+    map<string, float> metrics = 1;
 }
 
 message SimulationSchedule {
@@ -41,6 +40,6 @@ message SimulationSchedule {
 message SimulationResponse {
     string name = 1;
     SimulationLog log = 2;
-    repeated SimulationMetric metric = 3;
+    SimulationMetric metric = 3;
     SimulationSchedule schedule = 4;
 }

@@ -35,7 +35,7 @@ message SimulationData {
     string name = 1;
     float time = 2;
     iams.agent.SimulationLog log = 3;
-    repeated iams.agent.SimulationMetric metric = 4;
+    iams.agent.SimulationMetric metric = 4;
 }
 
 message EventScheduleRequest {

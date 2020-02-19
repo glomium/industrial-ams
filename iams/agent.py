@@ -35,8 +35,8 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         self.service = os.environ.get('IAMS_SERVICE', None)
         self.simulation = os.environ.get('IAMS_SIMULATION', None) == "true"
 
-        assert self.agent is not None, 'Must define AMS_AGENT in environment'
-        assert self.service is not None, 'Must define AMS_CORE in environment'
+        assert self.agent is not None, 'Must define IAMS_AGENT in environment'
+        assert self.service is not None, 'Must define IAMS_SERVICE in environment'
 
         self.parent = parent
         self.queue = None

@@ -76,7 +76,7 @@ class Agent(object):
         self._grpc.start()
 
         logger.debug("Informing the runtime that %s is booted", self._iams.agent)
-        while True:
+        while not self._stop_event.is_set():
             if self._iams.call_booted():
                 break
             if not validate_certificate():
@@ -123,7 +123,7 @@ class Agent(object):
 
                 logger.debug("calling resume")
                 self._simulation.resume()
-        else:
+        elif not self._stop_event.is_set():
             # control loop
             logger.debug("Calling control loop")
             self._loop()

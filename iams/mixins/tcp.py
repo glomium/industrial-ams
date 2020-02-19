@@ -31,20 +31,22 @@ class TCPMixin(EventMixin):
         """
         assert self._iams.address is not None, 'Must define IAMS_ADDRESS in environment'
 
-        while True:
+        while not self._stop_event.is_set():
             try:
                 self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self._socket.settimeout(self.TCP_TIMEOUT)
                 self._socket.connect((self._iams.address, self._iams.port or self.TCP_PORT))
                 break
             except (ConnectionRefusedError, socket.timeout, OSError):
-                logger.info("Host %s:%s not reachable", self._framework_agent.address, self.TCP_PORT)
+                logger.info("Host %s:%s not reachable", self._iams.address, self._iams.port or self.TCP_PORT)
                 time.sleep(5)
-        logger.debug("TCP socket connected to %s:%s", self._framework_agent.address, self.TCP_PORT)
+        logger.debug("TCP socket connected to %s:%s", self._iams.address, self._iams.port or self.TCP_PORT)
+
+        if self._stop_event.is_set():
+            raise SystemExit
 
         self._executor.submit(self._tcp_reader)
         self._executor.submit(self._tcp_writer)
-
         return super()._pre_setup()
 
     def _tcp_reader(self):

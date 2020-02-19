@@ -30,7 +30,8 @@ COPY proto ./proto
 RUN mkdir -p iams/proto \
  && python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/agent.proto \
  && python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/framework.proto \
- && python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/simulation.proto
+ && python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/simulation.proto \
+ && sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
 
 COPY examples ./examples
 

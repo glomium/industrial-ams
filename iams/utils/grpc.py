@@ -10,6 +10,7 @@ from functools import wraps
 
 import grpc
 
+from ..constants import AGENT_CLOUDLESS
 from ..constants import AGENT_PORT
 from ..proto.agent_pb2_grpc import add_AgentServicer_to_server
 
@@ -55,7 +56,7 @@ class Grpc(object):
         if agent.cloud:
             self.server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
         else:
-            self.server.add_insecure_port(f'[::]:{AGENT_PORT}')
+            self.server.add_insecure_port(f'[::]:{AGENT_CLOUDLESS}')
 
         # directly add agent functionality to grpc interface
         add_AgentServicer_to_server(agent, self.server)

@@ -52,7 +52,6 @@ class Agent(object):
             self._grpc = Grpc(self._iams, self._executor, None)
             self._config = {}
 
-
         if self._iams.simulation:
             self._simulation = Scheduler(self, self._iams)
         else:
@@ -81,17 +80,18 @@ class Agent(object):
         self._grpc_setup()  # definition on mixins
         self._grpc.start()
 
-        logger.debug("Informing the runtime that %s is booted", self._iams.agent)
-        while not self._stop_event.is_set() and self._iams.cloud:
-            if self._iams.call_booted():
-                break
-            if not validate_certificate():
-                if self._iams.call_renew():
-                    logger.info("Certificate needs to be renewed")
-                    sleep(600)
-                else:
-                    logger.debug("Could not connect to manager")
-                    sleep(1)
+        if self._iams.cloud:
+            logger.debug("Informing the runtime that %s is booted", self._iams.agent)
+            while not self._stop_event.is_set():
+                if self._iams.call_booted():
+                    break
+                if not validate_certificate():
+                    if self._iams.call_renew():
+                        logger.info("Certificate needs to be renewed")
+                        sleep(600)
+                    else:
+                        logger.debug("Could not connect to manager")
+                        sleep(1)
 
         # run agent configuration
         try:

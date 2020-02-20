@@ -142,8 +142,10 @@ class Agent(object):
             self._teardown()
 
         logger.debug("Stopping executor on %s", self._iams.agent)
-        self._executor.shutdown(wait=False)
+        self._executor.shutdown(wait=True)
+
         logger.info("Exit %s", self._iams.agent)
+        exit()
 
     def __stop(self, signum, frame):
         logger.info("Exit requested with code %s", signum)

@@ -45,8 +45,8 @@ class TCPMixin(EventMixin):
         if self._stop_event.is_set():
             raise SystemExit
 
-        self._executor.submit(self._tcp_reader)
-        self._executor.submit(self._tcp_writer)
+        self._tcp_reader_future = self._executor.submit(self._tcp_reader)
+        self._tcp_writer_future = self._executor.submit(self._tcp_writer)
         return super()._pre_setup()
 
     def _tcp_reader(self):
@@ -54,6 +54,10 @@ class TCPMixin(EventMixin):
         while not self._socket._closed:
             try:
                 data = self._socket.recv(self.TCP_BUFFER)
+                # connection was closed
+                if not data:
+                    self.stop()
+                    break
                 if self.tcp_process_data(data):
                     self._loop_event.clear()
             except (OSError, socket.timeout, ConnectionResetError):
@@ -78,36 +82,36 @@ class TCPMixin(EventMixin):
                 heartbeat = False
 
             try:
-                data = self.queue.get(timeout=self.TCP_HEARTBEAT)
+                data = self._tcp_queue.get(timeout=self.TCP_HEARTBEAT)
             except Empty:
                 heartbeat = True
                 continue
 
-            logger.debug("TCP writer sending %s", data)
-
-            try:
-                self._socket.send(data)
-            except (OSError, BrokenPipeError):
-                logger.info("Connection Error - Shutdown", exc_info=True)
-                self.stop()
-                break
+            if data:
+                logger.debug("TCP writer sending %s", data)
+                try:
+                    self._socket.send(data)
+                except (OSError, BrokenPipeError):
+                    logger.info("Connection Error - Shutdown", exc_info=True)
+                    self.stop()
+                    break
 
         logger.debug("TCP writer stopped")
 
-    def stop(self) -> None:
+    def _teardown(self):
         logger.debug("Closing TCP socket")
         try:
             self._socket.shutdown(socket.SHUT_RDWR)
             self._socket.close()
         except (OSError, AttributeError):
             pass
-        super().stop()
+        self._tcp_queue.put(b'')
 
     def tcp_write(self, data):
-        self._writer.queue.put(data)
+        self._tcp_queue.put(data)
 
     def tcp_heartbeat(self):
         pass
 
     def tcp_process_data(self, data) -> bool:
-        raise NotImplementedError("A loop method needs to be implemented on %s" % self.__class__.__qualname__)
+        raise NotImplementedError("tcp_process_data needs to be implemented on %s" % self.__class__.__qualname__)

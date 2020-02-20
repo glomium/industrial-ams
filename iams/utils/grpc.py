@@ -52,7 +52,10 @@ def get_server_credentials():
 class Grpc(object):
     def __init__(self, agent, threadpool, credentials):
         self.server = grpc.server(threadpool)
-        self.server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
+        if agent.cloud:
+            self.server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
+        else:
+            self.server.add_insecure_port(f'[::]:{AGENT_PORT}')
 
         # directly add agent functionality to grpc interface
         add_AgentServicer_to_server(agent, self.server)

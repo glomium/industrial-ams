@@ -34,9 +34,11 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         self.port = os.environ.get('IAMS_PORT', None)
         self.service = os.environ.get('IAMS_SERVICE', None)
         self.simulation = os.environ.get('IAMS_SIMULATION', None) == "true"
+        self.cloud = not os.environ.get('IAMS_CLOUDLESS', None) == "true"
 
-        assert self.agent is not None, 'Must define IAMS_AGENT in environment'
-        assert self.service is not None, 'Must define IAMS_SERVICE in environment'
+        if self.cloud:
+            assert self.agent is not None, 'Must define IAMS_AGENT in environment'
+            assert self.service is not None, 'Must define IAMS_SERVICE in environment'
 
         self.parent = parent
         self.queue = None

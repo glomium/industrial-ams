@@ -34,18 +34,24 @@ class Agent(object):
     MAX_WORKERS = 20
 
     def __init__(self) -> None:
-        self._credentials = get_channel_credentials()
         self._executor = futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
         # agent servicer for iams
         self._iams = Servicer(self, self._executor)
-        # grpc communication (via threadpoolexecutor)
-        self._grpc = Grpc(self._iams, self._executor, get_server_credentials())
 
-        try:
-            with open('/config', 'rb') as fobj:
-                self._config = yaml.load(fobj, Loader=yaml.SafeLoader)
-        except FileNotFoundError:
+        if self._iams.cloud:
+            self._credentials = get_channel_credentials()
+            # grpc communication (via threadpoolexecutor)
+            self._grpc = Grpc(self._iams, self._executor, get_server_credentials())
+            try:
+                with open('/config', 'rb') as fobj:
+                    self._config = yaml.load(fobj, Loader=yaml.SafeLoader)
+            except FileNotFoundError:
+                self._config = {}
+        else:
+            self._credentials = None
+            self._grpc = Grpc(self._iams, self._executor, None)
             self._config = {}
+
 
         if self._iams.simulation:
             self._simulation = Scheduler(self, self._iams)
@@ -76,7 +82,7 @@ class Agent(object):
         self._grpc.start()
 
         logger.debug("Informing the runtime that %s is booted", self._iams.agent)
-        while not self._stop_event.is_set():
+        while not self._stop_event.is_set() and self._iams.cloud:
             if self._iams.call_booted():
                 break
             if not validate_certificate():

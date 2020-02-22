@@ -59,7 +59,7 @@ class TCPMixin(EventMixin):
                     self.stop()
                     break
                 if self.tcp_process_data(data):
-                    self._loop_event.clear()
+                    self._loop_event.set()
             except (OSError, socket.timeout, ConnectionResetError):
                 logger.info("Connection Error - Shutdown", exc_info=True)
                 self.stop()

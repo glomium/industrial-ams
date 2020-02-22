@@ -12,4 +12,4 @@ logger = logging.getLogger(__name__)
 class Envoy(Plugin):
 
     def get_networks(self, **kwargs):
-        return ['cloud_envoy']
+        return ['%s_envoy' % self.namespace]

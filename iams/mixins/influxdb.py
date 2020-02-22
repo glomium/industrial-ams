@@ -6,19 +6,22 @@ import logging
 import os
 import socket
 
-logger = logging.getLogger(__name__)
-
 try:
     from influxdb import InfluxDBClient
     INFLUXDB = True
 except ImportError:
     INFLUXDB = False
 
-HOST = os.environ.get('INFLUXDB_HOST', None)
-DATABASE = os.environ.get('INFLUXDB_DATABASE', "modelfactory")
 
-if HOST is None:
+HOST = os.environ.get('INFLUXDB_HOST', None)
+DATABASE = os.environ.get('INFLUXDB_DATABASE', None)
+
+
+if HOST is None or DATABASE is None:
     INFLUXDB = False
+
+
+logger = logging.getLogger(__name__)
 
 
 class InfluxDBMixin(object):
@@ -30,7 +33,7 @@ class InfluxDBMixin(object):
             self._influxdb = InfluxDBClient(host=HOST, database=DATABASE, timeout=0.5)
             logger.info("Infludb initialized with host %s", HOST)
 
-    def influxdb_send(self, data, time=None):
+    def influxdb_write(self, data, time=None):
         if not INFLUXDB:
             return None
 

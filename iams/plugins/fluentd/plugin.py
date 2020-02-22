@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class Fluentd(Plugin):
 
     def get_networks(self, **kwargs):
-        return ['cloud_envoy']
+        return ['%s_fluentd' % self.namespace]
 
     def get_kwargs(self, name, image, version, config):
         return {"name": config}

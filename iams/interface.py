@@ -132,7 +132,10 @@ class Agent(object):
         elif not self._stop_event.is_set():
             # control loop
             logger.debug("Calling control loop")
-            self._loop()
+            try:
+                self._loop()
+            except Exception as e:
+                logger.exception(e)
 
         logger.debug("Stopping gRPC service on %s", self._iams.agent)
         self._grpc.stop()
@@ -249,7 +252,8 @@ class Plugin(object):
     def __repr__(self):
         return self.__class__.__qualname__ + f"()"
 
-    def __call__(self, name, image, version, config):
+    def __call__(self, namespace, name, image, version, config):
+        self.namespace = namespace
         kwargs = self.get_kwargs(name, image, version, config)
 
         return (

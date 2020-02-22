@@ -233,10 +233,10 @@ class Docker(object):
             service_address = None
             service_port = None
             for env in filter(self.RE_ENV.match, service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Env']):
-                name, value = self.RE_ENV.match(env).groups()
-                if name == "ADDRESS":
+                env_name, value = self.RE_ENV.match(env).groups()
+                if env_name == "ADDRESS":
                     service_address = value
-                if name == "PORT":
+                if env_name == "PORT":
                     service_port = value
 
             # update if image changed
@@ -306,7 +306,10 @@ class Docker(object):
         for plugin in self.plugins:
             if plugin.label in image_object.labels:
                 # apply plugin
-                e, l, n, s, g = plugin(name, image, version, image_object.labels[plugin.label])
+                e, l, n, s, g = plugin(
+                    self.namespace["docker"], name, image, version,
+                    image_object.labels[plugin.label],
+                )
                 labels.update(l)
                 env.update(e)
                 networks.update(n)

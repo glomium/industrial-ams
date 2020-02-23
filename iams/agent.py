@@ -39,6 +39,9 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         if self.cloud:
             assert self.agent is not None, 'Must define IAMS_AGENT in environment'
             assert self.service is not None, 'Must define IAMS_SERVICE in environment'
+            self.prefix = self.agent.split('_')[0]
+        else:
+            self.prefix = ""
 
         self.parent = parent
         self.queue = None

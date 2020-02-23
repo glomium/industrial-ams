@@ -17,7 +17,7 @@ class InfluxDB(Plugin):
         self.host = os.environ.get('INFLUXDB_HOST', "tasks.influxdb")
         self.database = os.environ.get('INFLUXDB_DATABASE', None)
         if self.database is None:
-            logger.error("INFLUXDB_DATABASE is not defined - skip plugin")
+            logger.info("INFLUXDB_DATABASE is not defined - skip plugin")
             raise SkipPlugin
 
     def get_networks(self, **kwargs):

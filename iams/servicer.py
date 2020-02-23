@@ -218,7 +218,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             regex = self.RE_NAME.match(name)
             return self.args.namespace[0:4] + '_' + regex.group(2)
         except AttributeError:
-            message = 'Given an invalid agent name in request'
+            message = 'Given an invalid agent name (%s) in request' % name
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
     @permissions(has_agent=True, has_groups=["root", "web"])

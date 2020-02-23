@@ -133,7 +133,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     @permissions(has_agent=True, has_groups=["root", "web"])
     def update(self, request, context):
         logger.debug('Update called from %s', context._username)
-        name = self.get_agent_name(request.name)
+        name = self.get_agent_name(context, request.name)
 
         try:
             created = self.docker.set_service(
@@ -224,7 +224,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     @permissions(has_agent=True, has_groups=["root", "web"])
     def destroy(self, request, context):
         logger.debug('Destroy called from %s', context._username)
-        agent = self.get_agent_name(request.name)
+        agent = self.get_agent_name(context, request.name)
 
         try:
             self.docker.del_service(agent)

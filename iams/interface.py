@@ -34,17 +34,22 @@ class Agent(object):
     MAX_WORKERS = 20
 
     def __init__(self) -> None:
-        self._credentials = get_channel_credentials()
         self._executor = futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
         # agent servicer for iams
         self._iams = Servicer(self, self._executor)
-        # grpc communication (via threadpoolexecutor)
-        self._grpc = Grpc(self._iams, self._executor, get_server_credentials())
 
-        try:
-            with open('/config', 'rb') as fobj:
-                self._config = yaml.load(fobj, Loader=yaml.SafeLoader)
-        except FileNotFoundError:
+        if self._iams.cloud:
+            self._credentials = get_channel_credentials()
+            # grpc communication (via threadpoolexecutor)
+            self._grpc = Grpc(self._iams, self._executor, get_server_credentials())
+            try:
+                with open('/config', 'rb') as fobj:
+                    self._config = yaml.load(fobj, Loader=yaml.SafeLoader)
+            except FileNotFoundError:
+                self._config = {}
+        else:
+            self._credentials = None
+            self._grpc = Grpc(self._iams, self._executor, None)
             self._config = {}
 
         if self._iams.simulation:
@@ -75,17 +80,18 @@ class Agent(object):
         self._grpc_setup()  # definition on mixins
         self._grpc.start()
 
-        logger.debug("Informing the runtime that %s is booted", self._iams.agent)
-        while True:
-            if self._iams.call_booted():
-                break
-            if not validate_certificate():
-                if self._iams.call_renew():
-                    logger.info("Certificate needs to be renewed")
-                    sleep(600)
-                else:
-                    logger.debug("Could not connect to manager")
-                    sleep(1)
+        if self._iams.cloud:
+            logger.debug("Informing the runtime that %s is booted", self._iams.agent)
+            while not self._stop_event.is_set():
+                if self._iams.call_booted():
+                    break
+                if not validate_certificate():
+                    if self._iams.call_renew():
+                        logger.info("Certificate needs to be renewed")
+                        sleep(600)
+                    else:
+                        logger.debug("Could not connect to manager")
+                        sleep(1)
 
         # run agent configuration
         try:
@@ -123,10 +129,13 @@ class Agent(object):
 
                 logger.debug("calling resume")
                 self._simulation.resume()
-        else:
+        elif not self._stop_event.is_set():
             # control loop
             logger.debug("Calling control loop")
-            self._loop()
+            try:
+                self._loop()
+            except Exception as e:
+                logger.exception(e)
 
         logger.debug("Stopping gRPC service on %s", self._iams.agent)
         self._grpc.stop()
@@ -136,8 +145,10 @@ class Agent(object):
             self._teardown()
 
         logger.debug("Stopping executor on %s", self._iams.agent)
-        self._executor.shutdown(wait=False)
+        self._executor.shutdown(wait=True)
+
         logger.info("Exit %s", self._iams.agent)
+        exit()
 
     def __stop(self, signum, frame):
         logger.info("Exit requested with code %s", signum)
@@ -241,7 +252,8 @@ class Plugin(object):
     def __repr__(self):
         return self.__class__.__qualname__ + f"()"
 
-    def __call__(self, name, image, version, config):
+    def __call__(self, namespace, name, image, version, config):
+        self.namespace = namespace
         kwargs = self.get_kwargs(name, image, version, config)
 
         return (

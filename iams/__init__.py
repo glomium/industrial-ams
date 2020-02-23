@@ -1,9 +1,12 @@
 #!/usr/bin/python
 # ex:set fileencoding=utf-8:
 
-VERSION = ((0, 0, 1), ('a', 0))
+from functools import lru_cache
+
+VERSION = ((0, 1, 0), ('b', 0))
 
 
+@lru_cache(maxsize=8)
 def get_version(dev=True, short=False):
     """
     return a version number consistent with PEP386

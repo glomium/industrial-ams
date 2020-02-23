@@ -10,6 +10,7 @@ from functools import wraps
 
 import grpc
 
+from ..constants import AGENT_CLOUDLESS
 from ..constants import AGENT_PORT
 from ..proto.agent_pb2_grpc import add_AgentServicer_to_server
 
@@ -52,7 +53,10 @@ def get_server_credentials():
 class Grpc(object):
     def __init__(self, agent, threadpool, credentials):
         self.server = grpc.server(threadpool)
-        self.server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
+        if agent.cloud:
+            self.server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
+        else:
+            self.server.add_insecure_port(f'[::]:{AGENT_CLOUDLESS}')
 
         # directly add agent functionality to grpc interface
         add_AgentServicer_to_server(agent, self.server)

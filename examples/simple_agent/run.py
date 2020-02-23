@@ -2,7 +2,6 @@
 # vim: set fileencoding=utf-8 :
 
 import logging
-import time
 
 from logging.config import dictConfig
 
@@ -10,11 +9,15 @@ from iams.helper import get_logging_config
 from iams.interface import Agent
 
 
+logger = logging.getLogger(__name__)
+
+
 class Simple(Agent):
 
     def _loop(self):
-        while True:
-            time.sleep(10)
+        while not self._stop_event.is_set():
+            self._stop_event.wait(10)
+            logger.debug("loop")
 
 
 if __name__ == "__main__":

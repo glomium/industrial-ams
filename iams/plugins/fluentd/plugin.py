@@ -28,6 +28,6 @@ class Fluentd(Plugin):
 
     def get_env(self, name):
         return {
-            'FLUENTD_HOST': "tasks.fluentd",
+            'FLUENTD_HOST': self.host,
             'FLUENTD_TAG': f"ams.image.{name}",
         }

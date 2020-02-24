@@ -29,5 +29,6 @@ class InfluxDB(Plugin):
 
     def get_env(self, **kwargs):
         return {
-            'INFLUXDB_HOST': "tasks.influxdb",
+            'INFLUXDB_HOST': self.host,
+            'INFLUXDB_DATABASE': self.database,
         }

@@ -277,7 +277,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         if callback:
             logger.info("Resetting simulation runtime")
         else:
-            logger.error("Simulatddion canceled - resetting")
+            logger.error("Simulation canceled - resetting")
 
         self.heap = []
         self.simulation = False

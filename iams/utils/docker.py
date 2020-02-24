@@ -306,15 +306,15 @@ class Docker(object):
         for plugin in self.plugins:
             if plugin.label in image_object.labels:
                 # apply plugin
-                e, l, n, s, g = plugin(
-                    self.namespace["docker"], name, image, version,
-                    image_object.labels[plugin.label],
-                )
+                arg = image_object.labels[plugin.label]
+                logger.debug("Apply plugin %s with %s", plugin.label, arg)
+                e, l, n, s, g = plugin(self.namespace["docker"], name, image, version, arg)
                 labels.update(l)
                 env.update(e)
                 networks.update(n)
                 secrets.update(s)
-                generated.append(g)
+                if g:
+                    generated.append(g)
 
         # set default values
         if address:

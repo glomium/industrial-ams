@@ -94,15 +94,18 @@ def execute_command_line():
         servername = container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
         servername = "tasks." + servername[len(namespace) + 1:]
         logger.info("got servername %s from docker", servername)
+        cloudless = False
     except docker.errors.NotFound:
         container = None
         namespace = "undefined"
         servername = "localhost"
         logger.warning("Could not connect to docker container - please start iams-server as a docker-swarm service")
+        cloudless = True
     except KeyError:
         namespace = "undefined"
         servername = "localhost"
         logger.warning("Could not read namespace or servername labels - please start iams-server with docker-swarm")
+        cloudless = True
 
     # read variables from environment
     if not args.namespace:
@@ -142,10 +145,11 @@ def execute_command_line():
                 namespace=args.namespace,
                 simulation=args.simulation,
             ))
+            logger.info("Loaded plugin %s (usage label: %s)", cls.__qualname__, cls.label)
         except SkipPlugin:
-            continue
+            logger.info("Skipped plugin %s", cls.__qualname__)
         except Exception:
-            logger.exception("Error loading plugin %r", cls)
+            logger.exception("Error loading plugin %s", cls.__qualname__)
             continue
 
     threadpool = ThreadPoolExecutor()
@@ -171,8 +175,12 @@ def execute_command_line():
         certificate_chain=certificate,
     )
 
-    server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
     server.add_insecure_port('[::]:%s' % args.insecure_port)
+    if cloudless:
+        logger.debug("Open server on port %s", args.insecure_port)
+    else:
+        logger.debug("Open server on ports %s and %s", AGENT_PORT, args.insecure_port)
+        server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
 
     servicer = FrameworkServicer(
         client,

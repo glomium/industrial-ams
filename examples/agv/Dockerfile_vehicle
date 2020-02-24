@@ -1,4 +1,4 @@
-FROM registry:5000/iams:latest
+FROM glomium/industrial-ams:rolling
 
 LABEL iams.services.agent=true
 

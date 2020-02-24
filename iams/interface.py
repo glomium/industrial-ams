@@ -257,8 +257,8 @@ class Plugin(object):
         kwargs = self.get_kwargs(name, image, version, config)
 
         return (
-            self.get_labels(**kwargs),
             self.get_env(**kwargs),
+            self.get_labels(**kwargs),
             set(self.get_networks(**kwargs)),
             self.get_configured_secrets(**kwargs),
             self.get_generated_secrets(**kwargs),

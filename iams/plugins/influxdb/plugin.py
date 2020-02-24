@@ -27,11 +27,7 @@ class InfluxDB(Plugin):
     def get_networks(self, **kwargs):
         return ['%s_influxdb' % self.namespace]
 
-    def get_kwargs(self, name, image, version, config):
-        return {"name": config}
-
-    def get_env(self, name):
+    def get_env(self):
         return {
             'INFLUXDB_HOST': "tasks.influxdb",
-            'INFLUXDB_TAG': f"ams.image.{name}",
         }

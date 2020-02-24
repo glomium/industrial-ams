@@ -27,7 +27,7 @@ class InfluxDB(Plugin):
     def get_networks(self, **kwargs):
         return ['%s_influxdb' % self.namespace]
 
-    def get_env(self):
+    def get_env(self, **kwargs):
         return {
             'INFLUXDB_HOST': "tasks.influxdb",
         }

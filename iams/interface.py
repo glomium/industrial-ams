@@ -242,6 +242,7 @@ class Agent(object):
 
 
 class Plugin(object):
+
     __hash__ = None
 
     label = None
@@ -265,22 +266,43 @@ class Plugin(object):
         )
 
     def remove(self, name, config):
+        """
+        called when agent is removed
+        """
         pass
 
     def get_kwargs(self, name, image, version, config):
+        """
+        generate keyword arguements
+        """
         return {}
 
     def get_labels(self, **kwargs):
+        """
+        set labels for agent
+        """
         return {}
 
     def get_env(self, **kwargs):
+        """
+        set enviromment variables for agent
+        """
         return {}
 
     def get_networks(self, **kwargs):
+        """
+        add agent to networks
+        """
         return []
 
     def get_configured_secrets(self, **kwargs):
+        """
+        add preconfigured secret to agent
+        """
         return {}
 
     def get_generated_secrets(self, **kwargs):
+        """
+        add automatically generated secret to agent
+        """
         return []

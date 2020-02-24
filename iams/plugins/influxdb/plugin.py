@@ -12,6 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 class InfluxDB(Plugin):
+    """
+    INFLUXDB_HOST and INFLUXDB_DATABASE needs to be set as environment variables or the plugin wont load
+    Adds INFLUXDB_HOST and INFLUXDB_DATABASE to the agents environment variabled
+    Adds the agent to the network {stack-namespace}_influxdb
+    """
+
     label = "iams.plugins.influxdb"
 
     def __init__(self, **kwargs):

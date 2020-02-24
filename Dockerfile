@@ -20,8 +20,8 @@ RUN pip3 install --no-cache-dir docker
 FROM basestage as test
 WORKDIR /usr/src/app
 
-COPY requirements-dev.txt requirements-test.txt ./
-RUN pip3 install --no-cache-dir -r requirements-dev.txt -r requirements-test.txt
+COPY requirements/dev.txt requirements/test.txt ./
+RUN pip3 install --no-cache-dir -r dev.txt -r test.txt
 
 COPY LICENSE setup.py setup.cfg ./
 COPY iams ./iams
@@ -39,7 +39,7 @@ COPY examples ./examples
 RUN doc8 iams examples && flake8 iams examples
 
 # run unit tests
-RUN coverage run setup.py test
+RUN coverage run setup.py test && coverage report
 # TODO copy coverage results
 
 # build wheel package

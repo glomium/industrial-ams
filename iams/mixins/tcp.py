@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 class TCPMixin(EventMixin):
+    """
+    Adds TCP/IP communication to agent.
+    Address is automatically read via agent configuration
+    Needs to be configured with a TCP_PORT attribute.
+    """
     TCP_BUFFER = 1024
     TCP_HEARTBEAT = None
     TCP_PORT = None
@@ -108,10 +113,22 @@ class TCPMixin(EventMixin):
         self._tcp_queue.put(b'')
 
     def tcp_write(self, data):
+        """
+        use this function to send data to the connected device
+        """
         self._tcp_queue.put(data)
 
     def tcp_heartbeat(self):
+        """
+        TCP_HEARTBEAT is used as an interval.
+        if no data was send this function is triggered and can, for example send a packet to test the connection
+        """
         pass
 
     def tcp_process_data(self, data) -> bool:
+        """
+        every packet received via the TCP socket will be passed as data to this callback
+
+        this function needs to be implemented
+        """
         raise NotImplementedError("tcp_process_data needs to be implemented on %s" % self.__class__.__qualname__)

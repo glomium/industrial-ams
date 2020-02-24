@@ -313,8 +313,7 @@ class Docker(object):
                 env.update(e)
                 networks.update(n)
                 secrets.update(s)
-                if g:
-                    generated.append(g)
+                generated += g
 
         # set default values
         if address:

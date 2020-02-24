@@ -5,7 +5,7 @@ import logging
 import os
 
 
-def get_logging_config(config=[], level=logging.INFO, main=True):
+def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no cover
 
     if isinstance(config, (list, tuple)):
         loggers = {}

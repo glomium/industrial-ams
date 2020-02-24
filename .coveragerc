@@ -1,0 +1,14 @@
+[run]
+
+source = iams
+branch = True
+omit =
+    iams/proto/*
+
+
+[report]
+
+precision = 2
+fail_under = 15
+skip_covered = True
+show_missing = True

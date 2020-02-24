@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class Sentry(Plugin):
+    label = "iams.plugin.sentry"
 
     def __init__(self, **kwargs):
         self.sentry = os.environ.get('RAVEN_DSN', None)

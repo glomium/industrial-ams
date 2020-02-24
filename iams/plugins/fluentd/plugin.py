@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class Fluentd(Plugin):
+    label = "iams.plugin.fluentd"
 
     def get_networks(self, **kwargs):
         return ['%s_fluentd' % self.namespace]

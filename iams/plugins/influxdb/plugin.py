@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class InfluxDB(Plugin):
+    label = "iams.plugin.influxdb"
 
     def __init__(self, **kwargs):
         self.host = os.environ.get('INFLUXDB_HOST', "tasks.influxdb")

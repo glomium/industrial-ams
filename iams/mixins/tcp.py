@@ -50,12 +50,12 @@ class TCPMixin(EventMixin):
         if self._stop_event.is_set():
             raise SystemExit
 
-        self._tcp_reader_future = self._executor.submit(self._tcp_reader)
-        self._tcp_writer_future = self._executor.submit(self._tcp_writer)
+        self._executor.submit(self._tcp_reader)
+        self._executor.submit(self._tcp_writer)
         return super()._pre_setup()
 
     def _tcp_reader(self):
-        logger.debug("TCP reader started")
+        logger.info("TCP reader started")
         while not self._socket._closed:
             try:
                 data = self._socket.recv(self.TCP_BUFFER)
@@ -70,14 +70,14 @@ class TCPMixin(EventMixin):
                 self.stop()
                 break
             except Exception:
-                logger.exception("Error in parent.process_data")
+                logger.exception("Error in tcp_process_data")
                 self.stop()
                 break
-        logger.debug("TCP reader stopped")
+        logger.info("TCP reader stopped")
 
     def _tcp_writer(self):
 
-        logger.debug("TCP writer started")
+        logger.info("TCP writer started")
         heartbeat = False
 
         while not self._socket._closed:
@@ -95,13 +95,13 @@ class TCPMixin(EventMixin):
             if data:
                 logger.debug("TCP writer sending %s", data)
                 try:
-                    self._socket.send(data)
+                    self._socket.sendall(data)
                 except (OSError, BrokenPipeError):
                     logger.info("Connection Error - Shutdown", exc_info=True)
                     self.stop()
                     break
 
-        logger.debug("TCP writer stopped")
+        logger.info("TCP writer stopped")
 
     def _teardown(self):
         logger.debug("Closing TCP socket")

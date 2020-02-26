@@ -14,12 +14,7 @@ from .event import EventMixin
 logger = logging.getLogger(__name__)
 
 
-class TCPMixin(EventMixin):
-    """
-    Adds TCP/IP communication to agent.
-    Address is automatically read via agent configuration
-    Needs to be configured with a TCP_PORT attribute.
-    """
+class TCPReadMixin(EventMixin):
     TCP_BUFFER = 1024
     TCP_HEARTBEAT = None
     TCP_PORT = None
@@ -28,8 +23,7 @@ class TCPMixin(EventMixin):
     def __init__(self, *args, **kwargs) -> None:
         assert self.TCP_PORT is not None, "TCP_PORT needs to be set on %s" % self.__class__.__qualname__
         super().__init__(*args, **kwargs)
-        logger.debug("TCP socket class initialized")
-        self._tcp_queue = Queue()
+        logger.debug("%s initialized", self.__class__.__qualname__)
 
     def _pre_setup(self):
         """
@@ -44,15 +38,14 @@ class TCPMixin(EventMixin):
                 break
             except (ConnectionRefusedError, socket.timeout, OSError):
                 logger.info("Host %s:%s not reachable", self._iams.address, self._iams.port or self.TCP_PORT)
-                time.sleep(5)
+                time.sleep(10)
         logger.debug("TCP socket connected to %s:%s", self._iams.address, self._iams.port or self.TCP_PORT)
 
         if self._stop_event.is_set():
             raise SystemExit
 
         self._executor.submit(self._tcp_reader)
-        self._executor.submit(self._tcp_writer)
-        return super()._pre_setup()
+        super()._pre_setup()
 
     def _tcp_reader(self):
         logger.info("TCP reader started")
@@ -74,6 +67,47 @@ class TCPMixin(EventMixin):
                 self.stop()
                 break
         logger.info("TCP reader stopped")
+
+    def _teardown(self):
+        logger.debug("Closing TCP socket")
+        try:
+            self._socket.shutdown(socket.SHUT_RDWR)
+            self._socket.close()
+        except (OSError, AttributeError):
+            pass
+
+    def tcp_heartbeat(self):
+        """
+        TCP_HEARTBEAT is used as an interval.
+        if no data was send this function is triggered and can, for example send a packet to test the connection
+        """
+        pass
+
+    def tcp_process_data(self, data) -> bool:
+        """
+        every packet received via the TCP socket will be passed as data to this callback
+
+        this function needs to be implemented
+        """
+        raise NotImplementedError("tcp_process_data needs to be implemented on %s" % self.__class__.__qualname__)
+
+
+class TCPMixin(TCPReadMixin):
+    """
+    Adds TCP/IP communication to agent.
+    Address is automatically read via agent configuration
+    Needs to be configured with a TCP_PORT attribute.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._tcp_queue = Queue()
+
+    def _pre_setup(self):
+        """
+        """
+        super()._pre_setup()
+        self._executor.submit(self._tcp_writer)
 
     def _tcp_writer(self):
 
@@ -104,12 +138,7 @@ class TCPMixin(EventMixin):
         logger.info("TCP writer stopped")
 
     def _teardown(self):
-        logger.debug("Closing TCP socket")
-        try:
-            self._socket.shutdown(socket.SHUT_RDWR)
-            self._socket.close()
-        except (OSError, AttributeError):
-            pass
+        super()._teardown()
         self._tcp_queue.put(b'')
 
     def tcp_write(self, data):
@@ -117,18 +146,3 @@ class TCPMixin(EventMixin):
         use this function to send data to the connected device
         """
         self._tcp_queue.put(data)
-
-    def tcp_heartbeat(self):
-        """
-        TCP_HEARTBEAT is used as an interval.
-        if no data was send this function is triggered and can, for example send a packet to test the connection
-        """
-        pass
-
-    def tcp_process_data(self, data) -> bool:
-        """
-        every packet received via the TCP socket will be passed as data to this callback
-
-        this function needs to be implemented
-        """
-        raise NotImplementedError("tcp_process_data needs to be implemented on %s" % self.__class__.__qualname__)

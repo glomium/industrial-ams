@@ -23,7 +23,7 @@ WORKDIR /usr/src/app
 COPY requirements/dev.txt requirements/test.txt ./
 RUN pip3 install --no-cache-dir -r dev.txt -r test.txt
 
-COPY LICENSE setup.py setup.cfg ./
+COPY LICENSE setup.py setup.cfg .coveragerc ./
 COPY iams ./iams
 COPY proto ./proto
 

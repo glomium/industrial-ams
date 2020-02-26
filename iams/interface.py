@@ -29,9 +29,7 @@ logger = logging.getLogger(__name__)
 
 class Agent(object):
     __hash__ = None
-
-    # max workers = 5 * N(CPU) by default, which seems reasonable
-    MAX_WORKERS = 20
+    MAX_WORKERS = None
 
     def __init__(self) -> None:
         self._executor = futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)

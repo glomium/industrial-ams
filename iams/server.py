@@ -82,7 +82,6 @@ def execute_command_line():
     )
 
     args = parser.parse_args()
-
     dictConfig(get_logging_config(["iams"], args.loglevel))
     logger = logging.getLogger(__name__)
 

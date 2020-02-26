@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 class TCPReadMixin(EventMixin):
     TCP_BUFFER = 1024
-    TCP_HEARTBEAT = None
     TCP_PORT = None
     TCP_TIMEOUT = 15
 
@@ -76,13 +75,6 @@ class TCPReadMixin(EventMixin):
         except (OSError, AttributeError):
             pass
 
-    def tcp_heartbeat(self):
-        """
-        TCP_HEARTBEAT is used as an interval.
-        if no data was send this function is triggered and can, for example send a packet to test the connection
-        """
-        pass
-
     def tcp_process_data(self, data) -> bool:
         """
         every packet received via the TCP socket will be passed as data to this callback
@@ -98,6 +90,7 @@ class TCPMixin(TCPReadMixin):
     Address is automatically read via agent configuration
     Needs to be configured with a TCP_PORT attribute.
     """
+    TCP_HEARTBEAT = None
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -108,6 +101,13 @@ class TCPMixin(TCPReadMixin):
         """
         super()._pre_setup()
         self._executor.submit(self._tcp_writer)
+
+    def tcp_heartbeat(self):
+        """
+        TCP_HEARTBEAT is used as an interval.
+        if no data was send this function is triggered and can, for example send a packet to test the connection
+        """
+        pass
 
     def _tcp_writer(self):
 

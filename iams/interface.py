@@ -13,10 +13,15 @@ from time import sleep
 import grpc
 import yaml
 
+from google.protobuf.empty_pb2 import Empty
+
 from .agent import Servicer
+from .constants import AGENT_CLOUDLESS
+from .constants import AGENT_PORT
 from .exceptions import Continue
 from .exceptions import EventNotFound
 from .scheduler import Scheduler
+from .stub import AgentStub
 from .utils.grpc import Grpc
 from .utils.grpc import framework_channel
 from .utils.grpc import get_channel_credentials
@@ -237,6 +242,53 @@ class Agent(object):
 #           if delay is not None and delay > 0.0:
 #               self._stop_event.wait(delay)
 #       return self._iams.simulation is None
+
+
+class AgentChannel(object):
+    __hash__ = None
+
+    def __init__(self, parent, agent) -> None:
+        self._agent = agent
+        self._state = None
+        if parent._iams.cloud:
+            port = AGENT_PORT
+            self._channel = grpc.secure_channel(f'{agent!s}:{port!s}', parent._credentials)
+        else:
+            port = AGENT_CLOUDLESS
+            self._channel = grpc.insecure_channel(f'{agent!s}:{port!s}')
+        self._parent = parent
+        self._channel.subscribe(self._set_state, try_to_connect=True)
+
+    def __enter__(self):
+        return self._channel
+
+    def __exit__(self):
+        return None
+
+    def _set_state(self, connectivity):
+        logger.debug("ChannelConnectivity to %s changed to %s", self._agent, connectivity)
+        if connectivity == grpc.ChannelConnectivity.IDLE:
+            try:
+                # if the channel is idle and no request was exchanged, we ping the agent to get a
+                # force the change of the connection
+                AgentStub(self._channel).ping(Empty())
+            except grpc.RpcError as e:
+                logger.info("Ping to %s failed: %s", self._agent, e.details())
+        elif connectivity == grpc.ChannelConnectivity.READY:
+            self.connected(self._parent)
+        elif self._state == grpc.ChannelConnectivity.READY:
+            self.disconnected(self._parent)
+
+        self._state = connectivity
+
+    def connected(self, parent):
+        pass
+
+    def disconnected(self, parent):
+        pass
+
+    def __bool__(self):
+        return self._state == grpc.ChannelConnectivity.READY
 
 
 class Plugin(object):

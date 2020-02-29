@@ -3,7 +3,6 @@
 
 import logging
 import socket
-import time
 
 from queue import Empty
 from queue import Queue
@@ -37,7 +36,7 @@ class TCPReadMixin(EventMixin):
                 break
             except (ConnectionRefusedError, socket.timeout, OSError):
                 logger.info("Host %s:%s not reachable", self._iams.address, self._iams.port or self.TCP_PORT)
-                time.sleep(10)
+                self._stop_event.wait(10)
         logger.debug("TCP socket connected to %s:%s", self._iams.address, self._iams.port or self.TCP_PORT)
 
         if self._stop_event.is_set():

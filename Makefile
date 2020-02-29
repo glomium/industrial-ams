@@ -8,6 +8,9 @@ test:
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --target basestage -t iams-base:local .
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
 
+test2:
+	docker-compose -f compose-test.yaml up --build --abort-on-container-exit
+
 certs:
 	mkdir -p secrets
 	openssl genrsa -out secrets/ca.key 8192

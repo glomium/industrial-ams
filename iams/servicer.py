@@ -132,14 +132,12 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     @permissions(has_agent=True, has_groups=["root", "web"])
     def update(self, request, context):
-
-        logger.debug('update called from %s', context._agent)
-        if context._agent:
-            request.name = context._agent
+        logger.debug('Update called from %s', context._username)
+        name = self.get_agent_name(context, request.name)
 
         try:
             created = self.docker.set_service(
-                request.name,
+                name,
                 image=request.image,
                 version=request.version,
                 address=request.address,
@@ -157,7 +155,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             context.abort(grpc.StatusCode.NOT_FOUND, message)
 
         if created:
-            self.set_booting(request.name)
+            self.set_booting(name)
 
         return framework_pb2.AgentData()
 
@@ -208,14 +206,32 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         self.set_booting(name)
         return framework_pb2.AgentData()
 
+    def get_agent_name(self, context, name):
+        if context._agent is None and name is None:
+            message = f'Need to give agent name in request'
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+
+        if context._agent:
+            return context._agent
+
+        try:
+            regex = self.RE_NAME.match(name)
+            return self.args.namespace[0:4] + '_' + regex.group(2)
+        except AttributeError:
+            message = 'Given an invalid agent name (%s) in request' % name
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+
     @permissions(has_agent=True, has_groups=["root", "web"])
     def destroy(self, request, context):
-        logger.debug('destroy called from %s', context._agent)
+        logger.debug('Destroy called from %s', context._username)
+        agent = self.get_agent_name(context, request.name)
+
         try:
-            self.docker.del_service(context._agent)
+            self.docker.del_service(agent)
         except docker_errors.NotFound:
-            message = 'Could not find %s' % context._agent
+            message = 'Could not find %s' % agent
             context.abort(grpc.StatusCode.NOT_FOUND, message)
+
         return Empty()
 
     @permissions(has_agent=True)
@@ -261,7 +277,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         if callback:
             logger.info("Resetting simulation runtime")
         else:
-            logger.error("Simulatddion canceled - resetting")
+            logger.error("Simulation canceled - resetting")
 
         self.heap = []
         self.simulation = False

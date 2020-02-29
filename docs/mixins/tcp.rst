@@ -1,4 +1,5 @@
 TCP
 ---
 
-tested + working
+.. autoclass:: iams.mixins.tcp.TCPMixin
+    :members:

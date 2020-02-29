@@ -12,22 +12,29 @@ logger = logging.getLogger(__name__)
 
 
 class InfluxDB(Plugin):
+    """
+    INFLUXDB_HOST and INFLUXDB_DATABASE needs to be set as environment variables or the plugin wont load
+    Adds INFLUXDB_HOST and INFLUXDB_DATABASE to the agents environment variabled
+    Adds the agent to the network {stack-namespace}_influxdb
+    """
+
+    label = "iams.plugins.influxdb"
 
     def __init__(self, **kwargs):
-        self.host = os.environ.get('INFLUXDB_HOST', "tasks.influxdb")
+        self.host = os.environ.get('INFLUXDB_HOST', None)
+        if self.host is None:
+            logger.debug("INFLUXDB_HOST is not defined - skip plugin")
+            raise SkipPlugin
         self.database = os.environ.get('INFLUXDB_DATABASE', None)
         if self.database is None:
-            logger.error("INFLUXDB_DATABASE is not defined - skip plugin")
+            logger.info("INFLUXDB_DATABASE is not defined - skip plugin")
             raise SkipPlugin
 
     def get_networks(self, **kwargs):
         return ['%s_influxdb' % self.namespace]
 
-    def get_kwargs(self, name, image, version, config):
-        return {"name": config}
-
-    def get_env(self, name):
+    def get_env(self, **kwargs):
         return {
-            'INFLUXDB_HOST': "tasks.influxdb",
-            'INFLUXDB_TAG': f"ams.image.{name}",
+            'INFLUXDB_HOST': self.host,
+            'INFLUXDB_DATABASE': self.database,
         }

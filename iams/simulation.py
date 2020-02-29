@@ -53,8 +53,6 @@ def execute_command_line():
     dictConfig(get_logging_config(["iams"], args.loglevel))
     logger = logging.getLogger(__name__)
 
-    logger.error(args.hosts)
-
     # load config
     simulation_config = yaml.load(args.config, Loader=yaml.SafeLoader)
 

@@ -17,7 +17,7 @@ services:
     # AMS Control
     ctrl:
         <<: *defaults
-        image: registry:5000/iams:latest
+        image: iams:local
         command: tasks.cfssl:8888 -d
         environment:
             IAMS_NETWORK: iams_ams
@@ -32,12 +32,13 @@ services:
                 constraints: [node.role == manager]
         networks:
             - cfssl
+            - envoy
             - iams
 
     # Simulation
     sim:
         <<: *defaults
-        image: registry:5000/iams:latest
+        image: iams:local
         command: --simulation tasks.cfssl:8888 -d
         environment:
             IAMS_NETWORK: iams_test
@@ -78,6 +79,7 @@ services:
 networks:
     cfssl:
     iams:
+    envoy:
     test:
 
 secrets:

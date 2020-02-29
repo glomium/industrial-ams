@@ -3,7 +3,6 @@
 
 import logging
 import socket
-import time
 
 from queue import Empty
 from queue import Queue
@@ -14,17 +13,15 @@ from .event import EventMixin
 logger = logging.getLogger(__name__)
 
 
-class TCPMixin(EventMixin):
+class TCPReadMixin(EventMixin):
     TCP_BUFFER = 1024
-    TCP_HEARTBEAT = None
     TCP_PORT = None
     TCP_TIMEOUT = 15
 
     def __init__(self, *args, **kwargs) -> None:
         assert self.TCP_PORT is not None, "TCP_PORT needs to be set on %s" % self.__class__.__qualname__
         super().__init__(*args, **kwargs)
-        logger.debug("TCP socket class initialized")
-        self._tcp_queue = Queue()
+        logger.debug("%s initialized", self.__class__.__qualname__)
 
     def _pre_setup(self):
         """
@@ -39,18 +36,17 @@ class TCPMixin(EventMixin):
                 break
             except (ConnectionRefusedError, socket.timeout, OSError):
                 logger.info("Host %s:%s not reachable", self._iams.address, self._iams.port or self.TCP_PORT)
-                time.sleep(5)
+                self._stop_event.wait(10)
         logger.debug("TCP socket connected to %s:%s", self._iams.address, self._iams.port or self.TCP_PORT)
 
         if self._stop_event.is_set():
             raise SystemExit
 
-        self._tcp_reader_future = self._executor.submit(self._tcp_reader)
-        self._tcp_writer_future = self._executor.submit(self._tcp_writer)
-        return super()._pre_setup()
+        self._executor.submit(self._tcp_reader)
+        super()._pre_setup()
 
     def _tcp_reader(self):
-        logger.debug("TCP reader started")
+        logger.info("TCP reader started")
         while not self._socket._closed:
             try:
                 data = self._socket.recv(self.TCP_BUFFER)
@@ -65,14 +61,56 @@ class TCPMixin(EventMixin):
                 self.stop()
                 break
             except Exception:
-                logger.exception("Error in parent.process_data")
+                logger.exception("Error in tcp_process_data")
                 self.stop()
                 break
-        logger.debug("TCP reader stopped")
+        logger.info("TCP reader stopped")
+
+    def _teardown(self):
+        logger.debug("Closing TCP socket")
+        try:
+            self._socket.shutdown(socket.SHUT_RDWR)
+            self._socket.close()
+        except (OSError, AttributeError):
+            pass
+
+    def tcp_process_data(self, data) -> bool:
+        """
+        every packet received via the TCP socket will be passed as data to this callback
+
+        this function needs to be implemented
+        """
+        raise NotImplementedError("tcp_process_data needs to be implemented on %s" % self.__class__.__qualname__)
+
+
+class TCPMixin(TCPReadMixin):
+    """
+    Adds TCP/IP communication to agent.
+    Address is automatically read via agent configuration
+    Needs to be configured with a TCP_PORT attribute.
+    """
+    TCP_HEARTBEAT = None
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._tcp_queue = Queue()
+
+    def _pre_setup(self):
+        """
+        """
+        super()._pre_setup()
+        self._executor.submit(self._tcp_writer)
+
+    def tcp_heartbeat(self):
+        """
+        TCP_HEARTBEAT is used as an interval.
+        if no data was send this function is triggered and can, for example send a packet to test the connection
+        """
+        pass
 
     def _tcp_writer(self):
 
-        logger.debug("TCP writer started")
+        logger.info("TCP writer started")
         heartbeat = False
 
         while not self._socket._closed:
@@ -90,28 +128,20 @@ class TCPMixin(EventMixin):
             if data:
                 logger.debug("TCP writer sending %s", data)
                 try:
-                    self._socket.send(data)
+                    self._socket.sendall(data)
                 except (OSError, BrokenPipeError):
                     logger.info("Connection Error - Shutdown", exc_info=True)
                     self.stop()
                     break
 
-        logger.debug("TCP writer stopped")
+        logger.info("TCP writer stopped")
 
     def _teardown(self):
-        logger.debug("Closing TCP socket")
-        try:
-            self._socket.shutdown(socket.SHUT_RDWR)
-            self._socket.close()
-        except (OSError, AttributeError):
-            pass
+        super()._teardown()
         self._tcp_queue.put(b'')
 
     def tcp_write(self, data):
+        """
+        use this function to send data to the connected device
+        """
         self._tcp_queue.put(data)
-
-    def tcp_heartbeat(self):
-        pass
-
-    def tcp_process_data(self, data) -> bool:
-        raise NotImplementedError("tcp_process_data needs to be implemented on %s" % self.__class__.__qualname__)

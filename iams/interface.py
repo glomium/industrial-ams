@@ -13,10 +13,15 @@ from time import sleep
 import grpc
 import yaml
 
+from google.protobuf.empty_pb2 import Empty
+
 from .agent import Servicer
+from .constants import AGENT_CLOUDLESS
+from .constants import AGENT_PORT
 from .exceptions import Continue
 from .exceptions import EventNotFound
 from .scheduler import Scheduler
+from .stub import AgentStub
 from .utils.grpc import Grpc
 from .utils.grpc import framework_channel
 from .utils.grpc import get_channel_credentials
@@ -29,9 +34,7 @@ logger = logging.getLogger(__name__)
 
 class Agent(object):
     __hash__ = None
-
-    # max workers = 5 * N(CPU) by default, which seems reasonable
-    MAX_WORKERS = 20
+    MAX_WORKERS = None
 
     def __init__(self) -> None:
         self._executor = futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
@@ -241,7 +244,55 @@ class Agent(object):
 #       return self._iams.simulation is None
 
 
+class AgentChannel(object):
+    __hash__ = None
+
+    def __init__(self, parent, agent) -> None:
+        self._agent = agent
+        self._state = None
+        if parent._iams.cloud:
+            port = AGENT_PORT
+            self._channel = grpc.secure_channel(f'{agent!s}:{port!s}', parent._credentials)
+        else:
+            port = AGENT_CLOUDLESS
+            self._channel = grpc.insecure_channel(f'{agent!s}:{port!s}')
+        self._parent = parent
+        self._channel.subscribe(self._set_state, try_to_connect=True)
+
+    def __enter__(self):
+        return self._channel
+
+    def __exit__(self):
+        return None
+
+    def _set_state(self, connectivity):
+        logger.debug("ChannelConnectivity to %s changed to %s", self._agent, connectivity)
+        if connectivity == grpc.ChannelConnectivity.IDLE:
+            try:
+                # if the channel is idle and no request was exchanged, we ping the agent to get a
+                # force the change of the connection
+                AgentStub(self._channel).ping(Empty())
+            except grpc.RpcError as e:
+                logger.info("Ping to %s failed: %s", self._agent, e.details())
+        elif connectivity == grpc.ChannelConnectivity.READY:
+            self.connected(self._parent)
+        elif self._state == grpc.ChannelConnectivity.READY:
+            self.disconnected(self._parent)
+
+        self._state = connectivity
+
+    def connected(self, parent):
+        pass
+
+    def disconnected(self, parent):
+        pass
+
+    def __bool__(self):
+        return self._state == grpc.ChannelConnectivity.READY
+
+
 class Plugin(object):
+
     __hash__ = None
 
     label = None
@@ -257,30 +308,51 @@ class Plugin(object):
         kwargs = self.get_kwargs(name, image, version, config)
 
         return (
-            self.get_labels(**kwargs),
             self.get_env(**kwargs),
+            self.get_labels(**kwargs),
             set(self.get_networks(**kwargs)),
             self.get_configured_secrets(**kwargs),
             self.get_generated_secrets(**kwargs),
         )
 
     def remove(self, name, config):
+        """
+        called when agent is removed
+        """
         pass
 
     def get_kwargs(self, name, image, version, config):
+        """
+        generate keyword arguements
+        """
         return {}
 
     def get_labels(self, **kwargs):
+        """
+        set labels for agent
+        """
         return {}
 
     def get_env(self, **kwargs):
+        """
+        set enviromment variables for agent
+        """
         return {}
 
     def get_networks(self, **kwargs):
+        """
+        add agent to networks
+        """
         return []
 
     def get_configured_secrets(self, **kwargs):
+        """
+        add preconfigured secret to agent
+        """
         return {}
 
     def get_generated_secrets(self, **kwargs):
+        """
+        add automatically generated secret to agent
+        """
         return []

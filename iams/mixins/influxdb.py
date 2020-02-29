@@ -6,25 +6,27 @@ import logging
 import os
 import socket
 
-try:
-    from influxdb import InfluxDBClient
-    INFLUXDB = True
-except ImportError:
-    INFLUXDB = False
-
+logger = logging.getLogger(__name__)
 
 HOST = os.environ.get('INFLUXDB_HOST', None)
 DATABASE = os.environ.get('INFLUXDB_DATABASE', None)
 
 
 if HOST is None or DATABASE is None:
+    logger.debug("InfluxDB hostname or database not specified")
+    INFLUXDB = False
+
+try:
+    from influxdb import InfluxDBClient
+    INFLUXDB = True
+except ImportError:
+    logger.info("Could not import influxdb")
     INFLUXDB = False
 
 
-logger = logging.getLogger(__name__)
-
-
 class InfluxDBMixin(object):
+    """
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -34,6 +36,10 @@ class InfluxDBMixin(object):
             logger.info("Infludb initialized with host %s", HOST)
 
     def influxdb_write(self, data, time=None):
+        """
+        sends data (list of dictionaries) to influx-database
+        """
+
         if not INFLUXDB:
             return None
 

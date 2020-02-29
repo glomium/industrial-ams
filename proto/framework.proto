@@ -35,30 +35,32 @@ service Framework {
     send this command to update an agent
 
     fails with invalid_arguemnt if argument missing or incorrect
-    fails with already exists if name already exists
     fails with not found if agent or image is not found or image is invalid
     */
     rpc update(AgentData) returns (AgentData) {}
 
     /*
-    agent sends this command to destroy himself (service is removed)
+    send this command to destroy an agent
+
+    fails with invalid_arguemnt if argument missing or incorrect
+    fails with not found if agent or image is not found or image is invalid
     */
-    rpc destroy(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    rpc destroy(AgentData) returns (google.protobuf.Empty) {}
 
     /*
     agent sends this command to shut himself down (service is scaled to 0)
     */
-    rpc sleep(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    rpc sleep(AgentData) returns (google.protobuf.Empty) {}
 
     /*
     agent sends this command to update himself (update is forced on service)
     */
-    rpc upgrade(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    rpc upgrade(AgentData) returns (google.protobuf.Empty) {}
 
     /*
     agent sends this command to start another agent (service is scaled to 1)
     */
-    rpc wake(WakeAgent) returns (google.protobuf.Empty) {}
+    rpc wake(AgentData) returns (google.protobuf.Empty) {}
 
     // /*
     // */
@@ -68,12 +70,6 @@ service Framework {
 
 message AgentRequest {
     repeated string filter = 1;
-}
-
-message AgentResponse {
-    string name = 1;
-    string image = 2;
-    string version = 3;
 }
 
 message RenewRequest {
@@ -93,10 +89,6 @@ message AgentData {
     string version = 5;
     bytes config = 6;
     bool autostart = 7;
-}
-
-message WakeAgent {
-    string agent = 1;
 }
 
 /*

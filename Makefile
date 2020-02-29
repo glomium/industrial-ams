@@ -1,21 +1,22 @@
 VENV_NAME?=.venv
-UBUNTU=19.10
-REGISTRY=registry:5000
+UBUNTU=rolling
 
 build: test
-	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:latest --cache-from iams-test:latest --cache-from iams-build:latest --cache-from $(REGISTRY)/iams:$(UBUNTU) -t $(REGISTRY)/iams:latest -t $(REGISTRY)/iams:$(UBUNTU) .
-	docker push $(REGISTRY)/iams:$(UBUNTU)
-	docker push $(REGISTRY)/iams:latest
+	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --cache-from iams-build:local --cache-from iams:local -t iams:local .
 
 test:
-	docker pull $(REGISTRY)/iams:$(UBUNTU) || true
-	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:latest --target basestage -t iams-base:latest .
-	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:latest --cache-from iams-test:latest --target test -t iams-test:latest .
+	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --target basestage -t iams-base:local .
+	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
 
 certs:
 	mkdir -p secrets
 	openssl genrsa -out secrets/ca.key 8192
 	openssl req -x509 -new -SHA384 -key secrets/ca.key -out secrets/ca.crt -days 36525
+
+start: build
+	docker stack deploy -c docker-compose.yaml iams 
+	docker service update --force iams_ctrl -d
+	docker service update --force iams_sim -d
 
 grpc:
 	mkdir -p iams/proto

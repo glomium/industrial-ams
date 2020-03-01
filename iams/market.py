@@ -29,6 +29,22 @@ class RootStates(Enum):
     SHUTDOWN = auto()  # order agent is waiting to be killed by docker
 
 
+class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
+    pass
+
+
+class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
+    pass
+
+
+class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
+    pass
+
+
+class ProxyCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
+    pass
+
+
 class RootInterface(ABC):
     """
     Has the steps, asks agents to produce the steps and tracks the process
@@ -41,9 +57,9 @@ class RootInterface(ABC):
 
     def _grpc_setup(self):
         super()._grpc_setup()
-        self._order_negotiate_servicer = market_pb2_grpc.OrderNegociateServicer()
+        self._order_negotiate_servicer = OrderNegotiateServicer()
         self._grpc.add(
-            market_pb2_grpc.add_OrderNegociateServicer_to_server,
+            market_pb2_grpc.add_OrderNegotiateServicer_to_server,
             self._order_negotiate_servicer,
         )
 
@@ -261,8 +277,8 @@ class SplitInterface(ABC):
 
     def _grpc_setup(self):
         super()._grpc_setup()
-        self._order_callback_servicer = market_pb2_grpc.OrderNegociateServicer()
-        self._order_negotiate_servicer = market_pb2_grpc.OrderNegociateServicer()
+        self._order_callback_servicer = ProxyCallbackServicer()
+        self._order_negotiate_servicer = ProxyNegotiateServicer()
         self._grpc.add(
             market_pb2_grpc.add_OrderCallbackServicer_to_server,
             self._order_callback_servicer,
@@ -272,6 +288,12 @@ class SplitInterface(ABC):
             self._order_negotiate_servicer,
         )
 
+    @abstractmethod
+    def order_validate(self, order, steps, eta, start):
+        """
+        """
+        pass
+
 
 class ExecuteInterface(ABC):
     """
@@ -280,8 +302,14 @@ class ExecuteInterface(ABC):
 
     def _grpc_setup(self):
         super()._grpc_setup()
-        self._order_callback_servicer = market_pb2_grpc.OrderNegociateServicer()
+        self._order_callback_servicer = OrderCallbackServicer()
         self._grpc.add(
             market_pb2_grpc.add_OrderCallbackServicer_to_server,
             self._order_callback_servicer,
         )
+
+    @abstractmethod
+    def order_validate(self, order, steps, eta, start):
+        """
+        """
+        pass

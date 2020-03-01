@@ -27,6 +27,7 @@ def get_plugins():
             specs.append(spec)
 
     # get plugins from working directory
+    logger.debug("Scanning %s for plugins", os.path.curdir)
     for obj in os.scandir(os.path.curdir):
         if not obj.is_dir():
             continue
@@ -35,6 +36,7 @@ def get_plugins():
         except ModuleNotFoundError:
             continue
         if spec:
+            logger.debug("Found plugin in module %s", obj.name)
             specs.append(spec)
 
     # get plugins from specs

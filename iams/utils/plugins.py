@@ -3,6 +3,7 @@
 
 import logging
 import os
+import sys
 
 from importlib.util import find_spec
 from inspect import getmembers, isclass
@@ -28,14 +29,18 @@ def get_plugins():
 
     # get plugins from working directory
     directory = os.path.abspath(os.path.curdir)
+    if directory not in sys.path:
+        sys.path.append(directory)
     logger.debug("Scanning %s for plugins", directory)
     for obj in os.scandir(directory):
         if not obj.is_dir():
             continue
+
         try:
-            spec = find_spec(f".{plugin_name}", f"{obj.name}")
+            spec = find_spec(f"{obj.name}.{plugin_name}")
         except ModuleNotFoundError:
             continue
+
         if spec:
             logger.debug("Found plugin in module %s", obj.name)
             specs.append(spec)

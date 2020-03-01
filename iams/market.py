@@ -11,6 +11,8 @@ from enum import Enum
 
 import grpc
 
+from iams.utils.auth import permissions
+
 from .proto import market_pb2
 from .proto import market_pb2_grpc
 
@@ -30,19 +32,91 @@ class RootStates(Enum):
 
 
 class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
-    pass
+
+    def __init__(self, parent):
+        self.parent = parent
+
+    @permissions(has_agent=True)
+    def apply(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def assign(self, request, context):
+        pass
+
+    @permissions(has_agent=True, has_groups=["web"])
+    def cancel(self, request, context):
+        pass
 
 
 class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
-    pass
+
+    def __init__(self, parent):
+        self.parent = parent
+
+    @permissions(has_agent=True)
+    def start(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def finish(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def cancel(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def steps_start(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def steps_finish(self, request, context):
+        pass
 
 
 class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
-    pass
+
+    def __init__(self, parent):
+        self.parent = parent
+
+    @permissions(has_agent=True)
+    def apply(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def assign(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def cancel(self, request, context):
+        pass
 
 
 class ProxyCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
-    pass
+
+    def __init__(self, parent):
+        self.parent = parent
+
+    @permissions(has_agent=True)
+    def start(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def finish(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def cancel(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def steps_start(self, request, context):
+        pass
+
+    @permissions(has_agent=True)
+    def steps_finish(self, request, context):
+        pass
 
 
 class RootInterface(ABC):
@@ -57,10 +131,9 @@ class RootInterface(ABC):
 
     def _grpc_setup(self):
         super()._grpc_setup()
-        self._order_negotiate_servicer = OrderNegotiateServicer()
         self._grpc.add(
-            market_pb2_grpc.add_OrderNegotiateServicer_to_server,
-            self._order_negotiate_servicer,
+            market_pb2_grpc.add_OrderCallbackServicer_to_server,
+            OrderCallbackServicer(self),
         )
 
     def setup(self):
@@ -277,15 +350,13 @@ class SplitInterface(ABC):
 
     def _grpc_setup(self):
         super()._grpc_setup()
-        self._order_callback_servicer = ProxyCallbackServicer()
-        self._order_negotiate_servicer = ProxyNegotiateServicer()
         self._grpc.add(
             market_pb2_grpc.add_OrderCallbackServicer_to_server,
-            self._order_callback_servicer,
+            ProxyCallbackServicer(self),
         )
         self._grpc.add(
-            market_pb2_grpc.add_OrderCallbackServicer_to_server,
-            self._order_negotiate_servicer,
+            market_pb2_grpc.add_OrderNegotiateServicer_to_server,
+            ProxyNegotiateServicer(self),
         )
 
     @abstractmethod
@@ -302,10 +373,9 @@ class ExecuteInterface(ABC):
 
     def _grpc_setup(self):
         super()._grpc_setup()
-        self._order_callback_servicer = OrderCallbackServicer()
         self._grpc.add(
-            market_pb2_grpc.add_OrderCallbackServicer_to_server,
-            self._order_callback_servicer,
+            market_pb2_grpc.add_OrderNegotiateServicer_to_server,
+            OrderNegotiateServicer(self),
         )
 
     @abstractmethod

@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
+
+package ims.market;
+
+/*
+Integrated for communication with orders. Has an apply and assign function
+*/
+service OrderNegotiate {
+    /*
+    requests here are applying for an order. check stock match between abilities and requirements
+    than decide to accept the order or reject it. The orders decides to wich agent it's assigned,
+    so this calls to this function dont need to be stored in the agent
+    */
+    rpc apply(OrderInfo) returns (OrderCosts) {}
+
+    /*
+    requests here are assiging the order. validate it first, than add it directly to a queue
+    */
+    rpc assign(OrderInfo) returns (OrderCosts) {}
+
+    /*
+    Cancels the order
+    */
+    rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
+}
+
+/*
+*/
+service OrderCallback {
+    /*
+    */
+    rpc start(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc finish(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc cancel(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc steps_finish(Step) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc steps_start(Step) returns (google.protobuf.Empty) {}
+}
+
+message OrderInfo {
+    string order = 1;
+    float eta = 2;
+    repeated Step steps = 3;
+}
+
+message Step {
+    string step = 1;
+    google.protobuf.Any data = 2;
+}
+
+message OrderCosts {
+    float production_cost = 1;
+    float production_time = 2;
+    float queue_time = 3;
+    float transport_cost = 4;
+    float transport_time = 5;
+}
+
+message CancelRequest {
+    string order = 1;
+}

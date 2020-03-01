@@ -48,3 +48,9 @@ def get_plugins():
         for name, cls in getmembers(module, isclass):
             if cls is not Plugin and issubclass(cls, Plugin):
                 yield cls
+
+
+if __name__ == "__main__":
+    print("Plugins:")  # noqa
+    for plugin in get_plugins():
+        print(plugin)  # noqa

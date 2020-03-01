@@ -11,6 +11,8 @@ from enum import Enum
 
 import grpc
 
+from google.protobuf.empty_pb2 import Empty
+
 from iams.utils.auth import permissions
 
 from .proto import market_pb2
@@ -18,6 +20,9 @@ from .proto import market_pb2_grpc
 
 
 logger = logging.getLogger(__name__)
+
+
+# === ROOT ====================================================================
 
 
 class RootStates(Enum):
@@ -31,92 +36,48 @@ class RootStates(Enum):
     SHUTDOWN = auto()  # order agent is waiting to be killed by docker
 
 
-class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
-
-    def __init__(self, parent):
-        self.parent = parent
-
-    @permissions(has_agent=True)
-    def apply(self, request, context):
-        pass
-
-    @permissions(has_agent=True)
-    def assign(self, request, context):
-        pass
-
-    @permissions(has_agent=True, has_groups=["web"])
-    def cancel(self, request, context):
-        pass
-
-
 class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
 
     def __init__(self, parent):
         self.parent = parent
 
-    @permissions(has_agent=True)
-    def start(self, request, context):
-        pass
-
-    @permissions(has_agent=True)
-    def finish(self, request, context):
-        pass
-
-    @permissions(has_agent=True)
+    @permissions(has_agent=True, has_groups=["web"])
     def cancel(self, request, context):
-        pass
+        logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
+        if self.parent._order_state != RootStates.RUNNING:
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
+
+        if self.parent.order_cancel():
+            self.parent._order_state = RootStates.CANCEL
+            if self._iams.simulation:
+                self._simulation.schedule(0.0, '_loop')
+            else:
+                self.parent._loop_event.set()
+            return Empty()
+        else:
+            context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
     @permissions(has_agent=True)
-    def steps_start(self, request, context):
-        pass
+    def start_step(self, request, context):
+        logger.debug("%s.start_step was called by %s", self.__class__.__qualname__, context._agent)
+        if self.parent._order_state != RootStates.RUNNING:
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
+
+        if self.parent.order_start_step():
+            return Empty()
+        else:
+            context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
     @permissions(has_agent=True)
-    def steps_finish(self, request, context):
-        pass
+    def finish_step(self, request, context):
+        logger.debug("%s.finish_step was called by %s", self.__class__.__qualname__, context._agent)
+        if self.parent._order_state != RootStates.RUNNING:
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
 
-
-class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
-
-    def __init__(self, parent):
-        self.parent = parent
-
-    @permissions(has_agent=True)
-    def apply(self, request, context):
-        pass
-
-    @permissions(has_agent=True)
-    def assign(self, request, context):
-        pass
-
-    @permissions(has_agent=True)
-    def cancel(self, request, context):
-        pass
-
-
-class ProxyCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
-
-    def __init__(self, parent):
-        self.parent = parent
-
-    @permissions(has_agent=True)
-    def start(self, request, context):
-        pass
-
-    @permissions(has_agent=True)
-    def finish(self, request, context):
-        pass
-
-    @permissions(has_agent=True)
-    def cancel(self, request, context):
-        pass
-
-    @permissions(has_agent=True)
-    def steps_start(self, request, context):
-        pass
-
-    @permissions(has_agent=True)
-    def steps_finish(self, request, context):
-        pass
+        if self.parent.order_finish_step():
+            return Empty()
+        else:
+            context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
 
 class RootInterface(ABC):
@@ -261,7 +222,8 @@ class RootInterface(ABC):
             cost = 0.0
             eta = 0.0
             for key, value in self._order_applications.items():
-                if agent is None or value["cost"] < cost:
+                c = self.order_cost_function(value["cost"], value["time"])
+                if agent is None or c < cost:
                     agent = key
                     cost = value["cost"]
                     eta = value["time"]
@@ -297,6 +259,12 @@ class RootInterface(ABC):
 
         self.state = RootStates.STARTING
 
+    def order_cost_function(self, value, time):
+        """
+        return eta and steps
+        """
+        return value
+
     def loop_running(self):
         """
         """
@@ -328,19 +296,85 @@ class RootInterface(ABC):
 
     @abstractmethod
     def order_started(self):
+        """
+        runs if the order was assigned (callback with MES to start it)
+        """
         pass
 
     @abstractmethod
     def order_finished(self):
         """
+        runs if all steps are done (callback with MES to start it)
+        """
+        pass
+
+    @abstractmethod
+    def order_cancel(self):  # from servicer
+        """
+        callback to cancel the order
         """
         pass
 
     @abstractmethod
     def order_canceled(self):
         """
+        cleanup after order cancelling
         """
         pass
+
+    @abstractmethod
+    def order_start_step(self):  # from servicer
+        """
+        report start execution of a step
+        """
+        pass
+
+    @abstractmethod
+    def order_finish_step(self):  # from servicer
+        """
+        report end execution of a step
+        """
+        pass
+
+
+# === INTERMEDIATE ============================================================
+
+
+class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
+
+    def __init__(self, parent):
+        self.parent = parent
+
+    @permissions(has_agent=True)
+    def apply(self, request, context):
+        logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
+
+    @permissions(has_agent=True)
+    def assign(self, request, context):
+        logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
+
+    @permissions(has_agent=True)
+    def cancel(self, request, context):
+        logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
+
+
+class ProxyCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
+
+    def __init__(self, parent):
+        self.parent = parent
+
+    @permissions(has_agent=True)
+    def cancel(self, request, context):
+        logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
+        raise NotImplementedError
+
+    @permissions(has_agent=True)
+    def start_step(self, request, context):
+        logger.debug("%s.start_step was called by %s", self.__class__.__qualname__, context._agent)
+
+    @permissions(has_agent=True)
+    def finish_step(self, request, context):
+        logger.debug("%s.finish_step was called by %s", self.__class__.__qualname__, context._agent)
 
 
 class SplitInterface(ABC):
@@ -365,6 +399,66 @@ class SplitInterface(ABC):
         """
         pass
 
+    @abstractmethod
+    def order_agent_labels(self):
+        """
+        iterator, which generates a list of labels which is used to filter docker
+        services for devices which can execute this order
+        """
+        pass
+
+
+# === EXCECUTION ==============================================================
+
+
+class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
+
+    def __init__(self, parent):
+        self.parent = parent
+
+    @permissions(has_agent=True)
+    def apply(self, request, context):
+        logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
+        return self.validate(request, context, False)
+
+    @permissions(has_agent=True)
+    def assign(self, request, context):
+        logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
+        order = request.order or context._agent
+        response = self.validate(request, context, True)
+        if self.parent.order_start(order, request.steps):
+            return response
+        else:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Error assigning order %s" % order)
+
+    @permissions(has_agent=True)
+    def cancel(self, request, context):
+        logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
+        order = request.order or context._agent
+        if self.parent.order_cancel(order):
+            return Empty()
+        else:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Error cancelling order %s" % order)
+
+    def validate(self, request, context, start):
+        order = request.order or context._agent
+        steps = request.steps
+        eta = request.eta
+
+        # TODO
+        valid, cost_p, cost_t, time_p, time_t, time_q = self.parent.order_validate(order, steps, eta, start)
+        if not valid:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
+        # END TODO
+
+        return market_pb2.OrderCosts(
+            production_cost=cost_p,
+            production_time=time_p,
+            queue_time=time_q,
+            transport_cost=cost_t,
+            transport_time=time_t,
+        )
+
 
 class ExecuteInterface(ABC):
     """
@@ -379,7 +473,19 @@ class ExecuteInterface(ABC):
         )
 
     @abstractmethod
-    def order_validate(self, order, steps, eta, start):
+    def order_validate(self, order, steps, eta, start):  # from servicer
+        """
+        """
+        pass
+
+    @abstractmethod
+    def order_start(self, order, steps):  # from servicer
+        """
+        """
+        pass
+
+    @abstractmethod
+    def order_cancel(self, order):  # from servicer
         """
         """
         pass

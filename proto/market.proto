@@ -32,23 +32,16 @@ service OrderNegotiate {
 service OrderCallback {
     /*
     */
-    rpc start(google.protobuf.Empty) returns (google.protobuf.Empty) {}
-
-    /*
-    */
-    rpc finish(google.protobuf.Empty) returns (google.protobuf.Empty) {}
-
-    /*
-    */
     rpc cancel(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 
     /*
     */
-    rpc steps_finish(Step) returns (google.protobuf.Empty) {}
+    rpc start_step(Step) returns (google.protobuf.Empty) {}
 
     /*
     */
-    rpc steps_start(Step) returns (google.protobuf.Empty) {}
+    rpc finish_step(Step) returns (google.protobuf.Empty) {}
+
 }
 
 message OrderInfo {

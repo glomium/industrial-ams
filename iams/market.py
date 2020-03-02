@@ -108,45 +108,45 @@ class RootInterface(ABC):
 
     def _loop(self):
         while not self._stop_event.is_set():
-            logger.debug("Running loop from state %s", self.state)
+            logger.debug("Running loop from state %s", self._order_state)
 
-            if self.state == RootStates.APPLY:
+            if self._order_state == RootStates.APPLY:
                 self.loop_apply()
 
-            elif self.state == RootStates.SELECT:
+            elif self._order_state == RootStates.SELECT:
                 self.loop_select()
 
-            elif self.state == RootStates.START:
+            elif self._order_state == RootStates.START:
                 if not self._iams.simulation:
                     self.order_started()
-                self.state = RootStates.RUNNING
+                self._order_state = RootStates.RUNNING
 
-            elif self.state == RootStates.RUNNING:
+            elif self._order_state == RootStates.RUNNING:
                 self.loop_running()
 
-            elif self.state == RootStates.FINISH:
+            elif self._order_state == RootStates.FINISH:
                 # shedule shutdown of agent (in 60 seconds to avoid interference with wait in loop_select)
                 if self._iams.simulation:
                     self._simulation.schedule(60, '_loop')
                 else:
                     self.order_finished()
-                self.state = RootStates.SHUTDOWN
+                self._order_state = RootStates.SHUTDOWN
 
-            elif self.state == RootStates.CANCEL:
+            elif self._order_state == RootStates.CANCEL:
                 # shedule shutdown of agent (in 60 seconds to avoid interference with wait in loop_select)
                 if self._iams.simulation:
                     self._simulation.schedule(60, '_loop')
                 else:
                     self.order_canceled()
-                self.state = RootStates.SHUTDOWN
+                self._order_state = RootStates.SHUTDOWN
 
-            elif self.state == RootStates.SHUTDOWN:
+            elif self._order_state == RootStates.SHUTDOWN:
                 self._iams.call_destroy()
                 logger.debug("Waiting for the shutdown signal from docker")
                 self._stop_event.wait(30)
 
             else:
-                logger.critical("State %s not defined!", self.state)
+                logger.critical("State %s not defined!", self._order_state)
                 break
 
             if self._iams.simulation is False:
@@ -157,7 +157,7 @@ class RootInterface(ABC):
         """
         # get a list of agents
         agents = []
-        for labels in self.order_agent_labels(self):
+        for labels in self.order_agent_labels():
             for agent in self._iams.get_agents(labels):
                 agents.append(agent.name)
 
@@ -170,7 +170,7 @@ class RootInterface(ABC):
             futures.append(self._executor.submit(self._order_application, request, agent))
         concurrent.futures.wait(futures)
 
-        self.state = RootStates.SELECT
+        self._order_state = RootStates.SELECT
         self._loop_select()
 
     def _order_application(self, request, agent):
@@ -209,7 +209,7 @@ class RootInterface(ABC):
         """
         if not self._order_applications:
             logger.info("No agent applied for this order - wait 60 seconds and retry")
-            self.state = RootStates.APPLY
+            self._order_state = RootStates.APPLY
 
             if self._iams.simulation:
                 self._simulation.schedule(60, '_loop_apply')
@@ -257,7 +257,7 @@ class RootInterface(ABC):
 
         logger.debug("%s assigned the order with cost %s and time %s", agent, total_cost, total_time)
 
-        self.state = RootStates.STARTING
+        self._order_state = RootStates.STARTING
 
     def order_cost_function(self, value, time):
         """

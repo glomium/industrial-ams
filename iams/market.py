@@ -164,8 +164,7 @@ class RootInterface(ABC):
         self._order_applications = {}
 
         futures = []
-        eta, steps = self.order_get_data()
-        request = market_pb2.OrderInfo(steps=steps, eta=eta)
+        request = self.order_get_data()
         for agent in agents:
             futures.append(self._executor.submit(self._order_application, request, agent))
         concurrent.futures.wait(futures)
@@ -241,8 +240,7 @@ class RootInterface(ABC):
             eta,
         )
 
-        eta, steps = self.order_get_data()
-        request = market_pb2.OrderInfo(steps=steps, eta=eta)
+        request = self.order_get_data()
         try:
             logger.debug("calling assign from OrderNegotiateStub on %s", agent)
             with self._channel(agent) as channel:
@@ -282,7 +280,7 @@ class RootInterface(ABC):
     @abstractmethod
     def order_get_data(self):
         """
-        return eta and steps
+        return an instance of OrderInfo
         """
         pass
 

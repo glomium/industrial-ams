@@ -7,7 +7,6 @@ import signal
 from abc import ABC
 from abc import abstractmethod
 from concurrent import futures
-from concurrent import futures
 from contextlib import contextmanager
 from threading import Event
 from threading import Lock

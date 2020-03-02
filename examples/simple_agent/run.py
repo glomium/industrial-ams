@@ -7,9 +7,7 @@ from iams.interface import Agent
 class Simple(Agent):
 
     def _loop(self):
-        while not self._stop_event.is_set():
-            self._stop_event.wait(10)
-            logger.debug("loop")
+        self._stop_event.wait()
 
 
 if __name__ == "__main__":

@@ -2,6 +2,6 @@ FROM glomium/industrial-ams:rolling
 
 LABEL iams.services.agent=true
 
-COPY agv_pb2_grpc.py agv_pb2.py sink.py ./
+COPY simulation_pb2_grpc.py simulation_pb2.py sink.py ./
 
 ENTRYPOINT ["/usr/bin/python3", "sink.py"]

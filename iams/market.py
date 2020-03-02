@@ -377,7 +377,7 @@ class ProxyCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
         logger.debug("%s.finish_step was called by %s", self.__class__.__qualname__, context._agent)
 
 
-class SplitInterface(ABC):
+class IntermediateInterface(ABC):
     """
     Splits the steps by ability and connects to different agents
     """
@@ -445,11 +445,9 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
         steps = request.steps
         eta = request.eta
 
-        # TODO
         valid, cost_p, cost_t, time_p, time_t, time_q = self.parent.order_validate(order, steps, eta, start)
         if not valid:
             context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
-        # END TODO
 
         return market_pb2.OrderCosts(
             production_cost=cost_p,

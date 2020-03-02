@@ -4,6 +4,9 @@
 import logging
 import signal
 
+from abc import ABC
+from abc import abstractmethod
+from concurrent import futures
 from concurrent import futures
 from contextlib import contextmanager
 from threading import Event
@@ -32,7 +35,9 @@ from .utils.ssl import validate_certificate
 logger = logging.getLogger(__name__)
 
 
-class Agent(object):
+class Agent(ABC):
+    """
+    """
     __hash__ = None
     MAX_WORKERS = None
 
@@ -186,11 +191,12 @@ class Agent(object):
         """
         pass
 
+    @abstractmethod
     def _loop(self):
         """
         this method can be overwritten by mixins
         """
-        raise NotImplementedError("A _loop method needs to be implemented")
+        pass
 
     def _configure(self):
         """
@@ -244,7 +250,7 @@ class Agent(object):
 #       return self._iams.simulation is None
 
 
-class AgentChannel(object):
+class AgentChannel(ABC):
     __hash__ = None
 
     def __init__(self, parent, agent) -> None:
@@ -291,7 +297,7 @@ class AgentChannel(object):
         return self._state == grpc.ChannelConnectivity.READY
 
 
-class Plugin(object):
+class Plugin(ABC):
 
     __hash__ = None
 

@@ -50,9 +50,15 @@ message OrderInfo {
     repeated Step steps = 3;
 }
 
+message Ability {
+    string name = 1;
+    google.protobuf.Any config = 2;
+}
+
 message Step {
-    string step = 1;
-    google.protobuf.Any data = 2;
+    string name = 1;
+    repeated Ability abilities = 2;
+    google.protobuf.Any data = 3;
 }
 
 message OrderCosts {

@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
 # vim: set fileencoding=utf-8 :
 
-import logging
-
-from logging.config import dictConfig
-
-from iams.helper import get_logging_config
 from iams.interface import Agent
-
-
-logger = logging.getLogger(__name__)
 
 
 class Simple(Agent):
@@ -21,6 +13,5 @@ class Simple(Agent):
 
 
 if __name__ == "__main__":
-    dictConfig(get_logging_config(["iams"], logging.DEBUG))
     run = Simple()
     run()

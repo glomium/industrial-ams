@@ -104,7 +104,7 @@ class RootInterface(ABC):
             self._config = config
 
     def simulation_start(self):
-        self._loop_apply()
+        self.loop_apply()
 
     def _loop(self):
         while not self._stop_event.is_set():
@@ -170,7 +170,7 @@ class RootInterface(ABC):
         concurrent.futures.wait(futures)
 
         self._order_state = RootStates.SELECT
-        self._loop_select()
+        self.loop_select()
 
     def _order_application(self, request, agent):
         """

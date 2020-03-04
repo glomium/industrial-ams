@@ -215,7 +215,7 @@ class RootInterface(ABC):
             else:
                 self._loop_event.wait(60)
 
-        # select one order
+        # select belt agent
         with self._lock:
             agent = None
             cost = 0.0
@@ -346,14 +346,141 @@ class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
     @permissions(has_agent=True)
     def apply(self, request, context):
         logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
+        return self.apply_or_assign(request, context)
 
     @permissions(has_agent=True)
     def assign(self, request, context):
-        logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
+        logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
+        return self.apply_or_assign(request, context, True)
+
+    def apply_or_assign(self, request, context, assign=False):
+        self.applications = {}
+        order = request.order or context._agent
+        eta = request.eta
+        previous = None
+        response = market_pb2.OrderCosts()
+
+        # split steps
+        for step in request.steps:
+            if step.abilities is None:
+                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Order step needs one ability")
+
+            abilities = set([x.name for x in step.abilities])
+
+            # get a list of agents
+            agents = []
+            for labels in self.order_agent_labels(abilities):
+                for agent in self._iams.get_agents(labels):
+                    agents.append(agent.name)
+
+            request = market_pb2.OrderRequest(order=order, steps=[step], eta=eta)
+            futures = []
+
+            # get all agents via label
+            for agent in agents:
+                logger.debug("Adding %s to queue", agent)
+                futures.append(self._executor.submit(
+                    self.add_application,
+                    agent.name,
+                    previous,
+                    request,
+                    eta,
+                    False,
+                ))
+            concurrent.futures.wait(futures)
+
+            if not self.applications:
+                logger.info("No agent responded")
+                context.abort(grpc.StatusCode.NOT_FOUND, "No agent responed")
+
+            # select best agent
+            with self._lock:
+                agent = None
+                agent_response = None
+                cost = 0.0
+
+                for key, r in self.applications.items():
+                    value = self.parent.order_cost_function(key, r["response"], request)
+                    if agent is None or value < cost:
+                        agent = key
+                        agent_response = r["response"]
+
+            # manipulate response with own costs
+            response.production_cost += agent_response.production_cost
+            response.production_time += agent_response.production_time
+            response.queue_time += agent_response.queue_time
+            response.transport_cost += agent_response.transport_cost
+            response.transport_time += agent_response.transport_time
+
+            # TODO update own virtual state, for example the position of a carrier
+            # eta = time_queue + data["response"].time_production
+            # node = agent
+            # interface = data["interface"]
+
+            # if the requst only applied for production, we can resond here
+            if not assign:
+                continue
+
+            # cancel order on all other agents
+            with self._lock:
+                for key in self.applications.keys():
+                    if key == agent:
+                        continue
+                    futures.append(self._executor.submit(self.cancel_application, key, order))
+        return response
+
+    def add_application(self, agent, previous, request, eta, start):
+        try:
+            with self._channel(agent) as channel:
+                stub = market_pb2.OrderRequest(channel)
+                if start:
+                    logger.debug("Calling OrderRequest.assign on %s", agent)
+                    response = stub.assign(request, timeout=5)
+
+                else:
+                    logger.debug("Calling OrderRequest.apply on %s", agent)
+                    response = stub.apply(request, timeout=5)
+
+        except grpc.RpcError as e:
+            logger.debug("%s: %s - %s", agent, e.code(), e.details())
+            return None
+
+        # TODO calculte costs of state change (i.e. transportation costs)
+        # valid, path, length, interface = self.get_path(node, interface, agent)
+
+        # if not valid:
+        #     logger.info("Could not find a valid path from %s to %s:%s", agent, node, interface)
+        #     return None
+
+        # logger.debug("Adding %s to _applications", agent)
+        # response.cost_transport += self.get_transport_cost(length)
+        # response.time_transport += length
+        # response.time_queue = self.get_queue_time(eta, length)
+
+        with self._lock:
+            self._applications[agent] = {
+                "response": response,
+                # "interface": interface,
+                # "time": response.time_production + response.time_transport + response.time_queue,
+                # "cost": response.cost_production + response.cost_transport,
+            }
+
+    def cancel_application(self, agent, order):
+        try:
+            with self._channel(agent) as channel:
+                stub = market_pb2.OrderRequest(channel)
+                logger.debug("Calling OrderRequest.cancel on %s", agent)
+                return stub.cancel(market_pb2.CancelRequest, timeout=5)
+
+        except grpc.RpcError as e:
+            logger.debug("%s: %s - %s", agent, e.code(), e.details())
+            return None
 
     @permissions(has_agent=True)
     def cancel(self, request, context):
         logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
+        # TODO
+        return super().cancel(request, context)
 
 
 class ProxyCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
@@ -364,21 +491,31 @@ class ProxyCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
     @permissions(has_agent=True)
     def cancel(self, request, context):
         logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
-        raise NotImplementedError
+        # TODO
+        return super().cancel(request, context)
 
     @permissions(has_agent=True)
     def start_step(self, request, context):
         logger.debug("%s.start_step was called by %s", self.__class__.__qualname__, context._agent)
+        # TODO
+        return super().start_step(request, context)
 
     @permissions(has_agent=True)
     def finish_step(self, request, context):
         logger.debug("%s.finish_step was called by %s", self.__class__.__qualname__, context._agent)
+        # TODO
+        return super().finish_step(request, context)
 
 
 class IntermediateInterface(ABC):
     """
     Splits the steps by ability and connects to different agents
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._orders = {}
+        self._topology_children = []
 
     def _grpc_setup(self):
         super()._grpc_setup()
@@ -398,10 +535,18 @@ class IntermediateInterface(ABC):
         pass
 
     @abstractmethod
-    def order_agent_labels(self):
+    def order_agent_labels(self, abilities):
         """
         iterator, which generates a list of labels which is used to filter docker
         services for devices which can execute this order
+        """
+        pass
+
+    # TODO - args are wrong
+    @abstractmethod
+    def order_cost_function(self, value, time):
+        """
+        return eta and steps
         """
         pass
 
@@ -443,6 +588,7 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
         steps = request.steps
         eta = request.eta
 
+        # TODO response format is not "good"
         valid, cost_p, cost_t, time_p, time_t, time_q = self.parent.order_validate(order, steps, eta, start)
         if not valid:
             context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")

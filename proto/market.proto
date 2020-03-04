@@ -32,7 +32,7 @@ service OrderNegotiate {
 service OrderCallback {
     /*
     */
-    rpc cancel(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
 
     /*
     */

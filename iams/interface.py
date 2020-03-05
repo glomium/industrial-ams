@@ -109,6 +109,7 @@ class Agent(ABC):
             exit()
 
         if self._iams.simulation:
+            started = False
             # simulation loop
             while True:
                 # wait for event loop
@@ -119,6 +120,11 @@ class Agent(ABC):
                 # if agent should be stopped discontinue execution
                 if self._stop_event.is_set():
                     break
+
+                if not started:
+                    self._start()
+                    self.start()
+                    started = True
 
                 try:
                     callback, kwargs = next(self._simulation)
@@ -136,9 +142,12 @@ class Agent(ABC):
 
                 logger.debug("calling resume")
                 self._simulation.resume()
+
         elif not self._stop_event.is_set():
             # control loop
             logger.debug("Calling control loop")
+            self._start()
+            self.start()
             try:
                 self._loop()
             except Exception as e:
@@ -184,6 +193,12 @@ class Agent(ABC):
         """
         pass
 
+    def _start(self):
+        """
+        this method can be overwritten by mixins
+        """
+        pass
+
     def _teardown(self):
         """
         this method can be overwritten by mixins
@@ -199,54 +214,68 @@ class Agent(ABC):
 
     def _configure(self):
         """
+        this method can be overwritten by mixins
         """
         pass
 
+    def topology(self):
+        """
+        returns the local topology (all neighbor and child nodes and edges)
+        """
+        return [], []
+
     def configure(self):
         """
+        configure is called after the agent informed the AMS that its booted. this step can be used to load
+        additional information into the agent
         """
         pass
 
     def setup(self):
         """
-        This gets executed on startup
+        executed directly after the instance is called. user defined. is not executed in simulation.
+        idea: setup communication to machine
         """
         pass
 
     def grpc_setup(self):
         """
-        This gets executed on startup
+        add user-defined servicers to the grpc server
+        """
+        pass
+
+    def start(self):
+        """
+        executed directly before the loop runs - also in simulation.
+        execute functions that require the connection to other agents here.
         """
         pass
 
     def stop(self):
         """
-        This gets executed on startup
+        stops the container
         """
         self._stop_event.set()
         self._loop_event.set()
 
     def teardown(self):
         """
-        This gets executed on teardown
+        function that might be used to inform other agents or services that this agent is
+        about to shutdown
         """
         pass
 
     def simulation_start(self):
         """
+        the simulation runtime schedules this event at 0.0 when started
         """
         pass
 
     def simulation_finish(self):
         """
+        the simulation runtime schedules this event for the end of the simulation
         """
         pass
-
-#   def sleep(self, delay=None):
-#       if self._iams.simulation is None:
-#           if delay is not None and delay > 0.0:
-#               self._stop_event.wait(delay)
-#       return self._iams.simulation is None
 
 
 class AgentChannel(ABC):

@@ -6,9 +6,11 @@ __all__ = [
     'InfluxDBMixin',
     'TCPMixin',
     'TCPReadMixin',
+    'TopologyMixin',
 ]
 
 from .event import EventMixin
 from .influxdb import InfluxDBMixin
 from .tcp import TCPReadMixin
 from .tcp import TCPMixin
+from .topology import TopologyMixin

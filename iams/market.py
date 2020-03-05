@@ -15,6 +15,7 @@ from google.protobuf.empty_pb2 import Empty
 
 from iams.utils.auth import permissions
 
+from .mixins import TopologyMixin
 from .proto import market_pb2
 from .proto import market_pb2_grpc
 
@@ -215,7 +216,7 @@ class RootInterface(ABC):
             else:
                 self._loop_event.wait(60)
 
-        # select belt agent
+        # select best agent
         with self._lock:
             agent = None
             cost = 0.0
@@ -342,6 +343,7 @@ class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
 
     def __init__(self, parent):
         self.parent = parent
+        self.topology = None
 
     @permissions(has_agent=True)
     def apply(self, request, context):
@@ -361,21 +363,21 @@ class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
         response = market_pb2.OrderCosts()
 
         # split steps
-        for step in request.steps:
-            if step.abilities is None:
-                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Order step needs one ability")
+        for steps, labels in self.parent.order_split(request.steps):
 
-            abilities = set([x.name for x in step.abilities])
+            if steps is None or labels is None:
+                logger.info("Split did not work")
+                context.abort(grpc.StatusCode.NOT_FOUND, "Split not possible")
 
             # get a list of agents
             agents = []
-            for labels in self.order_agent_labels(abilities):
+            for label in labels:
                 for agent in self._iams.get_agents(labels):
                     agents.append(agent.name)
 
-            request = market_pb2.OrderRequest(order=order, steps=[step], eta=eta)
-            futures = []
+            request = market_pb2.OrderRequest(order=order, steps=steps, eta=eta)
 
+            futures = []
             # get all agents via label
             for agent in agents:
                 logger.debug("Adding %s to queue", agent)
@@ -400,22 +402,21 @@ class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
                 cost = 0.0
 
                 for key, r in self.applications.items():
-                    value = self.parent.order_cost_function(key, r["response"], request)
+                    value = self.parent.order_cost_function(r["response"], eta)
                     if agent is None or value < cost:
                         agent = key
                         agent_response = r["response"]
 
-            # manipulate response with own costs
+            # manipulate response with step costs
             response.production_cost += agent_response.production_cost
             response.production_time += agent_response.production_time
             response.queue_time += agent_response.queue_time
             response.transport_cost += agent_response.transport_cost
             response.transport_time += agent_response.transport_time
 
-            # TODO update own virtual state, for example the position of a carrier
-            # eta = time_queue + data["response"].time_production
-            # node = agent
-            # interface = data["interface"]
+            # update own virtual state, for example the position of a carrier
+            previous = agent
+            eta += agent_response.production_time + agent_response.queue_time + agent_response.transport_time
 
             # if the requst only applied for production, we can resond here
             if not assign:
@@ -445,25 +446,21 @@ class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
             logger.debug("%s: %s - %s", agent, e.code(), e.details())
             return None
 
-        # TODO calculte costs of state change (i.e. transportation costs)
-        # valid, path, length, interface = self.get_path(node, interface, agent)
+        # calculte costs of state change (i.e. transportation costs)
+        try:
+            # TODO
+            weights = self.parent._topology_path(previous, agent, eta)
+        except ValueError:
+            logger.info("Could not find a valid path from %s to %s", previous, agent)
+            return None
+        costs, duration = self.parent.order_topology_cost(weights)
+        response.transport_cost += costs
+        response.transport_time += duration
+        response.queue_time = self.parent.order_queue_time(eta, duration)
 
-        # if not valid:
-        #     logger.info("Could not find a valid path from %s to %s:%s", agent, node, interface)
-        #     return None
-
-        # logger.debug("Adding %s to _applications", agent)
-        # response.cost_transport += self.get_transport_cost(length)
-        # response.time_transport += length
-        # response.time_queue = self.get_queue_time(eta, length)
-
+        logger.debug("Adding %s to applications", agent)
         with self._lock:
-            self._applications[agent] = {
-                "response": response,
-                # "interface": interface,
-                # "time": response.time_production + response.time_transport + response.time_queue,
-                # "cost": response.cost_production + response.cost_transport,
-            }
+            self._applications[agent] = response
 
     def cancel_application(self, agent, order):
         try:
@@ -507,7 +504,7 @@ class ProxyCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
         return super().finish_step(request, context)
 
 
-class IntermediateInterface(ABC):
+class IntermediateInterface(TopologyMixin, ABC):
     """
     Splits the steps by ability and connects to different agents
     """
@@ -535,18 +532,31 @@ class IntermediateInterface(ABC):
         pass
 
     @abstractmethod
-    def order_agent_labels(self, abilities):
+    def order_split(self, steps):
         """
-        iterator, which generates a list of labels which is used to filter docker
-        services for devices which can execute this order
+        iterator, which yields a list of steps and labels. the labels are used to select other
+        agents and the steps are the steps which are passed to the agents
         """
         pass
 
-    # TODO - args are wrong
     @abstractmethod
-    def order_cost_function(self, value, time):
+    def order_cost_function(self, response, time):
         """
-        return eta and steps
+        returns the costs
+        """
+        pass
+
+    @abstractmethod
+    def order_topology_cost(self, weights):
+        """
+        calculate the cost and times for state changes (i.e. transportation costs)
+        from the weights of the topology path
+        """
+        pass
+
+    @abstractmethod
+    def order_queue_time(self, eta, duration):
+        """
         """
         pass
 

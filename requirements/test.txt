@@ -9,3 +9,4 @@ pep8-naming==0.9.1
 
 opcua==0.98.7
 paho-mqtt==1.5.0
+networkx==2.4

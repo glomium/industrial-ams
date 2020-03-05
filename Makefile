@@ -7,9 +7,8 @@ build: test
 test:
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --target basestage -t iams-base:local .
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
-
-test2:
-	docker-compose -f compose-test.yaml up --build --abort-on-container-exit
+	cd examples/simple_agent && make build
+	cd examples/simulation && make build
 
 certs:
 	mkdir -p secrets

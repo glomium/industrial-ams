@@ -17,6 +17,11 @@ service Agent {
     Receive scheduled events in simulation run
     */
     rpc ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
+    Receive the node's topology
+    */
+    rpc topology(google.protobuf.Empty) returns (Topology) {}
 }
 
 message SimulationRequest {
@@ -42,4 +47,37 @@ message SimulationResponse {
     SimulationLog log = 2;
     SimulationMetric metric = 3;
     SimulationSchedule schedule = 4;
+}
+
+message Node {
+    string name = 1;
+}
+
+message Edge {
+    // Name of starting node
+    Node start = 1;
+
+    // Name of the target node (either a node or a different agent)
+    oneof target {
+        Node node = 2;
+        string agent = 3;
+    }
+
+    // boolean if the edge is symmetric (only when node is set)
+    bool is_symmetric = 4;
+
+    // if there is a non physical bridge between nodes, we can add this as a virtual edge (only when agent is set)
+    bool is_virtual = 5;
+
+    // if this agent is a child
+    bool is_child = 6;
+
+    // weight (i.e. time) this edge costs
+    float weight = 7;
+}
+
+message Topology {
+    string name = 1;
+    repeated Node nodes = 2;
+    repeated Edge edges = 3;
 }

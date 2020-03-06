@@ -1,7 +1,0 @@
-FROM glomium/industrial-ams:rolling
-
-LABEL iams.services.agent=true
-
-COPY agv_pb2_grpc.py agv_pb2.py source.py ./
-
-ENTRYPOINT ["/usr/bin/python3", "source.py"]

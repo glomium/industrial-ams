@@ -73,6 +73,11 @@ class Servicer(agent_pb2_grpc.AgentServicer):
                 break
         self.queue = None
 
+    @permissions(has_agent=True)
+    def topology(self, request, context):
+        nodes, edges = self.parent.topology()
+        return agent_pb2.Topology(name=self.agent, nodes=nodes, edges=edges)
+
     @permissions(has_agent=True, has_groups=["root"])
     def ping(self, request, context):
         return Empty()

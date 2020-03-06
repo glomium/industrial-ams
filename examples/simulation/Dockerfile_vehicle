@@ -5,6 +5,6 @@ FROM iams-test:local
 
 LABEL iams.services.agent=true
 
-COPY run.py ./run.py
+COPY simulation_pb2_grpc.py simulation_pb2.py vehicle.py ./
 
-ENTRYPOINT ["/usr/bin/python3", "run.py"]
+ENTRYPOINT ["/usr/bin/python3", "vehicle.py"]

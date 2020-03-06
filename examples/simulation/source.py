@@ -15,15 +15,15 @@ from iams.helper import get_logging_config
 from iams.interface import Agent
 from iams.utils.auth import permissions
 
-import agv_pb2
-import agv_pb2_grpc
+import simulation_pb2
+import simulation_pb2_grpc
 
 
 random.seed(os.environ.get("IAMS_SEED", None))
 logger = logging.getLogger(__name__)
 
 
-class Servicer(agv_pb2_grpc.SourceServicer):
+class Servicer(simulation_pb2_grpc.SourceServicer):
 
     def __init__(self, parent):
         self.parent = parent
@@ -31,12 +31,12 @@ class Servicer(agv_pb2_grpc.SourceServicer):
     @permissions(has_agent=True)
     def reserve_next(self, request, context):
         self.parent.on_route += 1
-        return agv_pb2.Data(x=self.parent._config["position"]["x"], y=self.parent._config["position"]["y"])
+        return simulation_pb2.Data(x=self.parent._config["position"]["x"], y=self.parent._config["position"]["y"])
 
     @permissions(has_agent=True)
     def next_order(self, request, context):
         if self.parent.on_route < len(self.parent.storage):
-            return agv_pb2.Time(time=self.parent.storage[self.parent.on_route][0])
+            return simulation_pb2.Time(time=self.parent.storage[self.parent.on_route][0])
         context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "resource empty")
 
     @permissions(has_agent=True)
@@ -57,7 +57,7 @@ class Source(Agent):
         self.on_route = 0
 
     def grpc_setup(self):
-        self._grpc.add(agv_pb2_grpc.add_SourceServicer_to_server, self.servicer)
+        self._grpc.add(simulation_pb2_grpc.add_SourceServicer_to_server, self.servicer)
 
     def simulation_start(self):
         self._simulation.schedule(self.get_next_time(), 'generate_part')
@@ -71,7 +71,7 @@ class Source(Agent):
         self.sinks = []
         for sink in sinks:
             with self._channel(sink) as channel:
-                stub = agv_pb2_grpc.SinkStub(channel)
+                stub = simulation_pb2_grpc.SinkStub(channel)
                 response = stub.get_coordinates(Empty())
 
             response.name = sink
@@ -121,11 +121,11 @@ class Source(Agent):
 
             # call all vehicles and select nearest first
             times = {}
-            request = agv_pb2.Data(x=self._config["position"]["x"], y=self._config["position"]["y"])
+            request = simulation_pb2.Data(x=self._config["position"]["x"], y=self._config["position"]["y"])
             for vehicle in self.vehicles:
                 try:
                     with self._channel(vehicle) as channel:
-                        stub = agv_pb2_grpc.VehicleStub(channel)
+                        stub = simulation_pb2_grpc.VehicleStub(channel)
                         response = stub.get_eta(request)
                         times[vehicle] = response.time
                 except grpc.RpcError:
@@ -139,7 +139,7 @@ class Source(Agent):
                 logger.info("calling vehicle: %s", vehicle)
 
                 with self._channel(vehicle) as channel:
-                    stub = agv_pb2_grpc.VehicleStub(channel)
+                    stub = simulation_pb2_grpc.VehicleStub(channel)
                     stub.drive(request)
                     self.on_route += 1
 

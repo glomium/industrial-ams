@@ -25,6 +25,11 @@ service OrderNegotiate {
     Cancels the order
     */
     rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    Start step
+    */
+    rpc start(Step) returns (google.protobuf.Empty) {}
 }
 
 /*
@@ -36,11 +41,15 @@ service OrderCallback {
 
     /*
     */
-    rpc start_step(Step) returns (google.protobuf.Empty) {}
+    rpc finish_step(Step) returns (google.protobuf.Empty) {}
 
     /*
     */
-    rpc finish_step(Step) returns (google.protobuf.Empty) {}
+    rpc next_step(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc start_step(Step) returns (google.protobuf.Empty) {}
 
 }
 
@@ -52,7 +61,8 @@ message OrderInfo {
 
 message Step {
     google.protobuf.Any data = 1;
-    float eta = 2;
+    int32 number = 2;
+    float eta = 3;
 }
 
 message OrderOffer {

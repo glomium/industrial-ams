@@ -42,7 +42,7 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
     def __init__(self, parent):
         self.parent = parent
 
-    @permissions(has_agent=True, has_groups=["web"])
+    @permissions(has_agent=True)
     def cancel(self, request, context):
         logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
         if self.parent._order_state != RootStates.RUNNING:
@@ -64,7 +64,18 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
         if self.parent._order_state != RootStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
 
-        if self.parent.order_finish_step():
+        if self.parent.order_finish_step(request):
+            return Empty()
+        else:
+            context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
+
+    @permissions(has_agent=True)
+    def next_step(self, request, context):
+        logger.debug("%s.next_step was called by %s", self.__class__.__qualname__, context._agent)
+        if self.parent._order_state != RootStates.RUNNING:
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
+
+        if self.parent.order_next_step(request):
             return Empty()
         else:
             context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
@@ -75,7 +86,7 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
         if self.parent._order_state != RootStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
 
-        if self.parent.order_start_step():
+        if self.parent.order_start_step(request):
             return Empty()
         else:
             context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
@@ -90,6 +101,7 @@ class RootInterface(ABC):
         super().__init__(*args, **kwargs)
         self._order_state = RootStates.APPLY
         self._order_applications = {}
+        self._order_steps = {}
 
     def _grpc_setup(self):
         super()._grpc_setup()
@@ -280,10 +292,17 @@ class RootInterface(ABC):
         error = False
         eta = 0.0
         cost = 0.0
+        number = 0
         for agent, steps in path:
             try:
                 logger.debug("calling assign from OrderNegotiateStub on %s", agent)
                 with self._channel(agent) as channel:
+                    # numbering steps
+                    for step in steps:
+                        number += 1
+                        step.number = number
+                        self._order_steps[number] = step
+
                     request = market_pb2.OrderInfo(order=self._iams.agent, eta=eta, steps=steps)
                     stub = market_pb2_grpc.OrderNegotiateStub(channel)
                     response = stub.assign(request, timeout=20)
@@ -327,7 +346,7 @@ class RootInterface(ABC):
             self._loop_event.wait()
 
     @abstractmethod
-    def order_update_config(self, retries=0):
+    def order_update_config(self, retries: int = 0):
         """
         receive order data from service
         """
@@ -377,14 +396,22 @@ class RootInterface(ABC):
         pass
 
     @abstractmethod
-    def order_start_step(self, step):  # from servicer
+    def order_start_step(self, step: market_pb2.Step):  # from servicer
         """
         report start execution of a step
         """
         pass
 
     @abstractmethod
-    def order_finish_step(self, step):  # from servicer
+    def order_next_step(self):  # from servicer
+        """
+        the current agent does not have any steps left and the order should
+        connect to the next agent and start the order
+        """
+        pass
+
+    @abstractmethod
+    def order_finish_step(self, step: market_pb2.Step):  # from servicer
         """
         report end execution of a step
         """
@@ -400,7 +427,7 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
         self.parent = parent
 
     @permissions(has_agent=True)
-    def apply(self, request, context):
+    def apply(self, request: market_pb2.OrderInfo, context) -> market_pb2.OrderOffer:
         logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
         for step in request.steps:
             response = self.parent.order_validate(request.order or context._agent, step, request.eta)
@@ -409,7 +436,7 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
             yield response
 
     @permissions(has_agent=True)
-    def assign(self, request, context):
+    def assign(self, request: market_pb2.OrderInfo, context) -> market_pb2.OrderCost:
         logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
 
         # manipulate response with step costs
@@ -445,7 +472,7 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
             context.abort(grpc.StatusCode.NOT_FOUND, "Error assigning order %s" % (request.order or context._agent))
 
     @permissions(has_agent=True)
-    def cancel(self, request, context):
+    def cancel(self, request: market_pb2.CancelRequest, context) -> Empty:
         logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
         order = request.order or context._agent
         if self.parent.order_cancel(order):
@@ -465,6 +492,34 @@ class ExecuteInterface(ABC):
             market_pb2_grpc.add_OrderNegotiateServicer_to_server,
             OrderNegotiateServicer(self),
         )
+
+    def _order_start_step(self, order, step):
+        """
+        """
+        try:
+            with self._channel(order) as channel:
+                stub = market_pb2.OrderCallback(channel)
+                logger.debug("Calling OrderCallback.start_step on %s", order)
+                stub.start_step(step, timeout=5)
+                return True
+
+        except grpc.RpcError as e:
+            logger.debug("%s: %s - %s", order, e.code(), e.details())
+            return False
+
+    def _order_finish_step(self, order, step):
+        """
+        """
+        try:
+            with self._channel(order) as channel:
+                stub = market_pb2.OrderCallback(channel)
+                logger.debug("Calling OrderCallback.finish_step on %s", order)
+                stub.finish_step(step, timeout=5)
+                return True
+
+        except grpc.RpcError as e:
+            logger.debug("%s: %s - %s", order, e.code(), e.details())
+            return False
 
     @abstractmethod
     def order_validate(self, order: str, step: market_pb2.Step, eta: float) -> market_pb2.OrderCost:
@@ -487,20 +542,25 @@ class ExecuteInterface(ABC):
         pass
 
 
+# TODO: implement a scheduler with order_start and order_cancel
+
+
 # === INTERMEDIATE ============================================================
 
 
-class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
+class IntermediateNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
 
     def __init__(self, parent):
         self.parent = parent
         self.topology = None
 
+    # TODO
     @permissions(has_agent=True)
     def apply(self, request, context):
         logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
         return self.apply_or_assign(request, context)
 
+    # TODO
     @permissions(has_agent=True)
     def assign(self, request, context):
         logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
@@ -581,6 +641,7 @@ class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
                     futures.append(self._executor.submit(self.cancel_application, key, order))
         return response
 
+    # TODO
     def add_application(self, agent, previous, request, eta, start):
         try:
             with self._channel(agent) as channel:
@@ -613,6 +674,7 @@ class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
         with self._lock:
             self._applications[agent] = response
 
+    # TODO
     def cancel_application(self, agent, order):
         try:
             with self._channel(agent) as channel:
@@ -624,35 +686,12 @@ class ProxyNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
             logger.debug("%s: %s - %s", agent, e.code(), e.details())
             return None
 
+    # TODO
     @permissions(has_agent=True)
     def cancel(self, request, context):
         logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
         # TODO
         return super().cancel(request, context)
-
-
-class ProxyCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
-
-    def __init__(self, parent):
-        self.parent = parent
-
-    @permissions(has_agent=True)
-    def cancel(self, request, context):
-        logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
-        # TODO
-        return super().cancel(request, context)
-
-    @permissions(has_agent=True)
-    def start_step(self, request, context):
-        logger.debug("%s.start_step was called by %s", self.__class__.__qualname__, context._agent)
-        # TODO
-        return super().start_step(request, context)
-
-    @permissions(has_agent=True)
-    def finish_step(self, request, context):
-        logger.debug("%s.finish_step was called by %s", self.__class__.__qualname__, context._agent)
-        # TODO
-        return super().finish_step(request, context)
 
 
 class IntermediateInterface(TopologyMixin, ABC):
@@ -668,12 +707,8 @@ class IntermediateInterface(TopologyMixin, ABC):
     def _grpc_setup(self):
         super()._grpc_setup()
         self._grpc.add(
-            market_pb2_grpc.add_OrderCallbackServicer_to_server,
-            ProxyCallbackServicer(self),
-        )
-        self._grpc.add(
             market_pb2_grpc.add_OrderNegotiateServicer_to_server,
-            ProxyNegotiateServicer(self),
+            IntermediateNegotiateServicer(self),
         )
 
     @abstractmethod

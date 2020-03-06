@@ -10,9 +10,9 @@ Integrated for communication with orders. Has an apply and assign function
 */
 service OrderNegotiate {
     /*
-    requests here are applying for an order. check stock match between abilities and requirements
+    Requests here are applying for an order. check stock match between abilities and requirements
     than decide to accept the order or reject it. The orders decides to wich agent it's assigned,
-    so this calls to this function dont need to be stored in the agent
+    so calls to this function dont need to be stored in the agent.
     */
     rpc apply(OrderInfo) returns (stream OrderOffer) {}
 
@@ -52,7 +52,7 @@ message OrderInfo {
 
 message Step {
     google.protobuf.Any data = 1;
-    string name = 2;
+    float eta = 2;
 }
 
 message OrderOffer {

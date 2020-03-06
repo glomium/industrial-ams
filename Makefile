@@ -7,8 +7,9 @@ build: test
 test:
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --target basestage -t iams-base:local .
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
-	cd examples/simple_agent && make build
-	cd examples/simulation && make build
+	cd examples/simple_agent && make
+	cd examples/simulation && make
+	cd examples/market && make
 
 certs:
 	mkdir -p secrets
@@ -30,4 +31,4 @@ grpc:
 	${VENV_NAME}/bin/python3 -m grpc_tools.protoc -Iexamples/simulation --python_out=examples/simulation --grpc_python_out=examples/simulation examples/simulation/simulation.proto
 
 pip:
-	${VENV_NAME}/bin/pip-upgrade requirements-dev.txt requirements-test.txt --skip-package-installation
+	${VENV_NAME}/bin/pip-upgrade requirements/dev.txt requirements/docs.txt requirements/test.txt --skip-package-installation

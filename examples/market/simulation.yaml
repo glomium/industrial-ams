@@ -1,0 +1,184 @@
+seed: agv_example
+# until: 86400
+until: 7200
+
+agents:
+    source1:
+        image:
+            name: example_source
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 0
+                y: 0
+
+    source2:
+        image:
+            name: example_source
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 10
+                y: 0
+
+    source3:
+        image:
+            name: example_source
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 20
+                y: 0
+    source4:
+        image:
+            name: example_source
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 30
+                y: 0
+    source5:
+        image:
+            name: example_source
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 40
+                y: 0
+
+    sink1:
+        image:
+            name: example_sink
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 0
+                y: 20
+
+    sink2:
+        image:
+            name: example_sink
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 10
+                y: 20
+
+    sink3:
+        image:
+            name: example_sink
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 20
+                y: 20
+
+    sink4:
+        image:
+            name: example_sink
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 30
+                y: 20
+
+    sink5:
+        image:
+            name: example_sink
+            version: latest
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 40
+                y: 20
+
+    vehicle1:
+        image:
+            name: example_vehicle
+            version: latest
+            autostart: True
+        config:
+            load: 20
+            unload: 20
+            speed: 1
+            position:
+                x: 25
+                y: 25
+
+    vehicle2:
+        image:
+            name: example_vehicle
+            version: latest
+            autostart: True
+        config:
+            load: 20
+            unload: 20
+            speed: 1
+            position:
+                x: 25
+                y: 25
+
+    vehicle3:
+        image:
+            name: example_vehicle
+            version: latest
+            autostart: True
+        config:
+            load: 20
+            unload: 20
+            speed: 1
+            position:
+                x: 25
+                y: 25
+
+    vehicle4:
+        image:
+            name: example_vehicle
+            version: latest
+            autostart: True
+        config:
+            load: 20
+            unload: 20
+            speed: 1
+            position:
+                x: 25
+                y: 25

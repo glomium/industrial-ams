@@ -9,17 +9,45 @@ from logging.config import dictConfig
 
 from iams.helper import get_logging_config
 from iams.interface import Agent
+from iams.market import RootInterface
+from iams.proto import market_pb2
 
 
 random.seed(os.environ.get("IAMS_SEED", None))
 logger = logging.getLogger(__name__)
 
 
-class Source(Agent):
-    pass
+class Source(RootInterface, Agent):
+
+    def order_update_config(self, retries=0):
+        pass
+
+    def order_get_data(self):
+        return 0.0, [market_pb2.Step()]
+
+    def order_agent_labels(self):
+        yield ['iams.image=iams_market_sink']
+
+    def order_started(self):
+        pass
+
+    def order_finished(self):
+        pass
+
+    def order_cancel(self):  # from servicer
+        pass
+
+    def order_canceled(self):
+        pass
+
+    def order_start_step(self, step):  # from servicer
+        pass
+
+    def order_finish_step(self, step):  # from servicer
+        pass
 
 
 if __name__ == "__main__":
-    dictConfig(get_logging_config(["iams"], logging.INFO))
+    dictConfig(get_logging_config(["iams"], logging.DEBUG))
     run = Source()
     run()

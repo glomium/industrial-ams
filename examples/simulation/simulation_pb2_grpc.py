@@ -16,17 +16,17 @@ class SourceStub(object):
       channel: A grpc.Channel.
     """
     self.next_order = channel.unary_unary(
-        '/agv.proto.Source/next_order',
+        '/simulation.proto.Source/next_order',
         request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
         response_deserializer=simulation__pb2.Time.FromString,
         )
     self.get_part = channel.unary_unary(
-        '/agv.proto.Source/get_part',
+        '/simulation.proto.Source/get_part',
         request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
         response_deserializer=simulation__pb2.Data.FromString,
         )
     self.reserve_next = channel.unary_unary(
-        '/agv.proto.Source/reserve_next',
+        '/simulation.proto.Source/reserve_next',
         request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
         response_deserializer=simulation__pb2.Data.FromString,
         )
@@ -80,7 +80,7 @@ def add_SourceServicer_to_server(servicer, server):
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(
-      'agv.proto.Source', rpc_method_handlers)
+      'simulation.proto.Source', rpc_method_handlers)
   server.add_generic_rpc_handlers((generic_handler,))
 
 
@@ -95,12 +95,12 @@ class SinkStub(object):
       channel: A grpc.Channel.
     """
     self.get_coordinates = channel.unary_unary(
-        '/agv.proto.Sink/get_coordinates',
+        '/simulation.proto.Sink/get_coordinates',
         request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
         response_deserializer=simulation__pb2.Data.FromString,
         )
     self.put_part = channel.unary_unary(
-        '/agv.proto.Sink/put_part',
+        '/simulation.proto.Sink/put_part',
         request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
         response_deserializer=simulation__pb2.Time.FromString,
         )
@@ -141,7 +141,7 @@ def add_SinkServicer_to_server(servicer, server):
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(
-      'agv.proto.Sink', rpc_method_handlers)
+      'simulation.proto.Sink', rpc_method_handlers)
   server.add_generic_rpc_handlers((generic_handler,))
 
 
@@ -156,12 +156,12 @@ class VehicleStub(object):
       channel: A grpc.Channel.
     """
     self.get_eta = channel.unary_unary(
-        '/agv.proto.Vehicle/get_eta',
+        '/simulation.proto.Vehicle/get_eta',
         request_serializer=simulation__pb2.Data.SerializeToString,
         response_deserializer=simulation__pb2.Time.FromString,
         )
     self.drive = channel.unary_unary(
-        '/agv.proto.Vehicle/drive',
+        '/simulation.proto.Vehicle/drive',
         request_serializer=simulation__pb2.Data.SerializeToString,
         response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
         )
@@ -202,5 +202,5 @@ def add_VehicleServicer_to_server(servicer, server):
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(
-      'agv.proto.Vehicle', rpc_method_handlers)
+      'simulation.proto.Vehicle', rpc_method_handlers)
   server.add_generic_rpc_handlers((generic_handler,))

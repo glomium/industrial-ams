@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package agv.proto;
+package simulation.proto;
 
 import "google/protobuf/empty.proto";
 

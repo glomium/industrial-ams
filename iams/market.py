@@ -203,7 +203,7 @@ class RootInterface(ABC):
                     if not response.cost:
                         logger.critical("Response from %s is missing cost attribute", agent)
 
-                    path.append((response.agent or agent, response.info))
+                    path.append((response.agent or agent, response.info.steps))
                     production_cost += response.cost.production_cost
                     production_time += response.cost.production_time
                     queue_cost += response.cost.queue_cost
@@ -219,7 +219,7 @@ class RootInterface(ABC):
         total_cost = production_cost + transport_cost + queue_cost
 
         logger.info("%s accepted the order with cost %s and time %s", agent, total_cost, total_time)
-        logger.debug("%s suggested path %s", path)
+        logger.debug("suggested path %s", path)
 
         with self._lock:
             self._order_applications[agent] = {
@@ -259,7 +259,7 @@ class RootInterface(ABC):
                 return None
 
             # delete selected order from list
-            del self._applications[agent]
+            del self._order_applications[agent]
 
         logger.info(
             "Agent %s selected with cost %s and eta %s",
@@ -311,7 +311,7 @@ class RootInterface(ABC):
             return None
         else:
             logger.info("Assigned the order with cost %s and time %s", cost, eta)
-            self._order_state = RootStates.STARTING
+            self._order_state = RootStates.START
 
     def order_cost_function(self, value, time):
         """
@@ -475,7 +475,7 @@ class ExecuteInterface(ABC):
         pass
 
     @abstractmethod
-    def order_start(self, order: str, steps: market_pb2.Step) -> bool:  # from servicer
+    def order_start(self, order: str, steps: market_pb2.Step, eta: float) -> bool:  # from servicer
         """
         """
         pass

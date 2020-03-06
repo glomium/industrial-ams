@@ -14,12 +14,12 @@ service OrderNegotiate {
     than decide to accept the order or reject it. The orders decides to wich agent it's assigned,
     so this calls to this function dont need to be stored in the agent
     */
-    rpc apply(OrderInfo) returns (OrderCosts) {}
+    rpc apply(OrderInfo) returns (stream OrderOffer) {}
 
     /*
     requests here are assiging the order. validate it first, than add it directly to a queue
     */
-    rpc assign(OrderInfo) returns (OrderCosts) {}
+    rpc assign(OrderInfo) returns (OrderCost) {}
 
     /*
     Cancels the order
@@ -55,12 +55,19 @@ message Step {
     string name = 2;
 }
 
-message OrderCosts {
+message OrderOffer {
+    string agent = 1;
+    OrderInfo info = 2;
+    OrderCost cost = 3;
+}
+
+message OrderCost {
     float production_cost = 1;
     float production_time = 2;
-    float queue_time = 3;
-    float transport_cost = 4;
-    float transport_time = 5;
+    float queue_cost = 3;
+    float queue_time = 4;
+    float transport_cost = 5;
+    float transport_time = 6;
 }
 
 message CancelRequest {

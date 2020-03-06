@@ -17,10 +17,6 @@ service Agent {
     Receive scheduled events in simulation run
     */
     rpc ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
-
-    /*
-    */
-    rpc topology(google.protobuf.Empty) returns (Topology) {}
 }
 
 message SimulationRequest {
@@ -48,6 +44,7 @@ message SimulationResponse {
     SimulationSchedule schedule = 4;
 }
 
+/*
 message Node {
     string name = 1;
 }
@@ -69,3 +66,4 @@ message Topology {
     repeated Node nodes = 2;
     repeated Edge edges = 3;
 }
+*/

@@ -165,7 +165,15 @@ class RootInterface(ABC):
         self._order_applications = {}
 
         futures = []
-        request = self.order_get_data()
+        eta, steps = self.order_get_data()
+
+        # currently the eta is not applied propperly. ideally we sort the steps from
+        # last to first and calculate the eta backwards. thus we could also implement
+        # least time and least cost algorithms (when eta is negative or small, the costs
+        # might be neglectable and for high eta we optimise the production cost)
+
+        request = market_pb2.OrderInfo(order=self._iams.agent, eta=eta, steps=steps)
+
         for agent in agents:
             futures.append(self._executor.submit(self._order_application, request, agent))
         concurrent.futures.wait(futures)
@@ -178,28 +186,44 @@ class RootInterface(ABC):
         this runs in a seperate thread. it connects to an agent and adds its price and cost
         to the _order_applications dictionary
         """
+        path = []
+        production_cost = 0.0
+        production_time = 0.0
+        queue_cost = 0.0
+        queue_time = 0.0
+        transport_cost = 0.0
+        transport_time = 0.0
         try:
             logger.debug("calling apply from OrderNegotiateStub on %s", agent)
             with self._channel(agent) as channel:
                 stub = market_pb2_grpc.OrderNegotiateStub(channel)
-                response = stub.apply(request, timeout=20)
+                for response in stub.apply(request, timeout=20):
+                    if not response.info:
+                        logger.critical("Response from %s is missing info attribute", agent)
+                    if not response.cost:
+                        logger.critical("Response from %s is missing cost attribute", agent)
+
+                    path.append((response.agent or agent, response.info))
+                    production_cost += response.cost.production_cost
+                    production_time += response.cost.production_time
+                    queue_cost += response.cost.queue_cost
+                    queue_time += response.cost.queue_time
+                    transport_cost += response.cost.transport_cost
+                    transport_time += response.cost.transport_time
+
         except grpc.RpcError as e:
             logger.debug("[%s] %s: %s", agent, e.code(), e.details())
             return None
 
-        total_time = response.time_production + response.time_transport + response.time_queue
-        total_cost = response.cost_production + response.cost_transport
+        total_time = production_time + transport_time + queue_time
+        total_cost = production_cost + transport_cost + queue_cost
 
-        if total_cost <= 0.0 or total_time <= 0.0:
-            logger.critical(
-                "%s response not accepted (total_cost: %s, total_time: %s)",
-                agent, total_cost, total_time,
-            )
-            return None
+        logger.info("%s accepted the order with cost %s and time %s", agent, total_cost, total_time)
+        logger.debug("%s suggested path %s", path)
 
-        logger.debug("%s accepted the order with cost %s and time %s", agent, total_cost, total_time)
         with self._lock:
             self._order_applications[agent] = {
+                "path": path,
                 "cost": total_cost,
                 "time": total_time,
             }
@@ -221,14 +245,17 @@ class RootInterface(ABC):
             agent = None
             cost = 0.0
             eta = 0.0
+            path = None
             for key, value in self._order_applications.items():
                 c = self.order_cost_function(value["cost"], value["time"])
                 if agent is None or c < cost:
                     agent = key
                     cost = value["cost"]
                     eta = value["time"]
+                    path = value["path"]
 
             if agent is None:
+                self.loop_select()  # selet next agent
                 return None
 
             # delete selected order from list
@@ -241,22 +268,50 @@ class RootInterface(ABC):
             eta,
         )
 
-        request = self.order_get_data()
-        try:
-            logger.debug("calling assign from OrderNegotiateStub on %s", agent)
-            with self._channel(agent) as channel:
-                stub = market_pb2_grpc.OrderNegotiateStub(channel)
-                response = stub.assign(request, timeout=20)
-        except grpc.RpcError as e:
-            logger.debug("[%s] %s: %s", agent, e.code(), e.details())
+        # we have requested the best path, but there is a race-condition
+        # which is not checked - a different order might be assigned to one
+        # of the agents or one somewhere in the loop might have an error or
+        # be back in production. we apply to the "previous" best solution,
+        # which might have changed within the timeframe of the application.
+        # This could be prevented with locks, but never solved because there
+        # might be a unplaned downtime at some point. Thus this problem
+        # is not deterministic.
+
+        error = False
+        eta = 0.0
+        cost = 0.0
+        for agent, steps in path:
+            try:
+                logger.debug("calling assign from OrderNegotiateStub on %s", agent)
+                with self._channel(agent) as channel:
+                    request = market_pb2.OrderInfo(order=self._iams.agent, eta=eta, steps=steps)
+                    stub = market_pb2_grpc.OrderNegotiateStub(channel)
+                    response = stub.assign(request, timeout=20)
+
+                    eta += response.production_time + response.queue_time + response.transport_time
+                    cost += response.production_cost + response.queue_cost + response.transport_cost
+            except grpc.RpcError as e:
+                logger.debug("[%s] %s: %s", agent, e.code(), e.details())
+                error = True
+                break
+
+        # cancel order if an error occured
+        if error:
+            for agent, steps in path:
+                request = market_pb2.CancelRequest(order=self._iams.agent)
+                try:
+                    logger.debug("calling cancel from OrderNegotiateStub on %s", agent)
+                    with self._channel(agent) as channel:
+                        stub = market_pb2_grpc.OrderNegotiateStub(channel)
+                        stub.cancel(request, timeout=20)
+                except grpc.RpcError as e:
+                    logger.debug("[%s] %s: %s", agent, e.code(), e.details())
+            logger.info("Assigned the order with cost %s and time %s", cost, eta)
+            self.loop_select()  # selet next agent
             return None
-
-        total_time = response.time_production + response.time_transport + response.time_queue
-        total_cost = response.cost_production + response.cost_transport
-
-        logger.debug("%s assigned the order with cost %s and time %s", agent, total_cost, total_time)
-
-        self._order_state = RootStates.STARTING
+        else:
+            logger.info("Assigned the order with cost %s and time %s", cost, eta)
+            self._order_state = RootStates.STARTING
 
     def order_cost_function(self, value, time):
         """

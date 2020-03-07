@@ -15,7 +15,6 @@ from google.protobuf.empty_pb2 import Empty
 
 from iams.utils.auth import permissions
 
-from .mixins import TopologyMixin
 from .proto import market_pb2
 from .proto import market_pb2_grpc
 
@@ -59,7 +58,7 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
             context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
     @permissions(has_agent=True)
-    def finish_step(self, request, context):
+    def finish_step(self, request: market_pb2.Step, context) -> Empty:
         logger.debug("%s.finish_step was called by %s", self.__class__.__qualname__, context._agent)
         if self.parent._order_state != RootStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
@@ -70,7 +69,7 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
             context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
     @permissions(has_agent=True)
-    def next_step(self, request, context):
+    def next_step(self, request: Empty, context) -> Empty:
         logger.debug("%s.next_step was called by %s", self.__class__.__qualname__, context._agent)
         if self.parent._order_state != RootStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
@@ -81,7 +80,7 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
             context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
     @permissions(has_agent=True)
-    def start_step(self, request, context):
+    def start_step(self, request: market_pb2.Step, context) -> Empty:
         logger.debug("%s.start_step was called by %s", self.__class__.__qualname__, context._agent)
         if self.parent._order_state != RootStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
@@ -552,53 +551,43 @@ class IntermediateNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
 
     def __init__(self, parent):
         self.parent = parent
-        self.topology = None
 
     # TODO
     @permissions(has_agent=True)
     def apply(self, request, context):
         logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
-        return self.apply_or_assign(request, context)
 
-    # TODO
-    @permissions(has_agent=True)
-    def assign(self, request, context):
-        logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
-        return self.apply_or_assign(request, context, True)
-
-    def apply_or_assign(self, request, context, assign=False):
         self.applications = {}
         order = request.order or context._agent
         eta = request.eta
-        previous = None
         response = market_pb2.OrderCost()
 
-        # split steps
-        for steps, labels in self.parent.order_split(request.steps):
+        for steps, agents in self.parent.order_split(request.steps):
 
-            if steps is None or labels is None:
+            # steps is not allowed to be empty
+            if steps is None:
                 logger.info("Split did not work")
                 context.abort(grpc.StatusCode.NOT_FOUND, "Split not possible")
 
-            # get a list of agents
-            agents = []
-            for label in labels:
-                for agent in self._iams.get_agents(labels):
-                    agents.append(agent.name)
-
-            request = market_pb2.OrderRequest(order=order, steps=steps, eta=eta)
+            # if no agent is specifies, this instance wants to add a step
+            if agents is None:
+                for step in steps:
+                    response = self.parent.order_validate(order, step, eta)
+                    if response is None:
+                        context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
+                    eta += response.production_time + response.queue_time + response.transport_time
+                    yield response
+                continue
 
             futures = []
-            # get all agents via label
+            request = market_pb2.OrderRequest(order=order, steps=steps, eta=eta)
             for agent in agents:
                 logger.debug("Adding %s to queue", agent)
                 futures.append(self._executor.submit(
                     self.add_application,
-                    agent.name,
-                    previous,
+                    agent,
                     request,
                     eta,
-                    False,
                 ))
             concurrent.futures.wait(futures)
 
@@ -609,92 +598,89 @@ class IntermediateNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
             # select best agent
             with self._lock:
                 agent = None
-                agent_response = None
-                cost = 0.0
+                agent_responses = None
+                cheapest = 0.0
 
-                for key, r in self.applications.items():
-                    value = self.parent.order_cost_function(r["response"], eta)
-                    if agent is None or value < cost:
+                for key, data in self.applications.items():
+                    responses, cost, time = data
+
+                    value = self.parent.order_cost_function(cost, time)
+                    if agent is None or value < cheapest:
+                        cheapest = value
                         agent = key
-                        agent_response = r["response"]
+                        agent_responses = responses
 
-            # manipulate response with step costs
-            response.production_cost += agent_response.production_cost
-            response.production_time += agent_response.production_time
-            response.queue_time += agent_response.queue_time
-            response.transport_cost += agent_response.transport_cost
-            response.transport_time += agent_response.transport_time
+            for response in agent_responses:
+                yield response
 
-            # update own virtual state, for example the position of a carrier
-            previous = agent
-            eta += agent_response.production_time + agent_response.queue_time + agent_response.transport_time
+    @permissions(has_agent=True)
+    def assign(self, request, context):
+        logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
 
-            # if the requst only applied for production, we can resond here
-            if not assign:
-                continue
+        # manipulate response with step costs
+        production_cost = 0.0
+        production_time = 0.0
+        queue_cost = 0.0
+        queue_time = 0.0
+        transport_cost = 0.0
+        transport_time = 0.0
 
-            # cancel order on all other agents
-            with self._lock:
-                for key in self.applications.keys():
-                    if key == agent:
-                        continue
-                    futures.append(self._executor.submit(self.cancel_application, key, order))
-        return response
+        for step in request.steps:
+            response = self.parent.order_validate(request.order or context._agent, step, request.eta)
+            if response is None:
+                context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
 
-    # TODO
-    def add_application(self, agent, previous, request, eta, start):
+            production_cost += response.production_cost
+            production_time += response.production_time
+            queue_cost += response.queue_cost
+            queue_time += response.queue_time
+            transport_cost += response.transport_cost
+            transport_time += response.transport_time
+
+        if self.parent.order_start(request.order or context._agent, request.steps, request.eta):
+            return market_pb2.OrderCost(
+                production_cost=production_cost,
+                production_time=production_time,
+                queue_cost=queue_cost,
+                queue_time=queue_time,
+                transport_cost=transport_cost,
+                transport_time=transport_time,
+            )
+        else:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Error assigning order %s" % (request.order or context._agent))
+
+    def add_application(self, agent, request, eta):
+        responses = []
+        time = 0.0
+        cost = 0.0
         try:
             with self._channel(agent) as channel:
                 stub = market_pb2.OrderRequest(channel)
-                if start:
-                    logger.debug("Calling OrderRequest.assign on %s", agent)
-                    response = stub.assign(request, timeout=5)
-
-                else:
-                    logger.debug("Calling OrderRequest.apply on %s", agent)
-                    response = stub.apply(request, timeout=5)
+                logger.debug("Calling OrderRequest.assign on %s", agent)
+                for response in stub.assign(request, timeout=5):
+                    time += response.production_time + response.queue_time + response.transport_time
+                    cost += response.production_cost + response.queue_cost + response.transport_cost
+                    responses.append(response)
 
         except grpc.RpcError as e:
             logger.debug("%s: %s - %s", agent, e.code(), e.details())
             return None
-
-        # calculte costs of state change (i.e. transportation costs)
-        try:
-            # TODO
-            weights = self.parent._topology_path(previous, agent, eta)
-        except ValueError:
-            logger.info("Could not find a valid path from %s to %s", previous, agent)
-            return None
-        costs, duration = self.parent.order_topology_cost(weights)
-        response.transport_cost += costs
-        response.transport_time += duration
-        response.queue_time = self.parent.order_queue_time(eta, duration)
 
         logger.debug("Adding %s to applications", agent)
         with self._lock:
-            self._applications[agent] = response
+            self._applications[agent] = (responses, cost, time)
 
-    # TODO
-    def cancel_application(self, agent, order):
-        try:
-            with self._channel(agent) as channel:
-                stub = market_pb2.OrderRequest(channel)
-                logger.debug("Calling OrderRequest.cancel on %s", agent)
-                return stub.cancel(market_pb2.CancelRequest, timeout=5)
-
-        except grpc.RpcError as e:
-            logger.debug("%s: %s - %s", agent, e.code(), e.details())
-            return None
-
-    # TODO
     @permissions(has_agent=True)
     def cancel(self, request, context):
         logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
-        # TODO
-        return super().cancel(request, context)
+        order = request.order or context._agent
+        if self.parent.order_cancel(order):
+            return Empty()
+        else:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Error cancelling order %s" % order)
 
 
-class IntermediateInterface(TopologyMixin, ABC):
+class IntermediateInterface(ABC):
     """
     Splits the steps by ability and connects to different agents
     """
@@ -702,7 +688,6 @@ class IntermediateInterface(TopologyMixin, ABC):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._orders = {}
-        self._topology_children = []
 
     def _grpc_setup(self):
         super()._grpc_setup()
@@ -712,7 +697,7 @@ class IntermediateInterface(TopologyMixin, ABC):
         )
 
     @abstractmethod
-    def order_validate(self, order, steps, eta, start):
+    def order_validate(self, order, step, eta):
         """
         """
         pass
@@ -720,28 +705,29 @@ class IntermediateInterface(TopologyMixin, ABC):
     @abstractmethod
     def order_split(self, steps):
         """
-        iterator, which yields a list of steps and labels. the labels are used to select other
-        agents and the steps are the steps which are passed to the agents
+        iterator, which yields a list of steps and agents. the steps are then passend to
+        the agents and one agent is selected, who executes the order. If None is returns
+        for agents, this agent instance is used instead.
         """
         pass
 
     @abstractmethod
-    def order_cost_function(self, response, time):
+    def order_cost_function(self, cost, time):
         """
         returns the costs
         """
         pass
 
     @abstractmethod
-    def order_topology_cost(self, weights):
+    def order_start(self, order, steps, eta):
         """
-        calculate the cost and times for state changes (i.e. transportation costs)
-        from the weights of the topology path
+        returns the costs
         """
         pass
 
     @abstractmethod
-    def order_queue_time(self, eta, duration):
+    def order_cancel(self, order):
         """
+        returns the costs
         """
         pass

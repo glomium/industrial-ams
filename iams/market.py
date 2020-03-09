@@ -178,65 +178,105 @@ class RootInterface(ABC):
         futures = []
         eta, steps = self.order_get_data()
 
-        # currently the eta is not applied propperly. ideally we sort the steps from
-        # last to first and calculate the eta backwards. thus we could also implement
-        # least time and least cost algorithms (when eta is negative or small, the costs
-        # might be neglectable and for high eta we optimise the production cost)
-
-        request = market_pb2.OrderInfo(order=self._iams.agent, eta=eta, steps=steps)
-
         for agent in agents:
-            futures.append(self._executor.submit(self._order_application, request, agent))
+            futures.append(self._executor.submit(self._order_application, agent, steps, eta))
         concurrent.futures.wait(futures)
 
         self._order_state = RootStates.SELECT
         self.loop_select()
 
-    def _order_application(self, request, agent):
+    def _order_application(self, agent, steps, eta):
         """
         this runs in a seperate thread. it connects to an agent and adds its price and cost
         to the _order_applications dictionary
         """
+        normal = False
         path = []
-        production_cost = 0.0
-        production_time = 0.0
-        queue_cost = 0.0
-        queue_time = 0.0
-        transport_cost = 0.0
-        transport_time = 0.0
+        cost = 0.0
+        time = 0.0
+
+        # we sort the steps from last to first and calculate the eta backwards.
+        # thus we can implement least time and least cost algorithms
+        # (when eta is negative or small, the costs might be neglectable and
+        # for high eta we optimise the production cost)
+
         try:
             logger.debug("calling apply from OrderNegotiateStub on %s", agent)
             with self._channel(agent) as channel:
                 stub = market_pb2_grpc.OrderNegotiateStub(channel)
-                for response in stub.apply(request, timeout=20):
-                    if not response.info:
-                        logger.critical("Response from %s is missing info attribute", agent)
-                    if not response.cost:
-                        logger.critical("Response from %s is missing cost attribute", agent)
 
-                    path.append((response.agent or agent, response.info.steps))
-                    production_cost += response.cost.production_cost
-                    production_time += response.cost.production_time
-                    queue_cost += response.cost.queue_cost
-                    queue_time += response.cost.queue_time
-                    transport_cost += response.cost.transport_cost
-                    transport_time += response.cost.transport_time
+                # ask agents to execute steps in reverse in time decreasing order
+                for step in steps[::-1]:
+
+                    # we can't start the order in the past
+                    if eta <= 0.0:
+                        path = []
+                        cost = 0.0
+                        time = 0.0
+                        normal = True
+                        break
+
+                    request = market_pb2.StepInfo(
+                        order=self._iams.agent,
+                        time_finish=eta,
+                        data=step,
+                    )
+                    for response in stub.apply(request, timeout=10):
+                        if not response.cost:
+                            logger.critical("Response from %s is missing cost attribute", agent)
+                            return None
+
+                        if not response.step:
+                            if self.order_skip_step(step):
+                                logger.debug("%s is skipping a step", agent)
+                                continue
+                            logger.critical("Response from %s is missing step attribute", agent)
+
+                        path.append((response.agent or agent, response.step))
+                        cost += response.cost.production_cost + response.cost.transport_cost + response.cost.queue_cost
+                        eta -= response.cost.production_time + response.cost.transport_time + response.cost.queue_time
+                        time += response.cost.production_time + response.cost.transport_time + response.cost.queue_time
+
+                # ask agents to execute steps in time increasing order
+                for step in steps:
+
+                    # the reverse scheduling worked, thus we dont need to do anything here
+                    if not normal:
+                        break
+
+                    request = market_pb2.StepInfo(
+                        order=self._iams.agent,
+                        time_start=time,
+                        data=step,
+                    )
+                    for response in stub.apply(request, timeout=10):
+                        if not response.cost:
+                            logger.critical("Response from %s is missing cost attribute", agent)
+                            return None
+
+                        if not response.step:
+                            if self.order_skip_step(step):
+                                logger.debug("%s is skipping a step", agent)
+                                continue
+                            logger.critical("Response from %s is missing step attribute", agent)
+
+                        path.append((response.agent or agent, response.step))
+                        cost += response.cost.production_cost + response.cost.transport_cost + response.cost.queue_cost  # noqa
+                        time += response.cost.production_time + response.cost.transport_time + response.cost.queue_time
 
         except grpc.RpcError as e:
             logger.debug("[%s] %s: %s", agent, e.code(), e.details())
             return None
 
-        total_time = production_time + transport_time + queue_time
-        total_cost = production_cost + transport_cost + queue_cost
-
-        logger.info("%s accepted the order with cost %s and time %s", agent, total_cost, total_time)
+        logger.info("%s accepted the order with cost %s, eta %s and duration %s", agent, cost, eta, time)
         logger.debug("suggested path %s", path)
 
         with self._lock:
             self._order_applications[agent] = {
                 "path": path,
-                "cost": total_cost,
-                "time": total_time,
+                "cost": cost,
+                "time": time,
+                "start": eta,
             }
 
     def loop_select(self):
@@ -258,11 +298,10 @@ class RootInterface(ABC):
             eta = 0.0
             path = None
             for key, value in self._order_applications.items():
-                c = self.order_cost_function(value["cost"], value["time"])
+                c = self.order_cost_function(value["cost"], value["time"], value["start"])
                 if agent is None or c < cost:
                     agent = key
                     cost = value["cost"]
-                    eta = value["time"]
                     path = value["path"]
 
             if agent is None:
@@ -273,10 +312,9 @@ class RootInterface(ABC):
             del self._order_applications[agent]
 
         logger.info(
-            "Agent %s selected with cost %s and eta %s",
+            "Agent %s selected with cost %s",
             agent,
             cost,
-            eta,
         )
 
         # we have requested the best path, but there is a race-condition
@@ -292,22 +330,23 @@ class RootInterface(ABC):
         eta = 0.0
         cost = 0.0
         number = 0
-        for agent, steps in path:
+        for agent, step in path:
             try:
                 logger.debug("calling assign from OrderNegotiateStub on %s", agent)
                 with self._channel(agent) as channel:
                     # numbering steps
-                    for step in steps:
-                        number += 1
-                        step.number = number
-                        self._order_steps[number] = step
+                    number += 1
+                    step.order = self._iams.agent
+                    step.number = number
+                    step.time_start = eta
+                    self._order_steps[number] = step
 
-                    request = market_pb2.OrderInfo(order=self._iams.agent, eta=eta, steps=steps)
                     stub = market_pb2_grpc.OrderNegotiateStub(channel)
-                    response = stub.assign(request, timeout=20)
+                    response = stub.assign(step, timeout=10)
 
                     eta += response.production_time + response.queue_time + response.transport_time
                     cost += response.production_cost + response.queue_cost + response.transport_cost
+
             except grpc.RpcError as e:
                 logger.debug("[%s] %s: %s", agent, e.code(), e.details())
                 error = True
@@ -331,7 +370,7 @@ class RootInterface(ABC):
             logger.info("Assigned the order with cost %s and time %s", cost, eta)
             self._order_state = RootStates.START
 
-    def order_cost_function(self, value, time):
+    def order_cost_function(self, value: float, time: float, start: float):
         """
         return eta and steps
         """
@@ -395,6 +434,13 @@ class RootInterface(ABC):
         pass
 
     @abstractmethod
+    def order_skip_step(self, step: market_pb2.Step):  # called from servicer
+        """
+        report start execution of a step
+        """
+        pass
+
+    @abstractmethod
     def order_start_step(self, step: market_pb2.Step):  # from servicer
         """
         report start execution of a step
@@ -428,12 +474,15 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
     @permissions(has_agent=True)
     def apply(self, request: market_pb2.OrderInfo, context) -> market_pb2.OrderOffer:
         logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
-        for step in request.steps:
-            response = self.parent.order_validate(request.order or context._agent, step, request.eta)
-            if response is None:
-                context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
-            yield response
+        response = self.parent.order_validate(
+            request.order or context._agent,
+            request.data, request.time_start, request.time_finish,
+        )
+        if response is None:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
+        yield response
 
+    # TODO
     @permissions(has_agent=True)
     def assign(self, request: market_pb2.OrderInfo, context) -> market_pb2.OrderCost:
         logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
@@ -521,7 +570,7 @@ class ExecuteInterface(ABC):
             return False
 
     @abstractmethod
-    def order_validate(self, order: str, step: market_pb2.Step, eta: float) -> market_pb2.OrderCost:
+    def order_validate(self, order: str, step: market_pb2.Step, start: float, finish: float) -> market_pb2.OrderCost:
         """
         Called from servicer when the step of an order needs to be evaluated
         retuns market_pb2.OrderCost or None if the request is not valid
@@ -539,9 +588,6 @@ class ExecuteInterface(ABC):
         """
         """
         pass
-
-
-# TODO: implement a scheduler with order_start and order_cancel
 
 
 # === INTERMEDIATE ============================================================
@@ -613,6 +659,7 @@ class IntermediateNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
             for response in agent_responses:
                 yield response
 
+    # TODO
     @permissions(has_agent=True)
     def assign(self, request, context):
         logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
@@ -731,3 +778,9 @@ class IntermediateInterface(ABC):
         returns the costs
         """
         pass
+
+
+# === SCHEDULER ===============================================================
+
+
+# TODO: implement a scheduler with order_start and order_cancel

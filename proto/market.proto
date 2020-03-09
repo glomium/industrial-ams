@@ -14,12 +14,13 @@ service OrderNegotiate {
     than decide to accept the order or reject it. The orders decides to wich agent it's assigned,
     so calls to this function dont need to be stored in the agent.
     */
-    rpc apply(OrderInfo) returns (stream OrderOffer) {}
+    rpc apply(StepInfo) returns (stream OrderOffer) {}
 
+    // TODO: Evaluate if assign Server can be changed to a stream
     /*
     requests here are assiging the order. validate it first, than add it directly to a queue
     */
-    rpc assign(OrderInfo) returns (OrderCost) {}
+    rpc assign(StepInfo) returns (stream OrderCost) {}
 
     /*
     Cancels the order
@@ -29,7 +30,7 @@ service OrderNegotiate {
     /*
     Start step
     */
-    rpc start(Step) returns (google.protobuf.Empty) {}
+    rpc start(StepInfo) returns (google.protobuf.Empty) {}
 }
 
 /*
@@ -41,7 +42,7 @@ service OrderCallback {
 
     /*
     */
-    rpc finish_step(Step) returns (google.protobuf.Empty) {}
+    rpc finish_step(StepInfo) returns (google.protobuf.Empty) {}
 
     /*
     */
@@ -49,25 +50,21 @@ service OrderCallback {
 
     /*
     */
-    rpc start_step(Step) returns (google.protobuf.Empty) {}
+    rpc start_step(StepInfo) returns (google.protobuf.Empty) {}
 
 }
 
-message OrderInfo {
+message StepInfo {
     string order = 1;
-    float eta = 2;
-    repeated Step steps = 3;
-}
-
-message Step {
-    google.protobuf.Any data = 1;
     int32 number = 2;
-    float eta = 3;
+    float time_start = 3;
+    float time_finish = 4;
+    google.protobuf.Any data = 5;
 }
 
 message OrderOffer {
     string agent = 1;
-    OrderInfo info = 2;
+    StepInfo step = 2;
     OrderCost cost = 3;
 }
 

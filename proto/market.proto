@@ -14,13 +14,12 @@ service OrderNegotiate {
     than decide to accept the order or reject it. The orders decides to wich agent it's assigned,
     so calls to this function dont need to be stored in the agent.
     */
-    rpc apply(StepInfo) returns (stream OrderOffer) {}
+    rpc apply(stream StepInfo) returns (stream OrderOffer) {}
 
-    // TODO: Evaluate if assign Server can be changed to a stream
     /*
     requests here are assiging the order. validate it first, than add it directly to a queue
     */
-    rpc assign(StepInfo) returns (stream OrderCost) {}
+    rpc assign(stream StepInfo) returns (stream OrderCost) {}
 
     /*
     Cancels the order

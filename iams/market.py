@@ -326,6 +326,11 @@ class RootInterface(ABC):
         # might be a unplaned downtime at some point. Thus this problem
         # is not deterministic.
 
+        previous = None
+        aggregated = []
+        for agent, step in path:
+            steps = []
+
         error = False
         eta = 0.0
         cost = 0.0

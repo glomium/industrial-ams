@@ -58,7 +58,7 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
             context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
     @permissions(has_agent=True)
-    def finish_step(self, request: market_pb2.Step, context) -> Empty:
+    def finish_step(self, request, context) -> Empty:
         logger.debug("%s.finish_step was called by %s", self.__class__.__qualname__, context._agent)
         if self.parent._order_state != RootStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
@@ -80,7 +80,7 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
             context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
     @permissions(has_agent=True)
-    def start_step(self, request: market_pb2.Step, context) -> Empty:
+    def start_step(self, request, context) -> Empty:
         logger.debug("%s.start_step was called by %s", self.__class__.__qualname__, context._agent)
         if self.parent._order_state != RootStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
@@ -326,10 +326,10 @@ class RootInterface(ABC):
         # might be a unplaned downtime at some point. Thus this problem
         # is not deterministic.
 
-        previous = None
-        aggregated = []
-        for agent, step in path:
-            steps = []
+        # previous = None
+        # aggregated = []
+        # for agent, step in path:
+        #     steps = []
 
         error = False
         eta = 0.0
@@ -439,14 +439,14 @@ class RootInterface(ABC):
         pass
 
     @abstractmethod
-    def order_skip_step(self, step: market_pb2.Step):  # called from servicer
+    def order_skip_step(self, step):  # called from servicer
         """
         report start execution of a step
         """
         pass
 
     @abstractmethod
-    def order_start_step(self, step: market_pb2.Step):  # from servicer
+    def order_start_step(self, step):  # from servicer
         """
         report start execution of a step
         """
@@ -461,7 +461,7 @@ class RootInterface(ABC):
         pass
 
     @abstractmethod
-    def order_finish_step(self, step: market_pb2.Step):  # from servicer
+    def order_finish_step(self, step):  # from servicer
         """
         report end execution of a step
         """
@@ -477,7 +477,7 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
         self.parent = parent
 
     @permissions(has_agent=True)
-    def apply(self, request: market_pb2.OrderInfo, context) -> market_pb2.OrderOffer:
+    def apply(self, request, context) -> market_pb2.OrderOffer:
         logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
         response = self.parent.order_validate(
             request.order or context._agent,
@@ -489,7 +489,7 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
 
     # TODO
     @permissions(has_agent=True)
-    def assign(self, request: market_pb2.OrderInfo, context) -> market_pb2.OrderCost:
+    def assign(self, request, context) -> market_pb2.OrderCost:
         logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
 
         # manipulate response with step costs
@@ -575,7 +575,7 @@ class ExecuteInterface(ABC):
             return False
 
     @abstractmethod
-    def order_validate(self, order: str, step: market_pb2.Step, start: float, finish: float) -> market_pb2.OrderCost:
+    def order_validate(self, order: str, step, start: float, finish: float) -> market_pb2.OrderCost:
         """
         Called from servicer when the step of an order needs to be evaluated
         retuns market_pb2.OrderCost or None if the request is not valid
@@ -583,7 +583,7 @@ class ExecuteInterface(ABC):
         pass
 
     @abstractmethod
-    def order_start(self, order: str, steps: market_pb2.Step, eta: float) -> bool:  # from servicer
+    def order_start(self, order: str, steps, eta: float) -> bool:  # from servicer
         """
         """
         pass

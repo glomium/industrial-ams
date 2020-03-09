@@ -4,6 +4,12 @@
 import logging
 import os
 
+try:
+    import fluent  # noqa
+    FLUENTD = True
+except ImportError:
+    FLUENTD = False
+
 
 def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no cover
 
@@ -48,22 +54,21 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
     }
 
     # FLUENTD plugin
-    if os.environ.get('FLUENTD_HOST'):
+    if FLUENTD and os.environ.get('FLUENTD_HOST'):
         conf["formatters"]["fluentd"] = {
             '()': 'fluent.handler.FluentRecordFormatter',
             'format': {
                 'level': '%(levelname)s',
-                # 'hostname': '%(hostname)s',
                 'name': '%(name)s',
                 'line': '%(lineno)d',
-                'func': '%(funcName)s',
+                'func': '%(module)s.%(funcName)s',
             },
         }
         conf["handlers"]["fluentd"] = {
             'class': 'fluent.handler.FluentHandler',
             'host': os.environ.get('FLUENTD_HOST'),
             'port': int(os.environ.get('FLUENTD_PORT', 24224)),
-            'tag': os.environ.get('FLUENTD_TAG', 'ams.container'),
+            'tag': os.environ.get('IAMS_AGENT', None),
             'level': 'DEBUG',
             'formatter': 'fluentd',
             'nanosecond_precision': True,

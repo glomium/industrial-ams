@@ -24,10 +24,10 @@ class Fluentd(Plugin):
         return ['%s_fluentd' % self.namespace]
 
     def get_kwargs(self, name, image, version, config):
-        return {"name": config}
+        return {"name": name.split('_', 1)[1]}
 
     def get_env(self, name):
         return {
             'FLUENTD_HOST': self.host,
-            'FLUENTD_TAG': f"ams.image.{name}",
+            'FLUENTD_TAG': f"iams.agent.{name}",
         }

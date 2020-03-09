@@ -54,7 +54,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
     }
 
     # FLUENTD plugin
-    if FLUENTD and os.environ.get('FLUENTD_HOST'):
+    if FLUENTD and os.environ.get('FLUENTD_HOST') and os.environ.get('FLUENTD_TAG'):
         conf["formatters"]["fluentd"] = {
             '()': 'fluent.handler.FluentRecordFormatter',
             'format': {
@@ -68,7 +68,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
             'class': 'fluent.handler.FluentHandler',
             'host': os.environ.get('FLUENTD_HOST'),
             'port': int(os.environ.get('FLUENTD_PORT', 24224)),
-            'tag': os.environ.get('FLUENTD_TAG', "iams.agent." + os.environ.get('IAMS_AGENT', "unspecified")),
+            'tag': os.environ.get('FLUENTD_TAG'),
             'level': 'DEBUG',
             'formatter': 'fluentd',
             'nanosecond_precision': True,

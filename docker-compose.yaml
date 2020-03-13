@@ -67,20 +67,38 @@ services:
             replicas: 1
             update_config:
                 order: start-first
-            placement:
-                preferences:
-                    - spread: node.labels.worker
         secrets:
             - ca.crt
             - ca.key
         networks:
             - cfssl
 
+    arangodb:
+        <<: *defaults
+        image: arangodb:3.6.1
+        ports:
+            - "8529:8529"
+        volumes:
+            - arango-apps:/var/lib/arangodb3-apps
+            - arango-data:/var/lib/arangodb3
+        environment:
+            ARANGO_ROOT_PASSWORD: "secret_password"
+        deploy:
+            mode: replicated
+            replicas: 1
+        networks:
+            - arango
+
 networks:
+    arango:
     cfssl:
     iams:
     envoy:
     test:
+
+volumes:
+    arango-apps:
+    arango-data:
 
 secrets:
     ca.key:

@@ -63,7 +63,8 @@ class Arango(object):
             #     "from_vertex_collections": ["agent"],
             #     "to_vertex_collections": ["agent"],
 
-    def create_agent(self, name, nodes, edges, pool=None):
+    def create_agent(self, name, edges, pool=None):
+        nodes = []
         if pool:
             self.db.collection("agent").insert({
                 "_key": name,
@@ -75,13 +76,23 @@ class Arango(object):
                 "_key": name,
                 "update": True,
             })
-        for node in nodes:
-            self.db.collection("topology").insert({
-                "_key": f"{name}:{node}",
-                "agent": f"agent/{name}",
-            })
 
         for edge in edges:
+
+            if edge["from"] not in nodes:
+                self.db.collection("topology").insert({
+                    "_key": f"{name}:{edge['from']}",
+                    "agent": f"agent/{name}",
+                })
+                nodes.append(edge["from"])
+
+            if edge["to"] not in nodes:
+                self.db.collection("topology").insert({
+                    "_key": f"{name}:{edge['to']}",
+                    "agent": f"agent/{name}",
+                })
+                nodes.append(edge["to"])
+
             if edge.get("symmetric", False) is True:
                 collection = "symmetric"
             else:
@@ -138,9 +149,9 @@ class Arango(object):
         if update:
             self.update_agents()
 
-    def update_agent(self, name, nodes, edges, pool=None):
+    def update_agent(self, name, edges, pool=None):
         self.delete_agent(name, update=False)
-        self.create_agent(name, nodes, edges, pool)
+        self.create_agent(name, edges, pool)
 
     def update_agents(self):
         """
@@ -281,11 +292,6 @@ class IMS(object):
         self.b1 = b1
         self.b2 = b2
 
-    def nodes(self):
-        yield "B1"
-        yield "B2"
-        yield "P"
-
     def edges(self):
         yield {
             "from": f"B1",
@@ -336,14 +342,6 @@ class UR(object):
         self.p2 = p2
         self.p3 = p3
         self.p4 = p4
-
-    def nodes(self):
-        yield "P1"
-        yield "P2"
-        yield "P3"
-        yield "P4"
-        yield "T1"
-        yield "T2"
 
     def edges(self):
         yield {
@@ -459,7 +457,6 @@ if __name__ == "__main__":
 
     for agent in AGENTS:
         print("===", agent.name, "=" * (75 - len(agent.name)))  # noqa
-        nodes = list(agent.nodes())
         edges = list(agent.edges())
-        instance.create_agent(agent.name, nodes, edges, agent.pool)
-    instance.update_agent(agent.name, nodes, edges, agent.pool)
+        instance.create_agent(agent.name, edges, agent.pool)
+    instance.update_agent(agent.name, edges, agent.pool)

@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class Fluentd(Plugin):
-    label = "iams.plugins.fluentd"
+    def label():
+        return "iams.plugins.fluentd"
 
     def __init__(self, **kwargs):
         self.host = os.environ.get('FLUENTD_HOST', None)

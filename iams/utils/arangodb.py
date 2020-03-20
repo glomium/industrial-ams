@@ -2,34 +2,59 @@
 # vim: set fileencoding=utf-8 :
 
 import logging
+import hashlib
 
 from arango import ArangoClient
-from arango.exceptions import ServerConnectionError
 
 logger = logging.getLogger(__name__)
 
 
+def get_credentials(self, namespace, password=None):
+
+    if password is None:
+        # TODO make this configurable
+        # (specify environment variables or settings to make this configurable)
+        with open('/run/secrets/arango', 'r') as f:
+            password = f.read()
+
+    database = "iams_" + namespace
+    return database, password, hashlib.pbkdf2_hmac("sha1", database.encode(), password.encode(), 10000).hex()[:32]
+
+
 class Arango(object):
 
-    def __init__(self, database, username="root", password=None, hosts="http://tasks.arango:8529"):
+    def __init__(self, namespace, username="root", password=None, hosts="http://tasks.arango:8529", docker=None):
+        self.docker = docker
+
+        self.agent_username, password, self.agent_password = get_credentials(namespace, password)
+        database = self.agent_username
+
         client = ArangoClient(hosts=hosts)
 
-        # TODO make read from secrets file optional
-        # (specify environment variables or settings to make this configurable)
-        if password is None:
-            with open('/run/secrets/arango', 'r') as f:
-                password = f.read()
+        # create database and user and password
+        if username == "root":
+            db = client.db(username=username, password=password)
+            if not db.has_database(database):
+                db.create_database(database)
+
+            if db.has_user(database):
+                db.update_user(
+                    username=self.agent_username,
+                    password=self.agent_password,
+                    active=True,
+                )
+            else:
+                db.create_user(
+                    username=self.agent_username,
+                    password=self.agent_password,
+                    active=True,
+                )
+            db.update_permission(username=database, permission="ro", database=database)
+        else:
+            raise NotImplementedError("Currently ArangoDB needs to be accessed as root by IAMS")
 
         # setup database
-        try:
-            self.db = client.db(database, username=username, password=password, verify=True)
-        except ServerConnectionError:
-            if username == "root":
-                logger.info("creating arango database %s", database)
-                client.db(username=username, password=password).create_database(database)
-            else:
-                raise
-            self.db = client.db(database, username=username, password=password, verify=True)
+        self.db = client.db(database, username=username, password=password, verify=True)
 
         # setup collections
         for collection in ["topology", "agent", "pool"]:
@@ -63,18 +88,20 @@ class Arango(object):
             #     "from_vertex_collections": ["agent"],
             #     "to_vertex_collections": ["agent"],
 
-    def create_agent(self, name, edges, pool=None):
+    def create_agent(self, name, edges, abilities=[], pool=None):
         nodes = []
         if pool:
             self.db.collection("agent").insert({
                 "_key": name,
                 "update": True,
                 "pool": pool,
+                "abilities": abilities,
             })
         else:
             self.db.collection("agent").insert({
                 "_key": name,
                 "update": True,
+                "abilities": abilities,
             })
 
         for edge in edges:
@@ -421,6 +448,7 @@ class UR(object):
 
 if __name__ == "__main__":
 
+    from random import choices
     from random import shuffle
 
     AGENTS = [
@@ -451,12 +479,13 @@ if __name__ == "__main__":
 
     client = ArangoClient(hosts='http://localhost:8529')
     db = client.db("_system", username="root", password="root", verify=True)
-    if db.has_database("iams-prod"):
-        db.delete_database("iams-prod")
-    instance = Arango("iams-prod", hosts="http://localhost:8529", password="root")
+    if db.has_database("iams_prod"):
+        db.delete_database("iams_prod")
+    instance = Arango("prod", hosts="http://localhost:8529", password="root")
 
     for agent in AGENTS:
         print("===", agent.name, "=" * (75 - len(agent.name)))  # noqa
         edges = list(agent.edges())
-        instance.create_agent(agent.name, edges, agent.pool)
+        abilities = list(set(choices(["A", "B", "C", "D", "E", "F", "G"], k=3)))
+        instance.create_agent(agent.name, edges, abilities, agent.pool)
     instance.update_agent(agent.name, edges, agent.pool)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # vim: set fileencoding=utf-8 :
 
 import concurrent
@@ -6,8 +6,13 @@ import logging
 
 from abc import ABC
 from abc import abstractmethod
+from copy import deepcopy
+from dataclasses import dataclass
+from dataclasses import field
 from enum import auto
 from enum import Enum
+from queue import Empty as QueueEmpty
+from queue import PriorityQueue
 
 import grpc
 
@@ -15,11 +20,21 @@ from google.protobuf.empty_pb2 import Empty
 
 from iams.utils.auth import permissions
 
+from .mixins import ArangoDBMixin
 from .proto import market_pb2
 from .proto import market_pb2_grpc
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(order=True)
+class StepQueue:
+    cost: float
+    time: float
+    step: int
+    agent: str
+    steps: list = field(default_factory=list, compare=False)
 
 
 # === ROOT ====================================================================
@@ -91,13 +106,14 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
             context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
 
-class RootInterface(ABC):
+class RootInterface(ArangoDBMixin, ABC):
     """
     Has the steps, asks agents to produce the steps and tracks the process
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         self._order_state = RootStates.APPLY
         self._order_applications = {}
         self._order_steps = {}
@@ -137,16 +153,18 @@ class RootInterface(ABC):
                 self.loop_running()
 
             elif self._order_state == RootStates.FINISH:
-                # shedule shutdown of agent (in 60 seconds to avoid interference with wait in loop_select)
                 if self._iams.simulation:
+                    # shedule shutdown of agent in 60 seconds to avoid
+                    # interference with wait in loop_select
                     self._simulation.schedule(60, '_loop')
                 else:
                     self.order_finished()
                 self._order_state = RootStates.SHUTDOWN
 
             elif self._order_state == RootStates.CANCEL:
-                # shedule shutdown of agent (in 60 seconds to avoid interference with wait in loop_select)
                 if self._iams.simulation:
+                    # shedule shutdown of agent in 60 seconds to avoid
+                    # interference with wait in loop_select
                     self._simulation.schedule(60, '_loop')
                 else:
                     self.order_canceled()
@@ -167,7 +185,47 @@ class RootInterface(ABC):
     def loop_apply(self):
         """
         """
+        queue = PriorityQueue()
+        eta, steps = self.order_get_data()
+
+        if len(steps) == 0:
+            logger.error("Shutdown - order %s does not contain steps", self)
+            self._order_state = RootStates.SHUTDOWN
+            if self._iams.simulation:
+                self._simulation.schedule(0, '_loop')
+            return None
+
+        futures = set()
+        # calculate cost and time estimates from each agent
+        # start from first step and select all agents with matching abilities
+        query = 'WITH logical FOR a IN agent FILTER @abilities ALL IN a.abilities RETURN a._key'
+        for agent in self._arango.aql.execute(query, bind_vars={"abilities": steps[0].abilities}):
+            # get production duration, queue time and costs from agent
+            futures.add(self._executor.submit(self._order_add_production, queue, agent, steps[0], eta, None))
+        concurrent.futures.wait(futures)
+
+        try:
+            for item in queue.get(block=False):
+                if item.step == len(steps):
+                    logger.info("Found optimal production: %s", item)
+                    del queue
+                    break
+                self._order_findall(queue, item, steps[item.step], eta)
+
+        except QueueEmpty:
+            logger.info("Retry in 60s - can not build order %s", self)
+            self._order_state = RootStates.SHUTDOWN
+            # TODO
+            # if self._iams.simulation:
+            #     self._simulation.schedule(60, '_loop_apply')
+            # else:
+            #     self._loop_event.wait(60)
+
+        # TODO OLD ========================
+        self._order_add_production.cache_clear()
+
         # get a list of agents
+        futures = []
         agents = []
         for labels in self.order_agent_labels():
             for agent in self._iams.get_agents(labels):
@@ -175,9 +233,13 @@ class RootInterface(ABC):
 
         self._order_applications = {}
 
-        futures = []
-        eta, steps = self.order_get_data()
+        # build execution graph
 
+        # get earliest execution time and lengths
+        # build "path"
+        # schedule either in reverse order (eta large enough) or with earliest execution time
+
+        # get abilities for last step
         for agent in agents:
             futures.append(self._executor.submit(self._order_application, agent, steps, eta))
         concurrent.futures.wait(futures)
@@ -185,15 +247,120 @@ class RootInterface(ABC):
         self._order_state = RootStates.SELECT
         self.loop_select()
 
-    def _order_application(self, agent, steps, eta):
+    def _order_add_production(self, queue, agent, step, eta, item, futures=[]):
+        cost = 0.0
+        time = 0.0
+        if item is None:
+            item = StepQueue()
+
+        steps = item.steps
+
+        try:
+            logger.debug("calling apply from OrderNegotiateStub on %s", agent)
+
+            with self._channel(agent) as channel:
+                stub = market_pb2_grpc.OrderNegotiateStub(channel)
+                request = market_pb2.StepInfo(
+                    order=self._iams.agent,
+                    time_start=item.time,
+                    time_finish=eta,
+                    data=step,
+                )
+                for response in stub.apply(request, timeout=10):
+                    if not response.cost:
+                        logger.critical("Response from %s is missing cost attribute", agent)
+                        return None
+
+                    if not response.step:
+                        if self.order_skip_step(step):
+                            logger.debug("%s is skipping a step", agent)
+                            item.step += 1
+                            queue.put(item)
+                            return None
+                        logger.info("Response from %s is missing step attribute", agent)
+
+                    steps.append(response.step)
+                    cost += response.cost.production_cost + response.cost.transport_cost + response.cost.queue_cost
+                    time += response.cost.production_time + response.cost.transport_time + response.cost.queue_time
+
+        except grpc.RpcError as e:
+            logger.debug("[%s] %s: %s", agent, e.code(), e.details())
+            return None
+
+        if item.time > eta:
+            logger.debug("Cannot product order in time - abort")
+            return None
+
+        logger.info("%s accepted the step with cost %s and duration %s", agent, cost, time)
+        item.steps = steps
+        item.cost += cost
+        item.time += time
+        item.step += 1
+
+        queue.put(item)
+
+    def _order_findall(self, queue, item, step, eta):
+        # select all agents which are reachable from the previous steps
+        query = 'WITH logical FOR target IN agent FILTER @abilities ALL IN target.abilities '
+        'FOR v, e IN OUTBOUND SHORTEST_PATH @agent TO target GRAPH \'connections\' '
+        'RETURN {key: v._key, init: e == null, reached: target==v}'
+
+        # The query returns every shortest path to every reachable target-agent
+        # As we get overlap between paths we can order all paths to minmize the calls to agents
+        # this is done on the fly by this algorithm
+        paths = []
+        for current in self._arango.aql.execute(query, bind_vars={"abilities": step.abilities, "agent": item.agent}):
+            if current["init"]:
+                if current["reached"]:
+                    paths.append((current["key"], []))
+                    continue
+                path = [None]
+            path.append(current["key"])
+            if current["reached"]:
+                paths.append((current["key"], path))
+                continue
+
+        findall_futures = set()
+        cache = {}
+        for agent, path in paths:
+            # collect futures for transport
+            if len(path) > 2:
+                for x in range(1, len(path) - 1):
+                    previous, current, target = path[x - 1:x + 2]
+                    futures = [cache[key] for key in path[2:x + 1]]
+                    if target not in cache:
+                        cache[target] = self._executor.submit(
+                            self._order_cost_transport, previous, current, target, futures,
+                        )
+                futures.append(cache[target])
+            else:
+                futures = []
+
+            findall_futures.add(self._executor.submit(
+                self._order_add_production, queue, agent, step, eta, deepcopy(item), futures,
+            ))
+        concurrent.futures.wait(findall_futures)
+
+    def _order_cost_transport(self, previous, current, target, futures):
+        return 0.0, 0.0
+
+    def _order_application(self, agent, step, eta):
         """
         this runs in a seperate thread. it connects to an agent and adds its price and cost
         to the _order_applications dictionary
         """
-        normal = False
-        path = []
         cost = 0.0
         time = 0.0
+
+        # ask agent to execute last step
+
+        # select agents starting from last and ask them if they can produce the product
+
+        # select the cheapest execution
+
+        normal = False
+        path = []
+        steps = []
 
         # we sort the steps from last to first and calculate the eta backwards.
         # thus we can implement least time and least cost algorithms
@@ -398,7 +565,46 @@ class RootInterface(ABC):
     @abstractmethod
     def order_get_data(self):
         """
-        return eta and a list of Step instances
+        return due date (eta) and a tree (list) of step instances.
+
+        One Step
+        [
+            1,
+            2,
+        ]
+
+        find best execution place for 1, then find best execution for 2
+
+        linear (list) -> TODO: Not implemented
+        [
+            [1,2,3],
+            4
+        ]
+
+        find best execution for [1,2,3], then find best execution for 4
+
+        parallel (set) -> TODO: Not Implemented!
+        [
+            {[1, 2], 3},
+            4,
+        ]
+
+        Schedule [1,2] and 3, if [1,2] and 3 is finished schedule 4
+
+        multipath -> TODO: Not Implemented!
+        [
+            {"a":1,"b":2,"c":3},
+            4,
+        ]
+
+        Find best between a, b and c and schedule one, then schedule 4
+
+        combined -> TODO: Not Implemented!
+        [
+            [1,2]
+            {"a":[3,4],"b":5,"c":{6,[7,8]}},
+            9,
+        ]
         """
         pass
 
@@ -406,7 +612,10 @@ class RootInterface(ABC):
     def order_agent_labels(self):
         """
         iterator, which generates a list of labels which is used to filter docker
-        services for devices which can execute this order
+        services for devices which can execute the last step of this order
+
+        this is used to specify an initial condition for the betting algorithm
+        to increase the search space.
         """
         pass
 

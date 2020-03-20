@@ -308,7 +308,7 @@ class Docker(object):
                 # apply plugin
                 arg = image_object.labels[plugin.label]
                 logger.debug("Apply plugin %s with %s", plugin.label, arg)
-                e, l, n, s, g = plugin(self.namespace["docker"], name, image, version, arg)
+                e, l, n, s, g = plugin(name, image, version, arg)
                 labels.update(l)
                 env.update(e)
                 networks.update(n)

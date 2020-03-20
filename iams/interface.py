@@ -329,16 +329,14 @@ class Plugin(ABC):
 
     __hash__ = None
 
-    label = None
-
     def __init__(self, namespace, simulation):
-        pass
+        self.namespace = namespace
+        self.simulation = simulation
 
     def __repr__(self):
         return self.__class__.__qualname__ + f"()"
 
-    def __call__(self, namespace, name, image, version, config):
-        self.namespace = namespace
+    def __call__(self, name, image, version, config):
         kwargs = self.get_kwargs(name, image, version, config)
 
         return (
@@ -348,6 +346,11 @@ class Plugin(ABC):
             self.get_configured_secrets(**kwargs),
             self.get_generated_secrets(**kwargs),
         )
+
+    @staticmethod
+    @abstractmethod
+    def label():
+        pass
 
     def remove(self, name, config):
         """

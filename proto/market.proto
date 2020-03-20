@@ -58,7 +58,8 @@ message StepInfo {
     int32 number = 2;
     float time_start = 3;
     float time_finish = 4;
-    google.protobuf.Any data = 5;
+    repeated string abilities = 5;
+    google.protobuf.Any data = 6;
 }
 
 message OrderOffer {

@@ -9,7 +9,7 @@ from arango import ArangoClient
 logger = logging.getLogger(__name__)
 
 
-def get_credentials(self, namespace, password=None):
+def get_credentials(namespace, password=None):
 
     if password is None:
         # TODO make this configurable
@@ -57,7 +57,7 @@ class Arango(object):
         self.db = client.db(database, username=username, password=password, verify=True)
 
         # setup collections
-        for collection in ["topology", "agent", "pool"]:
+        for collection in ["topology", "agent"]:
             if not self.db.has_collection(collection):
                 self.db.create_collection(collection)
 
@@ -80,13 +80,20 @@ class Arango(object):
         if not self.db.has_graph('connections'):
             self.db.create_graph('connections', edge_definitions=[{
                 "edge_collection": "logical",
-                "from_vertex_collections": ["agent", "pool"],
-                "to_vertex_collections": ["agent", "pool"],
+                "from_vertex_collections": ["agent"],
+                "to_vertex_collections": ["agent"],
             }])
-            # }, {
-            #     "edge_collection": "virtual",
-            #     "from_vertex_collections": ["agent"],
-            #     "to_vertex_collections": ["agent"],
+
+        if not self.db.has_graph('all_connections'):
+            self.db.create_graph('all_connections', edge_definitions=[{
+                "edge_collection": "logical",
+                "from_vertex_collections": ["agent"],
+                "to_vertex_collections": ["agent"],
+            }, {
+                "edge_collection": "virtual",
+                "from_vertex_collections": ["agent"],
+                "to_vertex_collections": ["agent"],
+            }])
 
     def create_agent(self, name, edges, abilities=[], pool=None):
         nodes = []
@@ -188,6 +195,7 @@ class Arango(object):
             pass
             # get neighbor agents
             pk = data["_id"]
+            # TODO use template sysetm from arangodb
             query = f"""
             WITH symmetric, directed
             LET edge = (FOR doc IN topology FILTER doc.agent == '{pk}' LIMIT 1 RETURN doc._id)[0]
@@ -239,12 +247,13 @@ class Arango(object):
                 pk = data["_id"]
                 pool = data["pool"]
 
+                # TODO use template sysetm from arangodb
                 query = f"""
                 WITH logical, virtual
                 FOR v, e IN 1..100 INBOUND '{pk}' logical, virtual
                     PRUNE v.pool != '{pool}'
                     OPTIONS {{bfs: true, uniqueVertices: 'global'}}
-                    FILTER IS_SAME_COLLECTION('pool', v) AND v.cls == '{pool}'
+                    FILTER v.pool_cls == '{pool}'
                     SORT v._id
                     RETURN v
                 """
@@ -262,10 +271,12 @@ class Arango(object):
                         edge["_to"] = pool['_id']
                         self.db.collection('logical').update(edge)
 
-                    self.db.collection('pool').delete(p)
+                    self.db.collection('agent').delete(p)
+                    # TODO delete pool agent - if docker is available
 
                 if pool is None:
-                    pool = self.db.collection("pool").insert({"cls": data["pool"]})
+                    pool = self.db.collection("agent").insert({"pool_cls": data["pool"]})
+                    # TODO create pool agent - if docker is available
 
                 edges = list(self.db.collection('logical').find({"_from": pool["_id"], "_to": data["_id"]}))
                 if len(edges) == 0:

@@ -275,7 +275,13 @@ class Arango(object):
                     # TODO delete pool agent - if docker is available
 
                 if pool is None:
-                    pool = self.db.collection("agent").insert({"pool_cls": data["pool"]})
+                    p = self.db.collection("agent").insert({})
+                    pool = self.db.collection("agent").insert({
+                        "_key": "pool-%s" % p["_key"],
+                        "pool_cls": data["pool"],
+                        "color": "#444444",
+                    })
+                    self.db.collection("agent").delete(p)
                     # TODO create pool agent - if docker is available
 
                 edges = list(self.db.collection('logical').find({"_from": pool["_id"], "_to": data["_id"]}))

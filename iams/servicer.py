@@ -22,6 +22,7 @@ from .proto import simulation_pb2_grpc
 from .proto import framework_pb2
 from .proto import framework_pb2_grpc
 from .stub import AgentStub
+from .utils.arangodb import Arango
 from .utils.auth import permissions
 from .utils.docker import Docker
 from .utils.grpc import framework_channel
@@ -49,6 +50,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         self.event.set()
 
         self.docker = Docker(client, cfssl, servername, namespace, args.namespace, args.simulation, plugins)
+        self.arango = Arango(namespace, docker=self.docker)
 
         self.RE_NAME = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.args.namespace[0:4])
 
@@ -66,7 +68,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         except KeyError:
             pass
 
-    # RPCs
+    # RPC
     @permissions(is_optional=True)
     def renew(self, request, context):
 
@@ -101,8 +103,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             certificate=response["result"]["certificate"],
         )
 
-    # RPCs
-
+    # RPC
     @permissions(has_agent=True)
     def booted(self, request, context):
         logger.debug('booted called from %s', context._agent)
@@ -117,6 +118,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 pass
             # TODO yield data
 
+    # RPC
     @permissions(has_agent=True, has_groups=["root", "web"])
     def agents(self, request, context):
         """
@@ -130,6 +132,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 version=version,
             )
 
+    # RPC
     @permissions(has_agent=True, has_groups=["root", "web"])
     def update(self, request, context):
         logger.debug('Update called from %s', context._username)
@@ -159,6 +162,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         return framework_pb2.AgentData()
 
+    # RPC
     @permissions(has_agent=True, has_groups=["root", "web"])
     def create(self, request, context):
         logger.debug('create called from %s', context._username)
@@ -221,6 +225,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             message = 'Given an invalid agent name (%s) in request' % name
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
+    # RPC
     @permissions(has_agent=True, has_groups=["root", "web"])
     def destroy(self, request, context):
         logger.debug('Destroy called from %s', context._username)
@@ -234,6 +239,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         return Empty()
 
+    # RPC
     @permissions(has_agent=True)
     def sleep(self, request, context):
         logger.debug('sleep called from %s', context._agent)
@@ -244,6 +250,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             context.abort(grpc.StatusCode.NOT_FOUND, message)
         return Empty()
 
+    # RPC
     @permissions(has_agent=True)
     def upgrade(self, request, context):
         logger.debug('upgrade called from %s', context._agent)
@@ -253,14 +260,41 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         )
         return Empty()
 
-#   @auth_required
-#   def wake(self, request, context):
-#       logger.debug('wake called from %s', context._agent)
-#       service = self.get_service(context, context._agent)
-#       if service.attrs['Spec']['Mode']['Replicated']['Replicas'] > 0:
-#           logger.debug('scale service %s to 1', context._agent)
-#           service.scale(1)
-#       return Empty()
+    # RPC
+    @permissions(has_agent=True)
+    def set_topology(self, request, context):
+        logger.debug('set_topology called from %s', context._agent)
+
+        edges = []
+        for edge in request.edges:
+            edges.append({
+                "from": request.start,
+                "to": request.end,
+                "weight": request.weight,
+                "symmetric": not request.directed,
+            })
+        self.arango.update_agent(request._agent, edges, pool=request.pool or None)
+        return Empty()
+
+    # RPC
+    @permissions(has_agent=True)
+    def get_topology(self, request, context):
+        logger.debug('get_topology called from %s', context._agent)
+        self.docker.set_service(
+            context._agent,
+            update=True,
+        )
+        return Empty()
+
+    # RPC
+    @permissions(has_agent=True)
+    def wake(self, request, context):
+        logger.debug('wake called from %s', context._agent)
+        service = self.get_service(context, context._agent)
+        if service.attrs['Spec']['Mode']['Replicated']['Replicas'] > 0:
+            logger.debug('scale service %s to 1', context._agent)
+            service.scale(1)
+        return Empty()
 
 
 class SimulationServicer(simulation_pb2_grpc.SimulationServicer):

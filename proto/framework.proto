@@ -62,10 +62,13 @@ service Framework {
     */
     rpc wake(AgentData) returns (google.protobuf.Empty) {}
 
-    // /*
-    // */
-    // rpc images(google.protobuf.Empty) returns (ImagesData) {}
+    /*
+    */
+    rpc set_topology(AgentTopology) returns (google.protobuf.Empty) {}
 
+    /*
+    */
+    rpc get_topology(google.protobuf.Empty) returns (AgentTopology) {}
 }
 
 message AgentRequest {
@@ -91,13 +94,15 @@ message AgentData {
     bool autostart = 7;
 }
 
-/*
-message ImagesData {
-    repeated ImageData images = 1;
+message Edge {
+    string start = 1;
+    string end = 2;
+    float weight = 3;
+    bool directed = 4;
 }
 
-message ImageData {
-    string id = 1;
-    repeated string tag = 2;
+message AgentTopology {
+    repeated Edge edges = 1;
+    repeated string abilities = 2;
+    string pool = 3;
 }
-*/

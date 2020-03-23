@@ -21,6 +21,7 @@ services:
         command: tasks.cfssl:8888 -d
         environment:
             IAMS_NETWORK: iams_ams
+            IAMS_ARANGO_PASSWORD_FILE: /run/secrets/arango
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         deploy:
@@ -30,7 +31,10 @@ services:
                 order: start-first
             placement:
                 constraints: [node.role == manager]
+        secrets:
+            - arango
         networks:
+            - arango
             - cfssl
             - envoy
             - iams
@@ -42,6 +46,7 @@ services:
         command: --simulation tasks.cfssl:8888 -d
         environment:
             IAMS_NETWORK: iams_test
+            IAMS_ARANGO_PASSWORD_FILE: /run/secrets/arango
         ports:
             - "5115:80"
         volumes:
@@ -53,7 +58,10 @@ services:
                 order: start-first
             placement:
                 constraints: [node.role == manager]
+        secrets:
+            - arango
         networks:
+            - arango
             - cfssl
             - test
 
@@ -82,10 +90,12 @@ services:
             - arango-apps:/var/lib/arangodb3-apps
             - arango-data:/var/lib/arangodb3
         environment:
-            ARANGO_ROOT_PASSWORD: "secret_password"
+            ARANGO_ROOT_PASSWORD_FILE: /run/secrets/arango
         deploy:
             mode: replicated
             replicas: 1
+        secrets:
+            - arango
         networks:
             - arango
 
@@ -101,6 +111,8 @@ volumes:
     arango-data:
 
 secrets:
+    arango:
+        file: ./secrets/arango.pass
     ca.key:
         file: ./secrets/ca.key
     ca.crt:

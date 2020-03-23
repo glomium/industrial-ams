@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
  && rm -rf /var/lib/apt/lists/*
 
 # installing "python3-docker" via apt delivers on 19.10 an old version not working with the framework
-RUN pip3 install --no-cache-dir docker
+RUN pip3 install --no-cache-dir docker python-arango
 
 # === test stage ==============================================================
 FROM basestage as test

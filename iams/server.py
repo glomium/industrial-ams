@@ -6,10 +6,10 @@ import datetime
 import logging
 import os
 
-from socket import gethostname
 from concurrent.futures import ThreadPoolExecutor
 from logging.config import dictConfig
-from time import sleep
+from socket import gethostname
+from threading import Event
 
 import docker
 import grpc
@@ -82,6 +82,7 @@ def execute_command_line():
     )
 
     args = parser.parse_args()
+    stop = Event()
     dictConfig(get_logging_config(["iams"], args.loglevel))
     logger = logging.getLogger(__name__)
 
@@ -195,7 +196,7 @@ def execute_command_line():
 
     if args.simulation is True:
         add_SimulationServicer_to_server(
-            SimulationServicer(servicer),
+            SimulationServicer(servicer, stop),
             server,
         )
     server.start()
@@ -203,7 +204,7 @@ def execute_command_line():
     # service running
     logger.info("container manager running")
     try:
-        while True:
+        while not stop.is_set():
             eta = cert.not_valid_after - datetime.datetime.now()
             logger.debug("certificate valid for %s days", eta.days)
 
@@ -211,7 +212,7 @@ def execute_command_line():
                 # The following block can be used for maintenance tasks
                 if container is not None and not args.simulation:
                     pass
-                sleep(86400.0)
+                stop.wait(86400)
             else:
                 if container:
                     logger.debug("restart container")
@@ -219,6 +220,10 @@ def execute_command_line():
                     container.restart()
                 else:
                     break
-                sleep(3600)
+                stop.wait(3600)
     except KeyboardInterrupt:
         pass
+
+
+if __name__ == "__main__":
+    execute_command_line()

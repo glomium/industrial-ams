@@ -15,7 +15,7 @@ def get_credentials(namespace, password=None):
         # TODO make this configurable
         # (specify environment variables or settings to make this configurable)
         with open('/run/secrets/arango', 'r') as f:
-            password = f.read()
+            password = f.read().strip()
 
     database = "iams_" + namespace
     return database, password, hashlib.pbkdf2_hmac("sha1", database.encode(), password.encode(), 10000).hex()[:32]
@@ -33,7 +33,7 @@ class Arango(object):
 
         # create database and user and password
         if username == "root":
-            db = client.db(username=username, password=password)
+            db = client.db("_system", username=username, password=password, verify=True)
             if not db.has_database(database):
                 db.create_database(database)
 

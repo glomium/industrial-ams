@@ -23,7 +23,7 @@ WORKDIR /usr/src/app
 COPY requirements/dev.txt requirements/test.txt ./
 RUN pip3 install --no-cache-dir -r dev.txt -r test.txt
 
-COPY LICENSE setup.py setup.cfg .coveragerc ./
+COPY LICENSE setup.py setup.cfg .coveragerc run_tests.sh ./
 COPY iams ./iams
 COPY proto ./proto
 
@@ -32,13 +32,6 @@ RUN mkdir -p iams/proto \
  && sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
 
 COPY examples ./examples
-
-# run static tests
-RUN doc8 iams examples && flake8 iams examples
-
-# run unit tests
-RUN coverage run setup.py test && coverage report
-# TODO copy coverage results
 
 # build wheel package
 RUN python3 setup.py bdist_wheel  # && mv dist/iams-*-py3-none-any.whl iams-build-py3-none-any.whl

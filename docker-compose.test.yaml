@@ -1,0 +1,56 @@
+version: '3.7'
+
+services:
+    sut:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                UBUNTU: rolling
+            target: test
+        depends_on:
+            - arangodb
+            - cfssl
+        entrypoint: '/bin/sh run_tests.sh'
+        environment:
+            IAMS_ARANGO_HOSTS: http://arangodb:8529
+        networks:
+            - arango
+            - cfssl
+        secrets:
+            - arango
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+
+    cfssl:
+        image: glomium/cfssl:latest
+        secrets:
+            - ca.crt
+            - ca.key
+        networks:
+            - cfssl
+
+    arangodb:
+        image: arangodb:3.6.1
+        environment:
+            ARANGO_ROOT_PASSWORD_FILE: /run/secrets/arango
+        ports:
+            - "8529:8529"
+        secrets:
+            - arango
+        networks:
+            - arango
+
+
+networks:
+    arango:
+    cfssl:
+
+
+secrets:
+    arango:
+        file: ./secrets_test/arango
+    ca.key:
+        file: ./secrets_test/ca.key
+    ca.crt:
+        file: ./secrets_test/ca.crt

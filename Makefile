@@ -5,11 +5,12 @@ build: test
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --cache-from iams-build:local --cache-from iams:local -t iams:local .
 
 test:
-	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --target basestage -t iams-base:local .
-	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
-	cd examples/simple_agent && make
-	cd examples/simulation && make
-	cd examples/market && make
+	# docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --target basestage -t iams-base:local .
+	# docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
+	# cd examples/simple_agent && make
+	# cd examples/simulation && make
+	# cd examples/market && make
+	docker-compose -f docker-compose.test.yaml up --abort-on-container-exit --build --quiet-pull --renew-anon-volumes
 
 certs:
 	mkdir -p secrets

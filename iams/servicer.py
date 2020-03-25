@@ -53,7 +53,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         self.docker = Docker(client, cfssl, servername, namespace, args.namespace, args.simulation, plugins)
         self.arango = Arango(
             namespace,
-            hosts=os.environ.get("IAMS_ARANGO_HOSTS", "http://tasks.arango:8529"),
+            hosts=os.environ.get("IAMS_ARANGO_HOSTS", "http://tasks.arangodb:8529"),
             docker=self.docker,
         )
 

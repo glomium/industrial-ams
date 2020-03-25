@@ -34,8 +34,6 @@ services:
         image: arangodb:3.6.1
         environment:
             ARANGO_ROOT_PASSWORD_FILE: /run/secrets/arango
-        ports:
-            - "8529:8529"
         secrets:
             - arango
         networks:

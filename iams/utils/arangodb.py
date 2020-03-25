@@ -23,7 +23,7 @@ def get_credentials(namespace, password=None):
 
 class Arango(object):
 
-    def __init__(self, namespace, username="root", password=None, hosts="http://tasks.arango:8529", docker=None):
+    def __init__(self, namespace, username="root", password=None, hosts="http://tasks.arangodb:8529", docker=None):
         self.docker = docker
 
         self.agent_username, password, self.agent_password = get_credentials(namespace, password)

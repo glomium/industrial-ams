@@ -18,7 +18,8 @@ class InfluxDB(Plugin):
     Adds the agent to the network {stack-namespace}_influxdb
     """
 
-    def label():
+    @property
+    def label(self):
         return "iams.plugins.influxdb"
 
     def __init__(self, **kwargs):

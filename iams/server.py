@@ -89,22 +89,29 @@ def execute_command_line():
     client = docker.DockerClient()
     try:
         container = client.containers.get(gethostname())
-        namespace = container.attrs["Config"]["Labels"]["com.docker.stack.namespace"]
-        logger.info("got namespace %s from docker", namespace)
-        servername = container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
-        servername = "tasks." + servername[len(namespace) + 1:]
-        logger.info("got servername %s from docker", servername)
-        cloudless = False
+        if "com.docker.stack.namespace" in container.attrs["Config"]["Labels"]:
+            namespace = container.attrs["Config"]["Labels"]["com.docker.stack.namespace"]
+            logger.info("got namespace %s from docker", namespace)
+            servername = container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
+            servername = "tasks." + servername[len(namespace) + 1:]
+            logger.info("got servername %s from docker", servername)
+            cloudless = False
+        elif "com.docker.compose.project" in container.attrs["Config"]["Labels"]:
+            namespace = container.attrs["Config"]["Labels"]["com.docker.compose.project"]
+            logger.info("got namespace %s from docker", namespace)
+            servername = container.attrs["Config"]["Labels"]["com.docker.compose.service"]
+            logger.info("got servername %s from docker", servername)
+            cloudless = False
+        else:
+            namespace = "undefined"
+            servername = "localhost"
+            logger.warning("Could not read namespace or servername labels - start iams-server with docker-swarm")
+            cloudless = True
     except docker.errors.NotFound:
         container = None
         namespace = "undefined"
         servername = "localhost"
-        logger.warning("Could not connect to docker container - please start iams-server as a docker-swarm service")
-        cloudless = True
-    except KeyError:
-        namespace = "undefined"
-        servername = "localhost"
-        logger.warning("Could not read namespace or servername labels - please start iams-server with docker-swarm")
+        logger.warning("Could not connect to docker container - start iams-server as a docker-swarm service")
         cloudless = True
 
     # read variables from environment

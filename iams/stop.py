@@ -37,7 +37,7 @@ if __name__ == "__main__":
             stub = SimulationStub(channel)
             stub.shutdown(Empty())
 
-    except grpc.RpcError as e:
+    except grpc.RpcError as e:  # pragma: no cover
         if e.code() == grpc.StatusCode.RESOURCE_EXHAUSTED:
             logger.debug("got error message: %s", e.details())
             logger.info("simulation running on %s - try next runtime", server)

@@ -1,12 +1,12 @@
-seed: agv_example
+seed: simulation_example
 # until: 86400
-until: 7200
+until: 600
 
 agents:
     source1:
         image:
-            name: example_source
-            version: latest
+            name: iams_simulation_source
+            version: local
             autostart: True
         config:
             buffer: 5
@@ -18,8 +18,8 @@ agents:
 
     source2:
         image:
-            name: example_source
-            version: latest
+            name: iams_simulation_source
+            version: local
             autostart: True
         config:
             buffer: 5
@@ -31,8 +31,8 @@ agents:
 
     source3:
         image:
-            name: example_source
-            version: latest
+            name: iams_simulation_source
+            version: local
             autostart: True
         config:
             buffer: 5
@@ -43,8 +43,8 @@ agents:
                 y: 0
     source4:
         image:
-            name: example_source
-            version: latest
+            name: iams_simulation_source
+            version: local
             autostart: True
         config:
             buffer: 5
@@ -55,8 +55,8 @@ agents:
                 y: 0
     source5:
         image:
-            name: example_source
-            version: latest
+            name: iams_simulation_source
+            version: local
             autostart: True
         config:
             buffer: 5
@@ -68,8 +68,8 @@ agents:
 
     sink1:
         image:
-            name: example_sink
-            version: latest
+            name: iams_simulation_sink
+            version: local
             autostart: True
         config:
             buffer: 5
@@ -81,8 +81,8 @@ agents:
 
     sink2:
         image:
-            name: example_sink
-            version: latest
+            name: iams_simulation_sink
+            version: local
             autostart: True
         config:
             buffer: 5
@@ -94,8 +94,8 @@ agents:
 
     sink3:
         image:
-            name: example_sink
-            version: latest
+            name: iams_simulation_sink
+            version: local
             autostart: True
         config:
             buffer: 5
@@ -107,8 +107,8 @@ agents:
 
     sink4:
         image:
-            name: example_sink
-            version: latest
+            name: iams_simulation_sink
+            version: local
             autostart: True
         config:
             buffer: 5
@@ -120,8 +120,8 @@ agents:
 
     sink5:
         image:
-            name: example_sink
-            version: latest
+            name: iams_simulation_sink
+            version: local
             autostart: True
         config:
             buffer: 5
@@ -133,8 +133,8 @@ agents:
 
     vehicle1:
         image:
-            name: example_vehicle
-            version: latest
+            name: iams_simulation_vehicle
+            version: local
             autostart: True
         config:
             load: 20
@@ -146,8 +146,8 @@ agents:
 
     vehicle2:
         image:
-            name: example_vehicle
-            version: latest
+            name: iams_simulation_vehicle
+            version: local
             autostart: True
         config:
             load: 20
@@ -159,8 +159,8 @@ agents:
 
     vehicle3:
         image:
-            name: example_vehicle
-            version: latest
+            name: iams_simulation_vehicle
+            version: local
             autostart: True
         config:
             load: 20
@@ -172,8 +172,8 @@ agents:
 
     vehicle4:
         image:
-            name: example_vehicle
-            version: latest
+            name: iams_simulation_vehicle
+            version: local
             autostart: True
         config:
             load: 20

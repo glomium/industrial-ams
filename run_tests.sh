@@ -22,7 +22,7 @@ sleep 5
 
 echo "run simulation"
 # TODO not running
-# COVERAGE_FILE=coverage/simulation coverage run -m iams.simulation -d examples/simulation/simulation.yaml 127.0.0.1:80
+COVERAGE_FILE=coverage/simulation coverage run -m iams.simulation -d examples/simulation/simulation.yaml 127.0.0.1:80
 
 echo "stop server"
 COVERAGE_FILE=coverage/stop coverage run -m iams.stop

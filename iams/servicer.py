@@ -39,20 +39,20 @@ def generate_seed():
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
-    def __init__(self, client, cfssl, servername, namespace, args, credentials, threadpool, plugins):
+    def __init__(self, client, cfssl, cloud, args, credentials, threadpool, plugins):
         self.args = args
         self.cfssl = cfssl
+        self.cloud = cloud
         self.credentials = credentials
         self.threadpool = threadpool
-        self.servername = servername
-        self.namespace = namespace
+
         self.booting = set()
         self.event = Event()
         self.event.set()
 
-        self.docker = Docker(client, cfssl, servername, namespace, args.namespace, args.simulation, plugins)
+        self.docker = Docker(client, cfssl, cloud, args.namespace, args.simulation, plugins)
         self.arango = Arango(
-            namespace,
+            cloud.namespace,
             hosts=os.environ.get("IAMS_ARANGO_HOSTS", "http://tasks.arangodb:8529"),
             docker=self.docker,
         )
@@ -114,14 +114,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         logger.debug('booted called from %s', context._agent)
         self.del_booting(context._agent)
         return Empty()
-
-    def images(self, request, context):
-        """
-        """
-        for image in self.client.images.list(filters={'label': ["ams.services.agent=true"]}):
-            for tag in image.tags:
-                pass
-            # TODO yield data
 
     # RPC
     @permissions(has_agent=True, has_groups=["root", "web"])

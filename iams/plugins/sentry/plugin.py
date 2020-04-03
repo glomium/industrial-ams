@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 class Sentry(Plugin):
 
-    def label():
+    @property
+    def label(self):
         "iams.plugins.sentry"
 
     def __init__(self, **kwargs):

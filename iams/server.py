@@ -18,6 +18,8 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
 from .constants import AGENT_PORT
+from .cloud.compose import Compose
+from .cloud.swarm import Swarm
 from .exceptions import SkipPlugin
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
@@ -89,23 +91,18 @@ def execute_command_line():
     client = docker.DockerClient()
     try:
         container = client.containers.get(gethostname())
-        namespace = container.attrs["Config"]["Labels"]["com.docker.stack.namespace"]
-        logger.info("got namespace %s from docker", namespace)
-        servername = container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
-        servername = "tasks." + servername[len(namespace) + 1:]
-        logger.info("got servername %s from docker", servername)
-        cloudless = False
+        if "com.docker.stack.namespace" in container.attrs["Config"]["Labels"]:
+            cloud = Swarm(container.attrs["Config"]["Labels"])
+        elif "com.docker.compose.project" in container.attrs["Config"]["Labels"]:
+            cloud = Compose(container.attrs["Config"]["Labels"])
+        else:
+            raise RuntimeError(
+                "Could not read namespace or servername labels - start iams-server with a cloud-runtime",
+            )
     except docker.errors.NotFound:
-        container = None
-        namespace = "undefined"
-        servername = "localhost"
-        logger.warning("Could not connect to docker container - please start iams-server as a docker-swarm service")
-        cloudless = True
-    except KeyError:
-        namespace = "undefined"
-        servername = "localhost"
-        logger.warning("Could not read namespace or servername labels - please start iams-server with docker-swarm")
-        cloudless = True
+        raise RuntimeError(
+            "Could not connect to docker - start iams-server with a cloud-runtime",
+        )
 
     # read variables from environment
     if not args.namespace:
@@ -157,7 +154,12 @@ def execute_command_line():
 
     logger.info("Generating certificates")
     cfssl = CFSSL(args.cfssl, args.rsa, args.hosts)
-    response = cfssl.get_certificate(servername, hosts=[servername], groups=["root"])
+    if cloud:
+        response = cfssl.get_certificate(cloud.servername, hosts=[cloud.servername], groups=["root"])
+    else:
+        # TODO: remove if running in cloud is required
+        response = cfssl.get_certificate("localhost", hosts=["localhost"], groups=["root"])
+
     certificate = response["result"]["certificate"].encode()
     private_key = response["result"]["private_key"].encode()
 
@@ -176,7 +178,7 @@ def execute_command_line():
     )
 
     server.add_insecure_port('[::]:%s' % args.insecure_port)
-    if cloudless:
+    if cloud is not None:
         logger.debug("Open server on port %s", args.insecure_port)
     else:
         logger.debug("Open server on ports %s and %s", AGENT_PORT, args.insecure_port)
@@ -185,8 +187,7 @@ def execute_command_line():
     servicer = FrameworkServicer(
         client,
         cfssl,
-        servername,
-        namespace,
+        cloud,
         args,
         channel_credentials,
         threadpool,

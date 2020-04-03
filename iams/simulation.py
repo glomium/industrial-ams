@@ -113,3 +113,7 @@ def execute_command_line():
             raise
 
         break  # dont start a second simulation on a different host
+
+
+if __name__ == "__main__":
+    execute_command_line()

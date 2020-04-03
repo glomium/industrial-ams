@@ -347,9 +347,9 @@ class Plugin(ABC):
             self.get_generated_secrets(**kwargs),
         )
 
-    @staticmethod
+    @property
     @abstractmethod
-    def label():
+    def label(self):
         pass
 
     def remove(self, name, config):

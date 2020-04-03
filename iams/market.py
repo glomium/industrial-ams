@@ -283,6 +283,7 @@ class RootInterface(ArangoDBMixin, ABC):
         query = '''WITH logical FOR target IN agent FILTER @abilities ALL IN target.abilities
         FOR v, e IN OUTBOUND SHORTEST_PATH @agent TO target GRAPH 'connections'
         RETURN {key: v._key, init: e == null, reached: target==v}'''
+        # TODO: parllel paths over parallel logistic chains
 
         # The query returns every shortest path to every reachable target-agent
         # As we get overlap between paths we can order all paths to minmize the calls to agents

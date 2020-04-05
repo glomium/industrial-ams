@@ -331,6 +331,11 @@ class Docker(object):
             'IAMS_SERVICE': self.cloud.servername,
             'IAMS_SIMULATION': str(self.simulation).lower(),
         })
+        if "IAMS_RUNTESTS" in os.environ:
+            env.update({
+                'IAMS_RUNTESTS': 'True',
+            })
+
         for label in image_object.labels:
             if self.RE_ABILITY.match(label):
                 labels.update({

@@ -19,7 +19,7 @@ class Sentry(Plugin):
 
     def __init__(self, **kwargs):
         self.sentry = os.environ.get('RAVEN_DSN', None)
-        if self.sentry is None:
+        if self.sentry is None:  # pragma: no branch
             logger.debug("RAVEN_DSN is not defined - skip plugin")
             raise SkipPlugin
 

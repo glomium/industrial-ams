@@ -18,7 +18,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
 from .constants import AGENT_PORT
-from .cloud.compose import Compose
+# from .cloud.compose import Compose
 from .cloud.swarm import Swarm
 from .exceptions import SkipPlugin
 from .helper import get_logging_config
@@ -93,8 +93,10 @@ def execute_command_line():
         container = client.containers.get(gethostname())
         if "com.docker.stack.namespace" in container.attrs["Config"]["Labels"]:
             cloud = Swarm(container.attrs["Config"]["Labels"])
-        elif "com.docker.compose.project" in container.attrs["Config"]["Labels"]:
-            cloud = Compose(container.attrs["Config"]["Labels"])
+            runtests = (os.environ.get('IAMS_RUNTESTS') == "True")
+        # elif "com.docker.compose.project" in container.attrs["Config"]["Labels"]:
+        #     cloud = Compose(container.attrs["Config"]["Labels"])
+        #     runtests = True
         else:
             raise RuntimeError(
                 "Could not read namespace or servername labels - start iams-server with a cloud-runtime",
@@ -178,7 +180,7 @@ def execute_command_line():
     )
 
     server.add_insecure_port('[::]:%s' % args.insecure_port)
-    if cloud is not None:
+    if cloud is None:
         logger.debug("Open server on port %s", args.insecure_port)
     else:
         logger.debug("Open server on ports %s and %s", AGENT_PORT, args.insecure_port)
@@ -192,12 +194,13 @@ def execute_command_line():
         channel_credentials,
         threadpool,
         plugins,
+        runtests,
     )
     add_FrameworkServicer_to_server(servicer, server)
 
     if args.simulation is True:
         add_SimulationServicer_to_server(
-            SimulationServicer(servicer, stop),
+            SimulationServicer(servicer, stop, runtests),
             server,
         )
     server.start()

@@ -1,10 +1,10 @@
 # The image requires to run the build of iams on your setup
 # Change FROM to the public image to build from dockerhub
 # FROM glomium/industrial-ams:rolling
-FROM iams_test:local
+FROM iams-test:local
 
 LABEL iams.services.agent=true
 
-COPY simulation_pb2_grpc.py simulation_pb2.py sink.py ./
+COPY entrypoint.sh simulation_pb2_grpc.py simulation_pb2.py sink.py ./
 
-ENTRYPOINT ["/usr/bin/python3", "sink.py"]
+ENTRYPOINT ["entrypoint.sh", "sink.py"]

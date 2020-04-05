@@ -20,8 +20,9 @@ services:
         image: iams:local
         command: tasks.cfssl:8888 -d
         environment:
-            IAMS_NETWORK: iams_ams
             IAMS_ARANGO_PASSWORD_FILE: /run/secrets/arango
+            IAMS_NETWORK: iams_ams
+            IAMS_RUNTESTS: tasks.coverage
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         deploy:
@@ -36,7 +37,6 @@ services:
         networks:
             - arango
             - cfssl
-            - envoy
             - iams
 
     # Simulation
@@ -45,8 +45,9 @@ services:
         image: iams:local
         command: --simulation tasks.cfssl:8888 -d
         environment:
-            IAMS_NETWORK: iams_test
             IAMS_ARANGO_PASSWORD_FILE: /run/secrets/arango
+            IAMS_NETWORK: iams_test
+            IAMS_RUNTESTS: tasks.coverage
         ports:
             - "5115:80"
         volumes:
@@ -81,6 +82,19 @@ services:
         networks:
             - cfssl
 
+    coverage:
+        <<: *defaults
+        image: glomium/coverage-service:latest
+        ports:
+            - "8000:8000"
+        deploy:
+            mode: replicated
+            replicas: 1
+            update_config:
+                order: start-first
+        networks:
+            - test
+
     arangodb:
         <<: *defaults
         image: arangodb:3.6.1
@@ -103,7 +117,6 @@ networks:
     arango:
     cfssl:
     iams:
-    envoy:
     test:
 
 volumes:

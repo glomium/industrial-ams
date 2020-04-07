@@ -26,7 +26,6 @@ services:
             IAMS_RUNTESTS: tasks.coverage
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-            - ./coverage:/usr/src/app/coverage
         deploy:
             mode: replicated
             replicas: 1

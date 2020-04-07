@@ -104,7 +104,7 @@ class Agent(ABC):
         try:
             self.configure()  # local module specification
             self._configure()  # definitions on mixins
-        except grpc.RpcError as e:
+        except grpc.RpcError as e:  # pragma: no cover
             logger.debug("gRPC request failed in configure - resetting: %s - %s", e.code(), e.details())
             exit()
 

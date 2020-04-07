@@ -349,7 +349,7 @@ class Plugin(ABC):
 
     @property
     @abstractmethod
-    def label(self):
+    def label(self):  # pragma: no cover
         pass
 
     def remove(self, name, config):

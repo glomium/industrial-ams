@@ -15,7 +15,7 @@ class Interface(ABC):
     __hash__ = None
 
     @abstractmethod
-    def __init__(self):
+    def __init__(self):  # pragma: no cover
         pass
 
     def __repr__(self):
@@ -23,15 +23,15 @@ class Interface(ABC):
 
     @property
     @abstractmethod
-    def namespace(self):
+    def namespace(self):  # pragma: no cover
         pass
 
     @property
     @abstractmethod
-    def namespace_label(self):
+    def namespace_label(self):  # pragma: no cover
         pass
 
     @property
     @abstractmethod
-    def servername(self):
+    def servername(self):  # pragma: no cover
         pass

@@ -14,14 +14,14 @@ from iams.helper import get_logging_config
 from iams.interface import Agent
 from iams.utils.auth import permissions
 
-import simulation_pb2
-import simulation_pb2_grpc
+import example_pb2
+import example_pb2_grpc
 
 
 logger = logging.getLogger(__name__)
 
 
-class Servicer(simulation_pb2_grpc.SinkServicer):
+class Servicer(example_pb2_grpc.SinkServicer):
 
     def __init__(self, parent):
         self.parent = parent
@@ -31,13 +31,13 @@ class Servicer(simulation_pb2_grpc.SinkServicer):
         if not self.parent.idle:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "vehicle is working")
 
-        return simulation_pb2.Time(
+        return example_pb2.Time(
             time=self.parent.get_eta(request.x, request.y),
         )
 
     @permissions(has_agent=True)
     def drive(self, request, context):
-        self.parent._simulation.schedule(self.parent.get_eta(request.x, request.y), 'arrive_at_source')
+        self.parent._example.schedule(self.parent.get_eta(request.x, request.y), 'arrive_at_source')
         self.parent.x = request.x
         self.parent.y = request.y
         self.parent.idle = False
@@ -59,8 +59,11 @@ class Vehicle(Agent):
         self.idle = True
         self.station = None
 
+    def _loop(self):
+        pass
+
     def grpc_setup(self):
-        self._grpc.add(simulation_pb2_grpc.add_VehicleServicer_to_server, self.servicer)
+        self._grpc.add(example_pb2_grpc.add_VehicleServicer_to_server, self.servicer)
 
     def simulation_start(self):
         self.sources = []
@@ -79,7 +82,7 @@ class Vehicle(Agent):
 
     def pick_part(self):
         with self._channel(self.station) as channel:
-            stub = simulation_pb2_grpc.SourceStub(channel)
+            stub = example_pb2_grpc.SourceStub(channel)
             response = stub.get_part(Empty())
         eta = self.get_eta(response.x, response.y)
         logger.info("part picked up at %s", self.station)
@@ -93,7 +96,7 @@ class Vehicle(Agent):
 
     def drop_part(self):
         with self._channel(self.station) as channel:
-            stub = simulation_pb2_grpc.SinkStub(channel)
+            stub = example_pb2_grpc.SinkStub(channel)
             response = stub.put_part(Empty())
 
         logger.info("part droped at %s", self.station)
@@ -108,7 +111,7 @@ class Vehicle(Agent):
             for source in self.sources:
                 try:
                     with self._channel(source) as channel:
-                        stub = simulation_pb2_grpc.SourceStub(channel)
+                        stub = example_pb2_grpc.SourceStub(channel)
                         response = stub.next_order(Empty())
                         times[source] = response.time
                 except grpc.RpcError as e:
@@ -121,7 +124,7 @@ class Vehicle(Agent):
                 source = min(times, key=times.get)
 
                 with self._channel(source) as channel:
-                    stub = simulation_pb2_grpc.SourceStub(channel)
+                    stub = example_pb2_grpc.SourceStub(channel)
                     response = stub.reserve_next(Empty())
 
                 logger.info("driving to %s", source)

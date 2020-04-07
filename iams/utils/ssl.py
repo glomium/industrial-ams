@@ -20,6 +20,8 @@ def validate_certificate(hostname=None, port=None):
     if port is None:
         port = AGENT_PORT
 
+    logger.info("Connecting to %s:%s to validate ssl certificate", hostname, port)
+
     context = ssl.create_default_context()
     with socket.create_connection((hostname, port)) as sock:
         try:

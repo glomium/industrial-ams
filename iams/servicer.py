@@ -39,11 +39,12 @@ def generate_seed():
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
-    def __init__(self, client, cfssl, cloud, args, credentials, threadpool, plugins):
+    def __init__(self, client, cfssl, cloud, args, credentials, threadpool, plugins, runtests):
         self.args = args
         self.cfssl = cfssl
         self.cloud = cloud
         self.credentials = credentials
+        self.runtests = runtests
         self.threadpool = threadpool
 
         self.booting = set()
@@ -147,12 +148,10 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             )
 
         except docker_errors.ImageNotFound:
-            message = f'Could not find {request.image}:{request.version}'
+            message = f'Could not find image {request.image}:{request.version}'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-
-        except docker_errors.NotFound:
-            message = f'Could not find {request.name}'
-            context.abort(grpc.StatusCode.NOT_FOUND, message)
+        except docker_errors.NotFound as e:
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
         if created:
             self.set_booting(name)
@@ -194,12 +193,10 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             )
 
         except docker_errors.ImageNotFound:
-            message = 'Could not find %s' % context._agent
+            message = f'Could not find image {request.image}:{request.version}'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-
-        except docker_errors.NotFound:
-            message = 'Could not find %s' % context._agent
-            context.abort(grpc.StatusCode.NOT_FOUND, message)
+        except docker_errors.NotFound as e:
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
         except ValueError as e:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, e)
@@ -230,9 +227,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         try:
             self.docker.del_service(agent)
-        except docker_errors.NotFound:
-            message = 'Could not find %s' % agent
-            context.abort(grpc.StatusCode.NOT_FOUND, message)
+        except docker_errors.NotFound as e:
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
         return Empty()
 
@@ -242,9 +238,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         logger.debug('sleep called from %s', context._agent)
         try:
             self.docker.set_scale(context._agent, 0)
-        except docker_errors.NotFound:
-            message = 'Could not find %s' % context._agent
-            context.abort(grpc.StatusCode.NOT_FOUND, message)
+        except docker_errors.NotFound as e:
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
         return Empty()
 
     # RPC
@@ -296,8 +291,9 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
 class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
-    def __init__(self, agent_servicer, event):
+    def __init__(self, agent_servicer, event, runtests):
         self.event = event
+        self.runtests = runtests
         self.servicer = agent_servicer
 
         self.heap = []

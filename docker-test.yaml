@@ -14,46 +14,19 @@ x-defaults: &defaults
 
 services:
 
-    # AMS Control
-    ctrl:
-        <<: *defaults
-        image: iams:local
-        command: tasks.cfssl:8888 -d
-        env_file: .env
-        environment:
-            IAMS_ARANGO_PASSWORD_FILE: /run/secrets/arango
-            IAMS_NETWORK: iams_ams
-            IAMS_RUNTESTS: tasks.coverage
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-        deploy:
-            mode: replicated
-            replicas: 1
-            update_config:
-                order: start-first
-            placement:
-                constraints: [node.role == manager]
-        secrets:
-            - arango
-        networks:
-            - arango
-            - cfssl
-            - iams
-
     # Simulation
     sim:
         <<: *defaults
-        image: iams:local
-        command: --simulation tasks.cfssl:8888 -d
+        image: iams-test:local
+        entrypoint: sleep 86400
         env_file: .env
         environment:
             IAMS_ARANGO_PASSWORD_FILE: /run/secrets/arango
-            IAMS_NETWORK: iams_test
+            IAMS_NETWORK: test_test
             IAMS_RUNTESTS: tasks.coverage
-        ports:
-            - "5115:80"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+            - ./coverage:/usr/src/app/coverage
         deploy:
             mode: replicated
             replicas: 1
@@ -71,8 +44,6 @@ services:
     cfssl:
         <<: *defaults
         image: glomium/cfssl:latest
-        ports:
-            - "8888:8888"
         deploy:
             mode: replicated
             replicas: 1
@@ -84,11 +55,20 @@ services:
         networks:
             - cfssl
 
+    coverage:
+        <<: *defaults
+        image: glomium/coverage-service:latest
+        deploy:
+            mode: replicated
+            replicas: 1
+            update_config:
+                order: start-first
+        networks:
+            - test
+
     arangodb:
         <<: *defaults
         image: arangodb:3.6.1
-        ports:
-            - "8529:8529"
         volumes:
             - arango-apps:/var/lib/arangodb3-apps
             - arango-data:/var/lib/arangodb3
@@ -105,7 +85,6 @@ services:
 networks:
     arango:
     cfssl:
-    iams:
     test:
 
 volumes:

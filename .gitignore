@@ -4,6 +4,7 @@
 *-journal
 
 /build
+/coverage
 /dist
 /secrets
 /docs/_build

@@ -14,14 +14,13 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
     python3-requests \
     python3-setuptools \
     python3-yaml \
-&& pip3 install --no-cache-dir coverage docker python-arango sentry-sdk \
+&& pip3 install --no-cache-dir docker python-arango sentry-sdk \
 && apt-get remove --purge --autoremove -y -q \
     build-essential \
     python3-dev \
 && apt-get clean \
 && rm -rf /var/lib/apt/lists/*
 # curl is needed to upload coverage reports via ftp
-# coverage is added for "faster" integration tests - where we run simulations with test-coverage
 # grpc-tools are added to compile protofiles to python
 # installing "python3-docker" via apt delivers on 19.10 an old version not working with the framework
 
@@ -32,6 +31,7 @@ WORKDIR /usr/src/app
 RUN apt-get update && apt-get install --no-install-recommends -y -q \
     build-essential \
     python3-dev \
+    wget \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 

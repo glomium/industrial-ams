@@ -11,13 +11,11 @@ build:
 	cd examples/market && docker build -f Dockerfile_source -t iams_market_source:local .
 	cd examples/market && docker build -f Dockerfile_sink -t iams_market_sink:local .
 
-test: start
-	curl --request DELETE 127.0.0.1:8000
-	pip install .
-	iams-simulation examples/simulation/simulation.yaml 127.0.0.1:5115
-	sleep 10
-	curl 127.0.0.1:8000 --output .coverage
-# 	iams-simulation examples/market/simulation.yaml 127.0.0.1:5115
+test:
+	docker stack deploy -c docker-test.yaml test
+	docker service scale test_arangodb=1 test_sim=1 test_cfssl=1 test_coverage=1
+	docker exec test_sim.1.`docker service ps test_sim -q --filter="desired-state=running"` /bin/bash run_tests.sh
+	docker stack rm test
 
 certs:
 	mkdir -p secrets

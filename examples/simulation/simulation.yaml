@@ -9,6 +9,7 @@ agents:
             version: local
             autostart: True
         config:
+            send: sink1
             buffer: 5
             mean: 120
             sigma: 30
@@ -22,6 +23,7 @@ agents:
             version: local
             autostart: True
         config:
+            send: sink2
             buffer: 5
             mean: 120
             sigma: 30
@@ -35,6 +37,7 @@ agents:
             version: local
             autostart: True
         config:
+            send: sink3
             buffer: 5
             mean: 120
             sigma: 30
@@ -47,6 +50,7 @@ agents:
             version: local
             autostart: True
         config:
+            send: sink4
             buffer: 5
             mean: 120
             sigma: 30
@@ -59,6 +63,7 @@ agents:
             version: local
             autostart: True
         config:
+            send: sink5
             buffer: 5
             mean: 120
             sigma: 30

@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 class Envoy(Plugin):
 
-    @property
-    def label(self):
+    @classmethod
+    def label(cls):
         return "iams.plugins.envoy"
 
     def get_networks(self, **kwargs):

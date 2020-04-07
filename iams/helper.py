@@ -10,13 +10,19 @@ try:
 except ImportError:
     FLUENTD = False
 
+try:
+    import sentry_sdk  # noqa
+    SENTRY = True
+except ImportError:
+    SENTRY = False
+
 
 def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no cover
 
     if isinstance(config, (list, tuple)):
         loggers = {}
-        for logger in config:
-            loggers[logger] = {}
+        for l in config:
+            loggers[l] = {}
     elif isinstance(config, dict):
         loggers = config
 
@@ -76,12 +82,10 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
         conf["root"]["handlers"].append("fluentd")
 
     # SENTRY plugin
-    if os.environ.get('RAVEN_DSN'):
-        conf["handlers"]["sentry"] = {
-            'level': 'ERROR',
-            'class': 'raven.handlers.logging.SentryHandler',
-            'dsn': os.environ.get('RAVEN_DSN'),
-        }
-        conf["root"]["handlers"].append("sentry")
+    if SENTRY and os.environ.get('SENTRY_DSN'):
+        sentry_sdk.init(
+            os.environ.get('SENTRY_DSN'),
+            server_name=os.environ.get('IAMS_AGENT', None),
+        )
 
     return conf

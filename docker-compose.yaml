@@ -19,6 +19,7 @@ services:
         <<: *defaults
         image: iams:local
         command: tasks.cfssl:8888 -d
+        env_file: .env
         environment:
             IAMS_ARANGO_PASSWORD_FILE: /run/secrets/arango
             IAMS_NETWORK: iams_ams
@@ -44,6 +45,7 @@ services:
         <<: *defaults
         image: iams:local
         command: --simulation tasks.cfssl:8888 -d
+        env_file: .env
         environment:
             IAMS_ARANGO_PASSWORD_FILE: /run/secrets/arango
             IAMS_NETWORK: iams_test

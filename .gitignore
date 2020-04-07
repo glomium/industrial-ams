@@ -10,6 +10,7 @@
 /*\.egg-info
 /*\.whl
 /\.coverage
+/\.env
 /\.venv
 
 /iams/proto

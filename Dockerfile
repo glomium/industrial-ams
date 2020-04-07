@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
     python3-requests \
     python3-setuptools \
     python3-yaml \
-&& pip3 install --no-cache-dir coverage docker python-arango \
+&& pip3 install --no-cache-dir coverage docker python-arango sentry-sdk \
 && apt-get remove --purge --autoremove -y -q \
     build-essential \
     python3-dev \
@@ -53,8 +53,6 @@ RUN flake8 iams examples
 
 # build wheel package
 RUN python3 setup.py bdist_wheel  # && mv dist/iams-*-py3-none-any.whl iams-build-py3-none-any.whl
-
-ENTRYPOINT ["/usr/local/bin/coverage", "run", "-m", "iams-server"]
 
 # === build stage =============================================================
 FROM basestage as build

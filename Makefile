@@ -15,9 +15,9 @@ test: start
 	curl --request DELETE 127.0.0.1:8000
 	pip install .
 	iams-simulation examples/simulation/simulation.yaml 127.0.0.1:5115
+	sleep 10
 	curl 127.0.0.1:8000 --output .coverage
-
-#	iams-simulation examples/market/simulation.yaml 127.0.0.1:5115
+# 	iams-simulation examples/market/simulation.yaml 127.0.0.1:5115
 
 certs:
 	mkdir -p secrets
@@ -31,15 +31,6 @@ start:
 
 stop:
 	docker stack rm iams 
-
-grpc:
-	mkdir -p iams/proto
-	${VENV_NAME}/bin/python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/agent.proto
-	${VENV_NAME}/bin/python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/framework.proto
-	${VENV_NAME}/bin/python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/market.proto
-	${VENV_NAME}/bin/python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/simulation.proto
-	sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
-	${VENV_NAME}/bin/python3 -m grpc_tools.protoc -Iexamples/simulation --python_out=examples/simulation --grpc_python_out=examples/simulation examples/simulation/simulation.proto
 
 pip:
 	${VENV_NAME}/bin/pip-upgrade requirements/dev.txt requirements/docs.txt requirements/test.txt --skip-package-installation

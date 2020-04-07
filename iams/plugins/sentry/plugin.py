@@ -13,17 +13,17 @@ logger = logging.getLogger(__name__)
 
 class Sentry(Plugin):
 
-    @property
-    def label(self):
-        "iams.plugins.sentry"
+    @classmethod
+    def label(cls):
+        return "iams.plugins.sentry"
 
     def __init__(self, **kwargs):
-        self.sentry = os.environ.get('RAVEN_DSN', None)
+        self.sentry = os.environ.get('SENTRY_DSN', None)
         if self.sentry is None:  # pragma: no branch
-            logger.debug("RAVEN_DSN is not defined - skip plugin")
+            logger.debug("SENTRY_DSN is not defined - skip plugin")
             raise SkipPlugin
 
     def get_env(self, **kwargs):
         return {
-            'RAVEN_DSN': self.sentry,
+            'SENTRY_DSN': self.sentry,
         }

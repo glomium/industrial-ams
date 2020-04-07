@@ -347,9 +347,9 @@ class Plugin(ABC):
             self.get_generated_secrets(**kwargs),
         )
 
-    @property
+    @classmethod
     @abstractmethod
-    def label(self):  # pragma: no cover
+    def label(cls):  # pragma: no cover
         pass
 
     def remove(self, name, config):

@@ -37,7 +37,7 @@ class Servicer(example_pb2_grpc.SinkServicer):
 
     @permissions(has_agent=True)
     def drive(self, request, context):
-        self.parent._example.schedule(self.parent.get_eta(request.x, request.y), 'arrive_at_source')
+        self.parent._simulation.schedule(self.parent.get_eta(request.x, request.y), 'arrive_at_source')
         self.parent.x = request.x
         self.parent.y = request.y
         self.parent.idle = False
@@ -69,7 +69,7 @@ class Vehicle(Agent):
         self.sources = []
 
         # get all sources
-        for source in self._iams.get_agents(['iams.image=example_source']):
+        for source in self._iams.get_agents(['iams.image=iams_simulation_sink']):
             self.sources.append(source.name)
         self.sources = sorted(self.sources)
         logger.info("got sources: %s", self.sources)

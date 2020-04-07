@@ -93,7 +93,7 @@ def execute_command_line():
         container = client.containers.get(gethostname())
         if "com.docker.stack.namespace" in container.attrs["Config"]["Labels"]:
             cloud = Swarm(container.attrs["Config"]["Labels"])
-            runtests = (os.environ.get('IAMS_RUNTESTS') == "True")
+            runtests = (os.environ.get('IAMS_RUNTESTS', None) is not None)
         # elif "com.docker.compose.project" in container.attrs["Config"]["Labels"]:
         #     cloud = Compose(container.attrs["Config"]["Labels"])
         #     runtests = True
@@ -144,7 +144,7 @@ def execute_command_line():
                 namespace=args.namespace,
                 simulation=args.simulation,
             ))
-            logger.info("Loaded plugin %s (usage label: %s)", cls.__qualname__, cls.label)
+            logger.info("Loaded plugin %s (usage label: %s)", cls.__qualname__, cls.label())
         except SkipPlugin:
             logger.info("Skipped plugin %s", cls.__qualname__)
         except Exception:

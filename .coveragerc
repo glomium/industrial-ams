@@ -2,6 +2,7 @@
 
 source = iams
 branch = True
+relative_files = True
 omit =
     iams/proto/*
 

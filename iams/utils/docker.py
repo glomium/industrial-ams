@@ -53,9 +53,10 @@ class Docker(object):
         # plugin system
         image_object = self.client.images.get(f'{image!s}:{version!s}')
         for plugin in self.plugins:
-            if plugin.label in image_object.labels:
+            label = plugin.label()
+            if label in image_object.labels:
                 # apply plugin
-                plugin.remove(name, image_object.labels[plugin.label])
+                plugin.remove(name, image_object.labels[label])
 
     def get_config(self, service):
         configs = self.client.configs.list(filters={
@@ -301,10 +302,11 @@ class Docker(object):
 
         # plugin system
         for plugin in self.plugins:
-            if plugin.label in image_object.labels:
+            label = plugin.label()
+            if label in image_object.labels:
                 # apply plugin
-                arg = image_object.labels[plugin.label]
-                logger.debug("Apply plugin %s with %s", plugin.label, arg)
+                arg = image_object.labels[label]
+                logger.debug("Apply plugin %s with %s", label, arg)
                 e, l, n, s, g = plugin(name, image, version, arg)
                 labels.update(l)
                 env.update(e)
@@ -333,7 +335,7 @@ class Docker(object):
         })
         if "IAMS_RUNTESTS" in os.environ:
             env.update({
-                'IAMS_RUNTESTS': 'True',
+                'IAMS_RUNTESTS': os.environ["IAMS_RUNTESTS"],
             })
 
         for label in image_object.labels:
@@ -400,6 +402,7 @@ class Docker(object):
             "mode": docker.types.ServiceMode("replicated", scale),
             "preferences": [docker.types.Placement(preferences=[("spread", "node.labels.worker")])],
         }
+        logger.debug("create agent %s", kwargs)
 
         if create:
             self.client.services.create(**kwargs)

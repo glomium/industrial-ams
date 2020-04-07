@@ -67,7 +67,7 @@ class Source(Agent):
 
         # get all sinks
         sinks = []
-        for sink in self._iams.get_agents(['iams.image=example_sink']):
+        for sink in self._iams.get_agents(['iams.image=iams_simulation_sink']):
             sinks.append(sink.name)
         sinks = sorted(sinks)
 
@@ -83,7 +83,7 @@ class Source(Agent):
 
         # get all vehicles
         self.vehicles = []
-        for vehicle in self._iams.get_agents(['iams.image=example_vehicle']):
+        for vehicle in self._iams.get_agents(['iams.image=iams_simulation_vehicle']):
             self.vehicles.append(vehicle.name)
         self.vehicles = sorted(self.vehicles)
 

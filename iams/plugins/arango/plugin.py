@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 class Arango(Plugin):
 
-    @property
-    def label(self):
+    @classmethod
+    def label(cls):
         return "iams.plugins.arango"
 
     def get_networks(self, **kwargs):

@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 class Fluentd(Plugin):
 
-    @property
-    def label(self):
+    @classmethod
+    def label(cls):
         return "iams.plugins.fluentd"
 
     def __init__(self, **kwargs):

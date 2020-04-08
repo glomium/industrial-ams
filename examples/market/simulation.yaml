@@ -8,8 +8,8 @@ agents:
             version: local
             autostart: True
 
-    sink:
-        image:
-            name: iams_market_sink
-            version: local
-            autostart: True
+#   sink:
+#       image:
+#           name: iams_market_sink
+#           version: local
+#           autostart: True

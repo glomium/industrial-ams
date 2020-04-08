@@ -28,16 +28,23 @@ class Source(RootInterface, Agent):
     def order_agent_labels(self):
         yield ['iams.image=iams_market_sink']
 
-    def order_started(self):
+    # callback not used in simulation
+    def order_canceled(self):  # pragma: no cover
         pass
 
-    def order_finished(self):
+    # callback not used in simulation
+    def order_finished(self):  # pragma: no cover
+        pass
+
+    # callback not used in simulation
+    def order_canceled(self):  # pragma: no cover
+        pass
+
+    # callback not used in simulation
+    def order_reassigned(self):  # pragma: no cover
         pass
 
     def order_cancel(self):  # from servicer
-        pass
-
-    def order_canceled(self):
         pass
 
     def order_start_step(self, step):  # from servicer

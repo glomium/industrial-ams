@@ -37,15 +37,16 @@ class StepQueue:
     steps: list = field(default_factory=list, compare=False)
 
 
-# === ROOT ====================================================================
+# === Order ===================================================================
 
 
-class RootStates(Enum):
+class OrderStates(Enum):
     APPLY = auto()  # order is applying to agents
     WAIT = auto()  # order apply failed and is waiting to re-request
     START = auto()  # Callback function
     RUNNING = auto()  # Order is currently executed
     FINISH = auto()  # Callback function
+    REASSIGN = auto()  # Callback function
     CANCEL = auto()  # Callback function
     SHUTDOWN = auto()  # order agent is waiting to be killed by docker
 
@@ -58,11 +59,11 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
     @permissions(has_agent=True)
     def cancel(self, request, context):
         logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
-        if self.parent._order_state != RootStates.RUNNING:
+        if self.parent._order_state != OrderStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
 
         if self.parent.order_cancel():
-            self.parent._order_state = RootStates.CANCEL
+            self.parent._order_state = OrderStates.REASSIGN
             if self._iams.simulation:
                 self._simulation.schedule(0.0, '_loop')
             else:
@@ -74,7 +75,7 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
     @permissions(has_agent=True)
     def finish_step(self, request, context) -> Empty:
         logger.debug("%s.finish_step was called by %s", self.__class__.__qualname__, context._agent)
-        if self.parent._order_state != RootStates.RUNNING:
+        if self.parent._order_state != OrderStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
 
         if self.parent.order_finish_step(request):
@@ -85,7 +86,7 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
     @permissions(has_agent=True)
     def next_step(self, request: Empty, context) -> Empty:
         logger.debug("%s.next_step was called by %s", self.__class__.__qualname__, context._agent)
-        if self.parent._order_state != RootStates.RUNNING:
+        if self.parent._order_state != OrderStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
 
         if self.parent.order_next_step(request):
@@ -94,9 +95,25 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
             context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
     @permissions(has_agent=True)
+    def reassign(self, request, context):
+        logger.debug("%s.reassign was called by %s", self.__class__.__qualname__, context._agent)
+        if self.parent._order_state != OrderStates.RUNNING:
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
+
+        if self.parent.order_reassign():
+            self.parent._order_state = OrderStates.APPLY
+            if self._iams.simulation:
+                self._simulation.schedule(0.0, '_loop')
+            else:
+                self.parent._loop_event.set()
+            return Empty()
+        else:
+            context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
+
+    @permissions(has_agent=True)
     def start_step(self, request, context) -> Empty:
         logger.debug("%s.start_step was called by %s", self.__class__.__qualname__, context._agent)
-        if self.parent._order_state != RootStates.RUNNING:
+        if self.parent._order_state != OrderStates.RUNNING:
             context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
 
         if self.parent.order_start_step(request):
@@ -105,7 +122,7 @@ class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
             context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
 
-class RootInterface(ArangoDBMixin, ABC):
+class OrderInterface(ArangoDBMixin, ABC):
     """
     Has the steps, asks agents to produce the steps and tracks the process
     """
@@ -113,7 +130,7 @@ class RootInterface(ArangoDBMixin, ABC):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._order_state = RootStates.APPLY
+        self._order_state = OrderStates.APPLY
         self._order_applications = {}
         self._order_steps = {}
 
@@ -127,7 +144,7 @@ class RootInterface(ArangoDBMixin, ABC):
     def setup(self):
         config = self.order_update_config(10)
         if config is not None:
-            logger.debug("_config is overwritten with config from service")
+            logger.debug("%s_config is overwritten with config from service", self.__class__.__qualname__)
             self._config = config
 
     def simulation_start(self):
@@ -137,39 +154,40 @@ class RootInterface(ArangoDBMixin, ABC):
         while not self._stop_event.is_set():
             logger.debug("Running loop from state %s", self._order_state)
 
-            if self._order_state == RootStates.APPLY:
+            if self._order_state == OrderStates.APPLY:
                 self.loop_apply()
 
-            elif self._order_state == RootStates.WAIT:
+            elif self._order_state == OrderStates.WAIT:
                 if not self._iams.simulation:
                     self._loop_event.wait(60)
 
-            elif self._order_state == RootStates.START:
+            elif self._order_state == OrderStates.START:
                 if not self._iams.simulation:
                     self.order_started()
-                self._order_state = RootStates.RUNNING
+                self._order_state = OrderStates.RUNNING
 
-            elif self._order_state == RootStates.RUNNING:
+            elif self._order_state == OrderStates.RUNNING:
                 self.loop_running()
 
-            elif self._order_state == RootStates.FINISH:
+            elif self._order_state == OrderStates.FINISH:
                 if not self._iams.simulation:
                     self.order_finished()
-                self._order_state = RootStates.SHUTDOWN
+                self._order_state = OrderStates.SHUTDOWN
 
-            elif self._order_state == RootStates.CANCEL:
+            elif self._order_state == OrderStates.CANCEL:
                 if not self._iams.simulation:
                     self.order_canceled()
-                self._order_state = RootStates.SHUTDOWN
+                self._order_state = OrderStates.SHUTDOWN
 
-            elif self._order_state == RootStates.SHUTDOWN:
+            elif self._order_state == OrderStates.REASSIGN:
+                if not self._iams.simulation:
+                    self.order_reassigned()
+                self._order_state = OrderStates.APPLY
+
+            elif self._order_state == OrderStates.SHUTDOWN:
                 self._iams.call_destroy()
                 logger.debug("Waiting for the shutdown signal from docker")
                 self._stop_event.wait(30)
-
-            else:
-                logger.critical("State %s not defined!", self._order_state)
-                break
 
             if self._iams.simulation is False:
                 self._loop_event.clear()
@@ -182,7 +200,7 @@ class RootInterface(ArangoDBMixin, ABC):
 
         if len(steps) == 0:
             logger.error("Shutdown - order %s does not contain steps", self)
-            self._order_state = RootStates.SHUTDOWN
+            self._order_state = OrderStates.SHUTDOWN
             if self._iams.simulation:
                 self._simulation.schedule(0, '_loop')
             return None
@@ -210,14 +228,14 @@ class RootInterface(ArangoDBMixin, ABC):
             return None
 
         del queue
-        self._order_state = RootStates.START
+        self._order_state = OrderStates.START
         self.loop_start()
 
     def loop_wait(self):
         if self._iams.simulation:
             self._simulation.schedule(60, '_loop_apply')
         else:
-            self._order_state == RootStates.WAIT
+            self._order_state == OrderStates.WAIT
 
     # TODO
     def _order_select(self, item):
@@ -403,6 +421,20 @@ class RootInterface(ArangoDBMixin, ABC):
     def order_cancel(self):  # from servicer
         """
         callback to cancel the order
+        """
+        pass
+
+    @abstractmethod
+    def order_reassign(self):  # from servicer
+        """
+        callback to reassign the order
+        """
+        pass
+
+    @abstractmethod
+    def order_reassigned(self):
+        """
+        cleanup after order reassign
         """
         pass
 

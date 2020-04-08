@@ -49,6 +49,10 @@ service OrderCallback {
 
     /*
     */
+    rpc reassign(CancelRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    */
     rpc start_step(StepInfo) returns (google.protobuf.Empty) {}
 
 }

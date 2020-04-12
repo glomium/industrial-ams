@@ -5,11 +5,14 @@ build:
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --target basestage -t iams-base:local .
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --cache-from iams-build:local --cache-from iams:local -t iams:local .
-	cd examples/simulation && docker build -f Dockerfile_source -t iams_simulation_source:local .
+	cd examples/simulation && docker build -f Dockerfile_carrier -t iams_simulation_carrier:local .
+	cd examples/simulation && docker build -f Dockerfile_carrierpool -t iams_simulation_carrierpool:local .
+	cd examples/simulation && docker build -f Dockerfile_machine1 -t iams_simulation_machine1:local .
+	cd examples/simulation && docker build -f Dockerfile_machine2 -t iams_simulation_machine2:local .
+	cd examples/simulation && docker build -f Dockerfile_order -t iams_simulation_order:local .
 	cd examples/simulation && docker build -f Dockerfile_sink -t iams_simulation_sink:local .
+	cd examples/simulation && docker build -f Dockerfile_source -t iams_simulation_source:local .
 	cd examples/simulation && docker build -f Dockerfile_vehicle -t iams_simulation_vehicle:local .
-	cd examples/market && docker build -f Dockerfile_source -t iams_market_source:local .
-	cd examples/market && docker build -f Dockerfile_sink -t iams_market_sink:local .
 
 test:
 	docker stack deploy -c docker-test.yaml test

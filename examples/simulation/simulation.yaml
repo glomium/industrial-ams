@@ -1,6 +1,5 @@
 seed: simulation_example
-# until: 86400
-until: 600
+until: 86400
 
 agents:
     source1:
@@ -31,7 +30,7 @@ agents:
                 x: 10
                 y: 0
 
-    source3:
+    machine1A:
         image:
             name: iams_simulation_source
             version: local
@@ -42,9 +41,9 @@ agents:
             mean: 120
             sigma: 30
             position:
-                x: 20
-                y: 0
-    source4:
+                x: 0
+                y: 20
+    machine1B:
         image:
             name: iams_simulation_source
             version: local
@@ -55,9 +54,9 @@ agents:
             mean: 120
             sigma: 30
             position:
-                x: 30
-                y: 0
-    source5:
+                x: 10
+                y: 20
+    machine2A:
         image:
             name: iams_simulation_source
             version: local
@@ -68,8 +67,21 @@ agents:
             mean: 120
             sigma: 30
             position:
-                x: 40
-                y: 0
+                x: 0
+                y: 40
+
+    machine2B:
+        image:
+            name: iams_simulation_sink
+            version: local
+            autostart: True
+        config:
+            buffer: 5
+            mean: 120
+            sigma: 30
+            position:
+                x: 10
+                y: 40
 
     sink1:
         image:
@@ -82,7 +94,7 @@ agents:
             sigma: 30
             position:
                 x: 0
-                y: 20
+                y: 60
 
     sink2:
         image:
@@ -95,46 +107,7 @@ agents:
             sigma: 30
             position:
                 x: 10
-                y: 20
-
-    sink3:
-        image:
-            name: iams_simulation_sink
-            version: local
-            autostart: True
-        config:
-            buffer: 5
-            mean: 120
-            sigma: 30
-            position:
-                x: 20
-                y: 20
-
-    sink4:
-        image:
-            name: iams_simulation_sink
-            version: local
-            autostart: True
-        config:
-            buffer: 5
-            mean: 120
-            sigma: 30
-            position:
-                x: 30
-                y: 20
-
-    sink5:
-        image:
-            name: iams_simulation_sink
-            version: local
-            autostart: True
-        config:
-            buffer: 5
-            mean: 120
-            sigma: 30
-            position:
-                x: 40
-                y: 20
+                y: 60
 
     vehicle1:
         image:
@@ -146,8 +119,8 @@ agents:
             unload: 20
             speed: 1
             position:
-                x: 25
-                y: 25
+                x: 0
+                y: 0
 
     vehicle2:
         image:
@@ -159,12 +132,12 @@ agents:
             unload: 20
             speed: 1
             position:
-                x: 25
-                y: 25
+                x: 0
+                y: 10
 
-    vehicle3:
+    carrier1:
         image:
-            name: iams_simulation_vehicle
+            name: iams_simulation_carrier
             version: local
             autostart: True
         config:
@@ -172,12 +145,12 @@ agents:
             unload: 20
             speed: 1
             position:
-                x: 25
-                y: 25
+                x: 0
+                y: 20
 
-    vehicle4:
+    carrier2:
         image:
-            name: iams_simulation_vehicle
+            name: iams_simulation_carrier
             version: local
             autostart: True
         config:
@@ -185,5 +158,5 @@ agents:
             unload: 20
             speed: 1
             position:
-                x: 25
-                y: 25
+                x: 10
+                y: 20

@@ -28,6 +28,12 @@ In the demonstration we use the docker-image from https://github.com/glomium/cfs
 Start as demonstration
 -------------------------------
 
+Create a file for environment variables
+
+> touch .env
+
+where you can store configurations (for example an integration of sentry).
+
 To start the AMS in the local installation, you need to build docker images and deploy the stack. Checkout the git repository and run either
 
 > make build start

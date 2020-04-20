@@ -120,7 +120,7 @@ class Arango(object):
                 })
                 nodes.append(edge["from"])
 
-            if edge["to"] not in nodes:
+            if edge["to"] not in nodes and ":" not in edge["to"]:
                 self.db.collection("topology").insert({
                     "_key": f"{name}:{edge['to']}",
                     "agent": f"agent/{name}",

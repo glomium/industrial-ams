@@ -160,9 +160,6 @@ class Agent(ABC):
             self.teardown()
             self._teardown()
 
-        logger.debug("Stopping executor on %s", self._iams.agent)
-        self._executor.shutdown(wait=True)
-
         logger.info("Exit %s", self._iams.agent)
         exit()
 

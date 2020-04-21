@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class Envoy(Plugin):
+
     def label():
         return "iams.plugins.envoy"
 

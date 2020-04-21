@@ -30,6 +30,7 @@ class InfluxDB(Plugin):
         if self.database is None:
             logger.info("INFLUXDB_DATABASE is not defined - skip plugin")
             raise SkipPlugin
+        super().__init__(**kwargs)
 
     def get_networks(self, **kwargs):
         return ['%s_influxdb' % self.namespace]

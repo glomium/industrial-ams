@@ -35,6 +35,17 @@ def execute_command_line():
         const=logging.DEBUG,
     )
     parser.add_argument(
+        '-t', '--time',
+        help="simulation time",
+        type=int,
+        dest="time",
+    )
+    parser.add_argument(
+        '-s', '--seed',
+        help="random seed",
+        dest="seed",
+    )
+    parser.add_argument(
         'config',
         help="Simulation configuration file",
         type=argparse.FileType('r'),
@@ -78,10 +89,14 @@ def execute_command_line():
     request = simulation_pb2.SimulationConfig(agents=[agents[x] for x in sorted(agents)])
 
     # update simulation environment
-    if 'until' in simulation_config:
+    if args.time:
+        request.until = args.time
+    elif 'until' in simulation_config:
         request.until = simulation_config["until"]
 
-    if 'seed' in simulation_config:
+    if args.seed:
+        request.seed = args.seed.encode()
+    elif 'seed' in simulation_config:
         if isinstance(simulation_config["seed"], bytes):
             request.seed = simulation_config["seed"]
         elif isinstance(simulation_config["seed"], str):
@@ -113,3 +128,7 @@ def execute_command_line():
             raise
 
         break  # dont start a second simulation on a different host
+
+
+if __name__ == "__main__":
+    execute_command_line()

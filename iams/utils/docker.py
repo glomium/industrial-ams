@@ -18,14 +18,11 @@ class Docker(object):
     RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT)=(.*)$')
     RE_ABILITY = re.compile(r'^iams\.ability\.([a-z][a-z0-9]+)$')
 
-    def __init__(self, client, cfssl, servername, namespace_docker, namespace_iams, simulation, plugins):
+    def __init__(self, client, cfssl, cloud, namespace, simulation, plugins):
         self.client = client
         self.cfssl = cfssl
-        self.namespace = {
-            "docker": namespace_docker,
-            "iams": namespace_iams,
-        }
-        self.servername = servername
+        self.cloud = cloud
+        self.namespace = namespace
         self.simulation = simulation
         self.plugins = plugins
 
@@ -40,15 +37,15 @@ class Docker(object):
         service.remove()
 
         for secret in self.client.secrets.list(filters={"label": [
-            f"com.docker.stack.namespace={self.namespace['docker']}",
-            f"iams.namespace={self.namespace['iams']}",
+            f"{self.cloud.namespace_label}={self.cloud.namespace}",
+            f"iams.namespace={self.namespace}",
             f"iams.agent={name}",
         ]}):
             secret.remove()
 
         for config in self.client.configs.list(filters={"label": [
-            f"com.docker.stack.namespace={self.namespace['docker']}",
-            f"iams.namespace={self.namespace['iams']}",
+            f"{self.cloud.namespace_label}={self.cloud.namespace}",
+            f"iams.namespace={self.namespace}",
             f"iams.agent={name}",
         ]}):
             config.remove()
@@ -56,16 +53,17 @@ class Docker(object):
         # plugin system
         image_object = self.client.images.get(f'{image!s}:{version!s}')
         for plugin in self.plugins:
-            if plugin.label in image_object.labels:
+            label = plugin.label()
+            if label in image_object.labels:
                 # apply plugin
-                plugin.remove(name, image_object.labels[plugin.label])
+                plugin.remove(name, image_object.labels[label])
 
     def get_config(self, service):
         configs = self.client.configs.list(filters={
             'name': service,
             'label': [
-                f"com.docker.stack.namespace={self.namespace['docker']}",
-                f"iams.namespace={self.namespace['iams']}",
+                f"{self.cloud.namespace_label}={self.cloud.namespace}",
+                f"iams.namespace={self.namespace}",
                 f"iams.agent={service}",
             ],
         })
@@ -79,8 +77,8 @@ class Docker(object):
             services = self.client.services.list(filters={
                 'name': name,
                 'label': [
-                    f"com.docker.stack.namespace={self.namespace['docker']}",
-                    f"iams.namespace={self.namespace['iams']}",
+                    f"{self.cloud.namespace_label}={self.cloud.namespace}",
+                    f"iams.namespace={self.namespace}",
                 ],
             })
             if len(services) == 1:
@@ -90,8 +88,8 @@ class Docker(object):
         else:
             return self.client.services.list(filters={
                 'label': [
-                    f"com.docker.stack.namespace={self.namespace['docker']}",
-                    f"iams.namespace={self.namespace['iams']}",
+                    f"{self.cloud.namespace_label}={self.cloud.namespace}",
+                    f"iams.namespace={self.namespace}",
                 ],
             })
 
@@ -113,8 +111,8 @@ class Docker(object):
         config = None
         old_configs = []
         for c in self.client.configs.list(filters={"label": [
-            f"com.docker.stack.namespace={self.namespace['docker']}",
-            f"iams.namespace={self.namespace['iams']}",
+            f"{self.cloud.namespace_label}={self.cloud.namespace}",
+            f"iams.namespace={self.namespace}",
             f"iams.agent={service}",
         ]}):
             if c.name == config_name:
@@ -128,8 +126,8 @@ class Docker(object):
                 name=config_name,
                 data=data,
                 labels={
-                    'com.docker.stack.namespace': self.namespace['docker'],
-                    'iams.namespace': self.namespace['iams'],
+                    self.cloud.namespace_label: self.cloud.namespace,
+                    'iams.namespace': self.namespace,
                     'iams.agent': service,
                 },
             )
@@ -146,8 +144,8 @@ class Docker(object):
         secret = None
         old_secrets = []
         for s in self.client.secrets.list(filters={"label": [
-            f"com.docker.stack.namespace={self.namespace['docker']}",
-            f"iams.namespace={self.namespace['iams']}",
+            f"{self.cloud.namespace_label}={self.cloud.namespace}",
+            f"iams.namespace={self.namespace}",
             f"iams.agent={service}",
             f"iams.secret={name}",
         ]}):
@@ -162,8 +160,8 @@ class Docker(object):
                 name=secret_name,
                 data=data,
                 labels={
-                    'com.docker.stack.namespace': self.namespace['docker'],
-                    'iams.namespace': self.namespace['iams'],
+                    self.cloud.namespace_label: self.cloud.namespace,
+                    'iams.namespace': self.namespace,
                     'iams.agent': service,
                     'iams.secret': name,
                 },
@@ -304,10 +302,11 @@ class Docker(object):
 
         # plugin system
         for plugin in self.plugins:
-            if plugin.label in image_object.labels:
+            label = plugin.label()
+            if label in image_object.labels:
                 # apply plugin
-                arg = image_object.labels[plugin.label]
-                logger.debug("Apply plugin %s with %s", plugin.label, arg)
+                arg = image_object.labels[label]
+                logger.debug("Apply plugin %s with %s", label, arg)
                 e, l, n, s, g = plugin(name, image, version, arg)
                 labels.update(l)
                 env.update(e)
@@ -331,9 +330,14 @@ class Docker(object):
 
         env.update({
             'IAMS_AGENT': name,
-            'IAMS_SERVICE': self.servername,
+            'IAMS_SERVICE': self.cloud.servername,
             'IAMS_SIMULATION': str(self.simulation).lower(),
         })
+        if "IAMS_RUNTESTS" in os.environ:
+            env.update({
+                'IAMS_RUNTESTS': os.environ["IAMS_RUNTESTS"],
+            })
+
         for label in image_object.labels:
             if self.RE_ABILITY.match(label):
                 labels.update({
@@ -341,8 +345,8 @@ class Docker(object):
                 })
 
         labels.update({
-            'com.docker.stack.namespace': self.namespace['docker'],
-            'iams.namespace': self.namespace['iams'],
+            self.cloud.namespace_label: self.cloud.namespace,
+            'iams.namespace': self.namespace,
             'iams.agent': name,
             'iams.image': image,
         })
@@ -353,7 +357,7 @@ class Docker(object):
 
         # TODO this works but is ugly and hardcoded
         # get private_key and certificate
-        secrets["%s_ca.crt" % self.namespace["docker"]] = "ca.crt"
+        secrets["%s_ca.crt" % self.cloud.namespace] = "ca.crt"
         response = self.cfssl.get_certificate(name, image=image, version=version)
         certificate = response["result"]["certificate"]
         private_key = response["result"]["private_key"]
@@ -398,6 +402,7 @@ class Docker(object):
             "mode": docker.types.ServiceMode("replicated", scale),
             "preferences": [docker.types.Placement(preferences=[("spread", "node.labels.worker")])],
         }
+        logger.debug("create agent %s", kwargs)
 
         if create:
             self.client.services.create(**kwargs)

@@ -104,7 +104,7 @@ class Agent(ABC):
         try:
             self.configure()  # local module specification
             self._configure()  # definitions on mixins
-        except grpc.RpcError as e:
+        except grpc.RpcError as e:  # pragma: no cover
             logger.debug("gRPC request failed in configure - resetting: %s - %s", e.code(), e.details())
             exit()
 
@@ -159,9 +159,6 @@ class Agent(ABC):
         if not self._iams.simulation:
             self.teardown()
             self._teardown()
-
-        logger.debug("Stopping executor on %s", self._iams.agent)
-        self._executor.shutdown(wait=True)
 
         logger.info("Exit %s", self._iams.agent)
         exit()
@@ -347,9 +344,9 @@ class Plugin(ABC):
             self.get_generated_secrets(**kwargs),
         )
 
-    @staticmethod
+    @classmethod
     @abstractmethod
-    def label():
+    def label(cls):  # pragma: no cover
         pass
 
     def remove(self, name, config):

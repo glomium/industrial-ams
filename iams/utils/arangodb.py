@@ -15,7 +15,7 @@ def get_credentials(namespace, password=None):
         # TODO make this configurable
         # (specify environment variables or settings to make this configurable)
         with open('/run/secrets/arango', 'r') as f:
-            password = f.read()
+            password = f.read().strip()
 
     database = "iams_" + namespace
     return database, password, hashlib.pbkdf2_hmac("sha1", database.encode(), password.encode(), 10000).hex()[:32]
@@ -23,7 +23,7 @@ def get_credentials(namespace, password=None):
 
 class Arango(object):
 
-    def __init__(self, namespace, username="root", password=None, hosts="http://tasks.arango:8529", docker=None):
+    def __init__(self, namespace, username="root", password=None, hosts="http://tasks.arangodb:8529", docker=None):
         self.docker = docker
 
         self.agent_username, password, self.agent_password = get_credentials(namespace, password)
@@ -33,7 +33,7 @@ class Arango(object):
 
         # create database and user and password
         if username == "root":
-            db = client.db(username=username, password=password)
+            db = client.db("_system", username=username, password=password, verify=True)
             if not db.has_database(database):
                 db.create_database(database)
 
@@ -120,7 +120,7 @@ class Arango(object):
                 })
                 nodes.append(edge["from"])
 
-            if edge["to"] not in nodes:
+            if edge["to"] not in nodes and ":" not in edge["to"]:
                 self.db.collection("topology").insert({
                     "_key": f"{name}:{edge['to']}",
                     "agent": f"agent/{name}",

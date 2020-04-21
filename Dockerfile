@@ -2,28 +2,43 @@ ARG UBUNTU=rolling
 FROM ubuntu:$UBUNTU as basestage
 
 RUN apt-get update && apt-get install --no-install-recommends -y -q \
+    build-essential \
+    curl \
     python3 \
     python3-cryptography \
+    python3-dev \
+    python3-grpc-tools \
     python3-grpcio \
     python3-pip \
     python3-protobuf \
     python3-requests \
     python3-setuptools \
     python3-yaml \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
-
+&& pip3 install --no-cache-dir docker python-arango sentry-sdk \
+&& apt-get remove --purge --autoremove -y -q \
+    build-essential \
+    python3-dev \
+&& apt-get clean \
+&& rm -rf /var/lib/apt/lists/*
+# curl is needed to upload coverage reports via ftp
+# grpc-tools are added to compile protofiles to python
 # installing "python3-docker" via apt delivers on 19.10 an old version not working with the framework
-RUN pip3 install --no-cache-dir docker python-arango
 
 # === test stage ==============================================================
 FROM basestage as test
 WORKDIR /usr/src/app
 
+RUN apt-get update && apt-get install --no-install-recommends -y -q \
+    build-essential \
+    python3-dev \
+    wget \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY requirements/dev.txt requirements/test.txt ./
 RUN pip3 install --no-cache-dir -r dev.txt -r test.txt
 
-COPY LICENSE setup.py setup.cfg .coveragerc ./
+COPY LICENSE setup.py setup.cfg .coveragerc run_tests.sh ./
 COPY iams ./iams
 COPY proto ./proto
 
@@ -33,12 +48,8 @@ RUN mkdir -p iams/proto \
 
 COPY examples ./examples
 
-# run static tests
-RUN doc8 iams examples && flake8 iams examples
-
-# run unit tests
-RUN coverage run setup.py test && coverage report
-# TODO copy coverage results
+RUN doc8 iams examples
+RUN flake8 iams examples
 
 # build wheel package
 RUN python3 setup.py bdist_wheel  # && mv dist/iams-*-py3-none-any.whl iams-build-py3-none-any.whl

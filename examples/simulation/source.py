@@ -15,15 +15,15 @@ from iams.helper import get_logging_config
 from iams.interface import Agent
 from iams.utils.auth import permissions
 
-import simulation_pb2
-import simulation_pb2_grpc
+import example_pb2
+import example_pb2_grpc
 
 
 random.seed(os.environ.get("IAMS_SEED", None))
 logger = logging.getLogger(__name__)
 
 
-class Servicer(simulation_pb2_grpc.SourceServicer):
+class Servicer(example_pb2_grpc.SourceServicer):
 
     def __init__(self, parent):
         self.parent = parent
@@ -31,12 +31,12 @@ class Servicer(simulation_pb2_grpc.SourceServicer):
     @permissions(has_agent=True)
     def reserve_next(self, request, context):
         self.parent.on_route += 1
-        return simulation_pb2.Data(x=self.parent._config["position"]["x"], y=self.parent._config["position"]["y"])
+        return example_pb2.Data(x=self.parent._config["position"]["x"], y=self.parent._config["position"]["y"])
 
     @permissions(has_agent=True)
     def next_order(self, request, context):
         if self.parent.on_route < len(self.parent.storage):
-            return simulation_pb2.Time(time=self.parent.storage[self.parent.on_route][0])
+            return example_pb2.Time(time=self.parent.storage[self.parent.on_route][0])
         context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "resource empty")
 
     @permissions(has_agent=True)
@@ -56,22 +56,25 @@ class Source(Agent):
         self.storage = []
         self.on_route = 0
 
+    def _loop(self):
+        pass
+
     def grpc_setup(self):
-        self._grpc.add(simulation_pb2_grpc.add_SourceServicer_to_server, self.servicer)
+        self._grpc.add(example_pb2_grpc.add_SourceServicer_to_server, self.servicer)
 
     def simulation_start(self):
         self._simulation.schedule(self.get_next_time(), 'generate_part')
 
         # get all sinks
         sinks = []
-        for sink in self._iams.get_agents(['iams.image=example_sink']):
+        for sink in self._iams.get_agents(['iams.image=iams_simulation_sink']):
             sinks.append(sink.name)
         sinks = sorted(sinks)
 
         self.sinks = []
         for sink in sinks:
             with self._channel(sink) as channel:
-                stub = simulation_pb2_grpc.SinkStub(channel)
+                stub = example_pb2_grpc.SinkStub(channel)
                 response = stub.get_coordinates(Empty())
 
             response.name = sink
@@ -80,7 +83,7 @@ class Source(Agent):
 
         # get all vehicles
         self.vehicles = []
-        for vehicle in self._iams.get_agents(['iams.image=example_vehicle']):
+        for vehicle in self._iams.get_agents(['iams.image=iams_simulation_vehicle']):
             self.vehicles.append(vehicle.name)
         self.vehicles = sorted(self.vehicles)
 
@@ -121,11 +124,11 @@ class Source(Agent):
 
             # call all vehicles and select nearest first
             times = {}
-            request = simulation_pb2.Data(x=self._config["position"]["x"], y=self._config["position"]["y"])
+            request = example_pb2.Data(x=self._config["position"]["x"], y=self._config["position"]["y"])
             for vehicle in self.vehicles:
                 try:
                     with self._channel(vehicle) as channel:
-                        stub = simulation_pb2_grpc.VehicleStub(channel)
+                        stub = example_pb2_grpc.VehicleStub(channel)
                         response = stub.get_eta(request)
                         times[vehicle] = response.time
                 except grpc.RpcError:
@@ -139,7 +142,7 @@ class Source(Agent):
                 logger.info("calling vehicle: %s", vehicle)
 
                 with self._channel(vehicle) as channel:
-                    stub = simulation_pb2_grpc.VehicleStub(channel)
+                    stub = example_pb2_grpc.VehicleStub(channel)
                     stub.drive(request)
                     self.on_route += 1
 

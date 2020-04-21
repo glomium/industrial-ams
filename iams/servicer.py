@@ -2,6 +2,7 @@
 # vim: set fileencoding=utf-8 :
 
 import logging
+import os
 import random
 import re
 import time
@@ -38,19 +39,24 @@ def generate_seed():
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
-    def __init__(self, client, cfssl, servername, namespace, args, credentials, threadpool, plugins):
+    def __init__(self, client, cfssl, cloud, args, credentials, threadpool, plugins, runtests):
         self.args = args
         self.cfssl = cfssl
+        self.cloud = cloud
         self.credentials = credentials
+        self.runtests = runtests
         self.threadpool = threadpool
-        self.servername = servername
-        self.namespace = namespace
+
         self.booting = set()
         self.event = Event()
         self.event.set()
 
-        self.docker = Docker(client, cfssl, servername, namespace, args.namespace, args.simulation, plugins)
-        self.arango = Arango(namespace, docker=self.docker)
+        self.docker = Docker(client, cfssl, cloud, args.namespace, args.simulation, plugins)
+        self.arango = Arango(
+            cloud.namespace,
+            hosts=os.environ.get("IAMS_ARANGO_HOSTS", "http://tasks.arangodb:8529"),
+            docker=self.docker,
+        )
 
         self.RE_NAME = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.args.namespace[0:4])
 
@@ -110,14 +116,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         self.del_booting(context._agent)
         return Empty()
 
-    def images(self, request, context):
-        """
-        """
-        for image in self.client.images.list(filters={'label': ["ams.services.agent=true"]}):
-            for tag in image.tags:
-                pass
-            # TODO yield data
-
     # RPC
     @permissions(has_agent=True, has_groups=["root", "web"])
     def agents(self, request, context):
@@ -150,12 +148,10 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             )
 
         except docker_errors.ImageNotFound:
-            message = f'Could not find {request.image}:{request.version}'
+            message = f'Could not find image {request.image}:{request.version}'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-
-        except docker_errors.NotFound:
-            message = f'Could not find {request.name}'
-            context.abort(grpc.StatusCode.NOT_FOUND, message)
+        except docker_errors.NotFound as e:
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
         if created:
             self.set_booting(name)
@@ -197,12 +193,10 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             )
 
         except docker_errors.ImageNotFound:
-            message = 'Could not find %s' % context._agent
+            message = f'Could not find image {request.image}:{request.version}'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-
-        except docker_errors.NotFound:
-            message = 'Could not find %s' % context._agent
-            context.abort(grpc.StatusCode.NOT_FOUND, message)
+        except docker_errors.NotFound as e:
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
         except ValueError as e:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, e)
@@ -233,9 +227,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         try:
             self.docker.del_service(agent)
-        except docker_errors.NotFound:
-            message = 'Could not find %s' % agent
-            context.abort(grpc.StatusCode.NOT_FOUND, message)
+        except docker_errors.NotFound as e:
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
         return Empty()
 
@@ -245,9 +238,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         logger.debug('sleep called from %s', context._agent)
         try:
             self.docker.set_scale(context._agent, 0)
-        except docker_errors.NotFound:
-            message = 'Could not find %s' % context._agent
-            context.abort(grpc.StatusCode.NOT_FOUND, message)
+        except docker_errors.NotFound as e:
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
         return Empty()
 
     # RPC
@@ -299,13 +291,26 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
 class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
-    def __init__(self, agent_servicer):
-        # self.event = Event()
+    def __init__(self, agent_servicer, event, runtests):
+        self.event = event
+        self.runtests = runtests
         self.servicer = agent_servicer
 
         self.heap = []
         self.simulation = False
         self.time = 0.0
+
+    def add_event(self, delay, agent, uuid):
+        scheduled_time = self.time + delay
+        if self.until and scheduled_time > self.until:
+            return None
+
+        logger.debug("Adding event at %s for agent %s (delay=%s)", scheduled_time, agent, delay)
+        # If we have two events at the same time, we use the negative delay
+        # to decide which event was added first. this reduces the
+        # possibility to run into infinite loops if one agents decides to wait
+        # for an event on another agent
+        heappush(self.heap, (scheduled_time, -delay, agent, uuid))
 
     def reset(self, callback=True):
         if callback:
@@ -319,6 +324,11 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         # kill all agents
         for service in self.servicer.docker.get_service():
             self.servicer.docker.del_service(service)
+
+    @permissions(has_agent=True)
+    def schedule(self, request, context):
+        self.add_event(request.delay, context._agent, request.uuid)
+        return Empty()
 
     @permissions(is_optional=True)
     def start(self, request, context):
@@ -423,19 +433,10 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
             log=agent_pb2.SimulationLog(text="simulation ended - simulated %s steps (%.1f/s)" % (count, count / dt)),
         )
 
-    @permissions(has_agent=True)
-    def schedule(self, request, context):
-        self.add_event(request.delay, context._agent, request.uuid)
+    @permissions(is_optional=True)
+    def shutdown(self, request, context):
+        if self.simulation:
+            message = 'A simulation is currently running'
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, message)
+        self.event.set()
         return Empty()
-
-    def add_event(self, delay, agent, uuid):
-        scheduled_time = self.time + delay
-        if self.until and scheduled_time > self.until:
-            return None
-
-        logger.debug("Adding event at %s for agent %s (delay=%s)", scheduled_time, agent, delay)
-        # If we have two events at the same time, we use the negative delay
-        # to decide which event was added first. this reduces the
-        # possibility to run into infinite loops if one agents decides to wait
-        # for an event on another agent
-        heappush(self.heap, (scheduled_time, -delay, agent, uuid))

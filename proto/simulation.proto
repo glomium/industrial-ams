@@ -11,14 +11,19 @@ import "agent.proto";
 service Simulation {
 
     /*
-    Start simulation with config
-    */
-    rpc start(SimulationConfig) returns (stream SimulationData) {}
-
-    /*
     Schedule a new event at the simulation runtime
     */
     rpc schedule(EventScheduleRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    Shutdown simulation runtime
+    */
+    rpc shutdown(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
+    Start simulation with config
+    */
+    rpc start(SimulationConfig) returns (stream SimulationData) {}
 }
 
 message AgentConfig {

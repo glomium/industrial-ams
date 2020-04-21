@@ -2,9 +2,10 @@
 # vim: set fileencoding=utf-8 :
 
 import logging
+import os
 
 from ...interface import Plugin
-from ...utils.arango import get_credentials
+from ...utils.arangodb import get_credentials
 
 
 logger = logging.getLogger(__name__)
@@ -12,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 class Arango(Plugin):
 
-    def label():
+    @classmethod
+    def label(cls):
         return "iams.plugins.arango"
 
     def get_networks(self, **kwargs):
@@ -21,7 +23,7 @@ class Arango(Plugin):
     def get_env(self, **kwargs):
         database, unused, password = get_credentials(self.namespace)
         return {
-            "ARANGO_HOSTS": "tasks.arango",  # TODO make this configurable
+            "ARANGO_HOSTS": os.environ.get("IAMS_ARANGO_HOSTS", "http://tasks.arangodb:8529"),
             "ARANGO_DATABASE": database,
             "ARANGO_USERNAME": database,
             "ARANGO_PASSWORD": password,

@@ -141,7 +141,7 @@ def execute_command_line():
     for cls in get_plugins():
         try:
             plugins.append(cls(
-                namespace=args.namespace,
+                namespace=cloud.namespace,
                 simulation=args.simulation,
             ))
             logger.info("Loaded plugin %s (usage label: %s)", cls.__qualname__, cls.label())

@@ -22,6 +22,7 @@ class Sentry(Plugin):
         if self.sentry is None:  # pragma: no branch
             logger.debug("SENTRY_DSN is not defined - skip plugin")
             raise SkipPlugin
+        super().__init__(**kwargs)
 
     def get_env(self, **kwargs):
         return {

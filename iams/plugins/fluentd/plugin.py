@@ -22,6 +22,7 @@ class Fluentd(Plugin):
         if self.host is None:
             logger.debug("FLUENTD_HOST is not defined - skip plugin")
             raise SkipPlugin
+        super().__init__(**kwargs)
 
     def get_networks(self, **kwargs):
         return ['%s_fluentd' % self.namespace]

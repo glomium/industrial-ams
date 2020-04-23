@@ -211,7 +211,7 @@ class OrderInterface(ArangoDBMixin, ABC):
         query = 'WITH logical FOR a IN agent FILTER @abilities ALL IN a.abilities RETURN a._key'
         for agent in self._arango.aql.execute(query, bind_vars={"abilities": steps[0].abilities}):
             # get production duration, queue time and costs from agent
-            futures.add(self._executor.submit(self._order_add_production, queue, agent, steps[0], eta, None))
+            futures.add(self._executor.submit(self._order_cost_production, queue, agent, steps[0], eta, None))
         concurrent.futures.wait(futures)
 
         try:
@@ -244,7 +244,7 @@ class OrderInterface(ArangoDBMixin, ABC):
         """
         pass
 
-    def _order_add_production(self, queue, agent, step, eta, item, futures=[]):
+    def _order_cost_production(self, queue, agent, step, eta, item, futures=[]):
         cost = 0.0
         time = 0.0
         if item is None:
@@ -299,24 +299,18 @@ class OrderInterface(ArangoDBMixin, ABC):
     def _order_findall(self, queue, item, step, eta):
         # select all agents which are reachable from the previous steps
         query = '''WITH logical FOR target IN agent FILTER @abilities ALL IN target.abilities
-        FOR v, e IN OUTBOUND SHORTEST_PATH @agent TO target GRAPH 'connections'
-        RETURN {key: v._key, init: e == null, reached: target==v}'''
-        # TODO: parllel paths over parallel logistic chains
+        FOR p IN OUTBOUND K_SHORTEST_PATHS @agent TO target GRAPH 'connections'
+        RETURN p.vertices[*]._key'''
+        # TODO: this searches ALL possible connections, which might lead to some performance issues
+        # for larger graphs. The recommendation is to use K_SHORTEST_PATHS only with a LIMIT, which
+        # is also dependent on the size of the samples.
 
         # The query returns every shortest path to every reachable target-agent
         # As we get overlap between paths we can order all paths to minmize the calls to agents
         # this is done on the fly by this algorithm
         paths = []
-        for current in self._arango.aql.execute(query, bind_vars={"abilities": step.abilities, "agent": item.agent}):
-            if current["init"]:
-                if current["reached"]:
-                    paths.append((current["key"], []))
-                    continue
-                path = [None]
-            path.append(current["key"])
-            if current["reached"]:
-                paths.append((current["key"], path))
-                continue
+        for path in self._arango.aql.execute(query, bind_vars={"abilities": step.abilities, "agent": item.agent}):
+            paths.append([None] + path)
 
         findall_futures = set()
         cache = {}
@@ -335,7 +329,7 @@ class OrderInterface(ArangoDBMixin, ABC):
                 futures = []
 
             findall_futures.add(self._executor.submit(
-                self._order_add_production, queue, agent, step, eta, deepcopy(item), futures,
+                self._order_cost_production, queue, agent, step, eta, deepcopy(item), futures,
             ))
         concurrent.futures.wait(findall_futures)
 

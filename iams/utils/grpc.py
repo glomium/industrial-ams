@@ -86,7 +86,7 @@ def framework_channel(hostname=None, credentials=None, proxy=None, port=None, se
             ('grpc.ssl_target_name_override', hostname),
         ]
 
-    logger.debug(f"connecting to %s:%s with options %s", server, port, options)
+    logger.debug("connecting to %s:%s with options %s", server, port, options)
 
     if secure:
         with grpc.secure_channel(f'{server!s}:{port!s}', credentials, options=options) as channel:

@@ -14,6 +14,11 @@ build:
 	cd examples/simulation && docker build -f Dockerfile_source -t iams_simulation_source:local .
 	cd examples/simulation && docker build -f Dockerfile_vehicle -t iams_simulation_vehicle:local .
 
+	docker buildx build --platform linux/amd64,linux/arm64 --build-arg UBUNTU=rolling --cache-from iams-base:local --target basestage -t iams-base:local .
+
+buildx:
+	docker buildx build --platform linux/amd64,linux/arm64 --build-arg UBUNTU=$(UBUNTU) -t iams:local .
+
 test:
 	docker stack deploy -c docker-test.yaml test
 	docker service scale test_arangodb=1 test_sim=1 test_cfssl=1 test_coverage=1

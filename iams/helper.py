@@ -21,8 +21,8 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
 
     if isinstance(config, (list, tuple)):
         loggers = {}
-        for l in config:
-            loggers[l] = {}
+        for ln in config:
+            loggers[ln] = {}
     elif isinstance(config, dict):
         loggers = config
 

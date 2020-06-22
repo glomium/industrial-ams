@@ -73,7 +73,7 @@ class Agent(ABC):
         signal.signal(signal.SIGTERM, self.__stop)
 
     def __repr__(self):
-        return self.__class__.__qualname__ + f"()"
+        return self.__class__.__qualname__ + "()"
 
     def __call__(self):
         # run setup methods for controlling machines
@@ -331,7 +331,7 @@ class Plugin(ABC):
         self.simulation = simulation
 
     def __repr__(self):
-        return self.__class__.__qualname__ + f"()"
+        return self.__class__.__qualname__ + "()"
 
     def __call__(self, name, image, version, config):
         kwargs = self.get_kwargs(name, image, version, config)

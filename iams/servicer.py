@@ -206,7 +206,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     def get_agent_name(self, context, name):
         if context._agent is None and name is None:
-            message = f'Need to give agent name in request'
+            message = 'Need to give agent name in request'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         if context._agent:

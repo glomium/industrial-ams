@@ -338,40 +338,40 @@ class IMS(object):
 
     def edges(self):
         yield {
-            "from": f"B1",
-            "to": f"B2",
+            "from": "B1",
+            "to": "B2",
             "weight": 2.0,
         }
         yield {
-            "from": f"B1",
-            "to": f"P",
+            "from": "B1",
+            "to": "P",
             "weight": 1.2,
         }
         yield {
-            "from": f"P",
-            "to": f"B2",
+            "from": "P",
+            "to": "B2",
             "weight": 1.2,
         }
         yield {
-            "from": f"P",
-            "to": f"B1",
+            "from": "P",
+            "to": "B1",
             "weight": 1.2,
         }
         yield {
-            "from": f"B2",
-            "to": f"B1",
+            "from": "B2",
+            "to": "B1",
             "weight": 2.0,
         }
 
         if self.b1:
             yield {
-                "from": f"B1",
+                "from": "B1",
                 "to": f"{self.b1}",
                 "weight": 1.0,
             }
         if self.b2:
             yield {
-                "from": f"B2",
+                "from": "B2",
                 "to": f"{self.b2}",
                 "weight": 1.0,
             }
@@ -389,74 +389,74 @@ class UR(object):
 
     def edges(self):
         yield {
-            "from": f"P1",
-            "to": f"T1",
+            "from": "P1",
+            "to": "T1",
             "weight": 1.0,
             "symmetric": True,
         }
         yield {
-            "from": f"P2",
-            "to": f"T1",
+            "from": "P2",
+            "to": "T1",
             "weight": 1.0,
             "symmetric": True,
         }
         yield {
-            "from": f"P1",
-            "to": f"P2",
-            "weight": 1.0,
-            "symmetric": True,
-        }
-
-        yield {
-            "from": f"T1",
-            "to": f"T2",
+            "from": "P1",
+            "to": "P2",
             "weight": 1.0,
             "symmetric": True,
         }
 
         yield {
-            "from": f"P3",
-            "to": f"T2",
+            "from": "T1",
+            "to": "T2",
+            "weight": 1.0,
+            "symmetric": True,
+        }
+
+        yield {
+            "from": "P3",
+            "to": "T2",
             "weight": 1.0,
             "symmetric": True,
         }
         yield {
-            "from": f"P4",
-            "to": f"T2",
+            "from": "P4",
+            "to": "T2",
             "weight": 1.0,
             "symmetric": True,
         }
         yield {
-            "from": f"P3",
-            "to": f"P4",
+            "from": "P3",
+            "to": "P4",
             "weight": 1.0,
             "symmetric": True,
         }
 
         if self.p1:
             yield {
-                "from": f"P1",
+                "from": "P1",
                 "to": f"{self.p1}",
                 "weight": 1.0,
                 "symmetric": True,
             }
         if self.p2:
             yield {
-                "from": f"P2",
+                "from": "P2",
                 "to": f"{self.p2}",
                 "weight": 1.0,
                 "symmetric": True,
             }
         if self.p3:
             yield {
-                "from": f"P3",
+                "from": "P3",
                 "to": f"{self.p3}",
                 "weight": 1.0,
                 "symmetric": True,
             }
         if self.p4:
             yield {
-                "from": f"P4",
+                "from": "P4",
                 "to": f"{self.p4}",
                 "weight": 1.0,
                 "symmetric": True,

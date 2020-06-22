@@ -30,6 +30,8 @@ WORKDIR /usr/src/app
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
     build-essential \
+    libxml2-dev \
+    libxslt-dev \
     python3-dev \
     wget \
  && apt-get clean \

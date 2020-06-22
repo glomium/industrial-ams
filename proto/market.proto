@@ -6,6 +6,31 @@ import "google/protobuf/empty.proto";
 package ims.market;
 
 /*
+*/
+service OrderCallback {
+    /*
+    */
+    rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc finish_step(StepInfo) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc next_step(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc reassign(CancelRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc start_step(StepInfo) returns (google.protobuf.Empty) {}
+
+}
+
+/*
 Integrated for communication with orders. Has an apply and assign function
 */
 service OrderNegotiate {
@@ -34,27 +59,24 @@ service OrderNegotiate {
 
 /*
 */
-service OrderCallback {
+service OrderTransport {
     /*
+    */
+    rpc apply(stream StepInfo) returns (stream OrderOffer) {}
+
+    /*
+    */
+    rpc assign(stream StepInfo) returns (stream OrderCost) {}
+
+    /*
+    Cancels the order
     */
     rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
 
     /*
+    Start step
     */
-    rpc finish_step(StepInfo) returns (google.protobuf.Empty) {}
-
-    /*
-    */
-    rpc next_step(google.protobuf.Empty) returns (google.protobuf.Empty) {}
-
-    /*
-    */
-    rpc reassign(CancelRequest) returns (google.protobuf.Empty) {}
-
-    /*
-    */
-    rpc start_step(StepInfo) returns (google.protobuf.Empty) {}
-
+    rpc start(StepInfo) returns (google.protobuf.Empty) {}
 }
 
 message StepInfo {

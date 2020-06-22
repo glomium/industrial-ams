@@ -535,7 +535,7 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
             context.abort(grpc.StatusCode.NOT_FOUND, "Error cancelling order %s" % order)
 
 
-class ExecuteInterface(ABC):
+class ExecuteInterface(ArangoDBMixin, ABC):
     """
     Executes the steps (or a part of it)
     """

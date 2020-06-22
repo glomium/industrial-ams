@@ -211,7 +211,7 @@ class OrderInterface(ArangoDBMixin, ABC):
         query = 'WITH logical FOR a IN agent FILTER @abilities ALL IN a.abilities RETURN a._key'
         for agent in self._arango.aql.execute(query, bind_vars={"abilities": steps[0].abilities}):
             # get production duration, queue time and costs from agent
-            futures.add(self._executor.submit(self._order_cost_production, queue, agent, steps[0], eta, None))
+            futures.add(self._executor.submit(self._order_cost_production, queue, None, agent, steps[0], eta, None))
         concurrent.futures.wait(futures)
 
         try:
@@ -244,7 +244,13 @@ class OrderInterface(ArangoDBMixin, ABC):
         """
         pass
 
-    def _order_cost_production(self, queue, agent, step, eta, item, futures=[]):
+    # TODO
+    def _order_cost_transport(self, previous, current, target, futures):
+        cost = 1.0
+        time = 1.0
+        return cost, time
+
+    def _order_cost_production(self, queue, previous, agent, step, eta, item, futures=[]):
         cost = 0.0
         time = 0.0
         if item is None:
@@ -329,13 +335,9 @@ class OrderInterface(ArangoDBMixin, ABC):
                 futures = []
 
             findall_futures.add(self._executor.submit(
-                self._order_cost_production, queue, agent, step, eta, deepcopy(item), futures,
+                self._order_cost_production, queue, path[-1], agent, step, eta, deepcopy(item), futures,
             ))
         concurrent.futures.wait(findall_futures)
-
-    # TODO
-    def _order_cost_transport(self, previous, current, target, futures):
-        return 1.0, 1.0
 
     def loop_running(self):
         """
@@ -469,7 +471,7 @@ class OrderInterface(ArangoDBMixin, ABC):
         pass
 
 
-# === EXCECUTION ==============================================================
+# === NEGOTIATE ===============================================================
 
 
 class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
@@ -480,7 +482,7 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
     @permissions(has_agent=True)
     def apply(self, request, context) -> market_pb2.OrderOffer:
         logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
-        response = self.parent.order_validate(
+        response = self.parent.order_negotiate_validate(
             request.order or context._agent,
             request.data, request.time_start, request.time_finish,
         )
@@ -502,7 +504,7 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
         transport_time = 0.0
 
         for step in request.steps:
-            response = self.parent.order_validate(request.order or context._agent, step, request.eta)
+            response = self.parent.order_negotiate_validate(request.order or context._agent, step, request.eta)
             if response is None:
                 context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
 
@@ -529,7 +531,7 @@ class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
     def cancel(self, request: market_pb2.CancelRequest, context) -> Empty:
         logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
         order = request.order or context._agent
-        if self.parent.order_cancel(order):
+        if self.parent.order_negotiate_cancel(order):
             return Empty()
         else:
             context.abort(grpc.StatusCode.NOT_FOUND, "Error cancelling order %s" % order)
@@ -576,7 +578,7 @@ class ExecuteInterface(ArangoDBMixin, ABC):
             return False
 
     @abstractmethod
-    def order_validate(self, order: str, step, start: float, finish: float) -> market_pb2.OrderCost:
+    def order_negotiate_validate(self, order: str, step, start: float, finish: float) -> market_pb2.OrderCost:
         """
         Called from servicer when the step of an order needs to be evaluated
         retuns market_pb2.OrderCost or None if the request is not valid
@@ -584,13 +586,149 @@ class ExecuteInterface(ArangoDBMixin, ABC):
         pass
 
     @abstractmethod
-    def order_start(self, order: str, steps, eta: float) -> bool:  # from servicer
+    def order_negotiate_start(self, order: str, steps, eta: float) -> bool:  # from servicer
         """
         """
         pass
 
     @abstractmethod
-    def order_cancel(self, order: str) -> bool:  # from servicer
+    def order_negotiate_cancel(self, order: str) -> bool:  # from servicer
+        """
+        """
+        pass
+
+
+class OrderTransportServicer(market_pb2_grpc.OrderTransportServicer):
+
+    def __init__(self, parent):
+        self.parent = parent
+
+    # TODO
+    @permissions(has_agent=True)
+    def apply(self, request, context) -> market_pb2.OrderOffer:
+        logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
+        response = self.parent.order_transport_validate(
+            request.order or context._agent,
+            request.data, request.time_start, request.time_finish,
+        )
+        if response is None:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
+        yield response
+
+    # TODO
+    @permissions(has_agent=True)
+    def assign(self, request, context) -> market_pb2.OrderCost:
+        logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
+
+        # manipulate response with step costs
+        production_cost = 0.0
+        production_time = 0.0
+        queue_cost = 0.0
+        queue_time = 0.0
+        transport_cost = 0.0
+        transport_time = 0.0
+
+        for step in request.steps:
+            response = self.parent.order_transport_validate(request.order or context._agent, step, request.eta)
+            if response is None:
+                context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
+
+            production_cost += response.production_cost
+            production_time += response.production_time
+            queue_cost += response.queue_cost
+            queue_time += response.queue_time
+            transport_cost += response.transport_cost
+            transport_time += response.transport_time
+
+        if self.parent.order_transport_start(request.order or context._agent, request.steps, request.eta):
+            return market_pb2.OrderCost(
+                production_cost=production_cost,
+                production_time=production_time,
+                queue_cost=queue_cost,
+                queue_time=queue_time,
+                transport_cost=transport_cost,
+                transport_time=transport_time,
+            )
+        else:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Error assigning order %s" % (request.order or context._agent))
+
+    # TODO
+    @permissions(has_agent=True)
+    def cancel(self, request: market_pb2.CancelRequest, context) -> Empty:
+        logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
+        order = request.order or context._agent
+        if self.parent.order_transport_cancel(order):
+            return Empty()
+        else:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Error cancelling order %s" % order)
+
+    # TODO
+    @permissions(has_agent=True)
+    def start(self, request: market_pb2.StepInfo, context) -> Empty:
+        logger.debug("%s.startl was called by %s", self.__class__.__qualname__, context._agent)
+        order = request.order or context._agent
+        if self.parent.order_transport_cancel(order):
+            return Empty()
+        else:
+            context.abort(grpc.StatusCode.NOT_FOUND, "Error starting order %s" % order)
+
+
+class TransportInterface(ABC):
+    """
+    Executes the steps (or a part of it)
+    """
+
+    def _grpc_setup(self):
+        super()._grpc_setup()
+        self._grpc.add(
+            market_pb2_grpc.add_OrderTransportServicer_to_server,
+            OrderTransportServicer(self),
+        )
+
+    def _order_start_step(self, order, step):
+        """
+        """
+        try:
+            with self._channel(order) as channel:
+                stub = market_pb2.OrderCallback(channel)
+                logger.debug("Calling OrderCallback.start_step on %s", order)
+                stub.start_step(step, timeout=5)
+                return True
+
+        except grpc.RpcError as e:
+            logger.debug("%s: %s - %s", order, e.code(), e.details())
+            return False
+
+    def _order_finish_step(self, order, step):
+        """
+        """
+        try:
+            with self._channel(order) as channel:
+                stub = market_pb2.OrderCallback(channel)
+                logger.debug("Calling OrderCallback.finish_step on %s", order)
+                stub.finish_step(step, timeout=5)
+                return True
+
+        except grpc.RpcError as e:
+            logger.debug("%s: %s - %s", order, e.code(), e.details())
+            return False
+
+    @abstractmethod
+    def order_transport_validate(self, order: str, step, start: float, finish: float) -> market_pb2.OrderCost:
+        """
+        Called from servicer when the step of an order needs to be evaluated
+        retuns market_pb2.OrderCost or None if the request is not valid
+        """
+        pass
+
+    @abstractmethod
+    def order_transport_start(self, order: str, steps, eta: float) -> bool:  # from servicer
+        """
+        """
+        pass
+
+    @abstractmethod
+    def order_transport_cancel(self, order: str) -> bool:  # from servicer
         """
         """
         pass

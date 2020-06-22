@@ -1,7 +1,7 @@
 ARG UBUNTU=rolling
 FROM ubuntu:$UBUNTU as basestage
 
-RUN apt-get update && apt-get install --no-install-recommends -y -q \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
     build-essential \
     curl \
     python3 \
@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
 FROM basestage as test
 WORKDIR /usr/src/app
 
-RUN apt-get update && apt-get install --no-install-recommends -y -q \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
     build-essential \
     python3-dev \
     wget \

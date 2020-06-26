@@ -49,7 +49,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
             'console': {
                 'class': "logging.StreamHandler",
                 'level': level,
-                'formatter': 'debug' if level == logging.DEBUG else "default",
+                'formatter': 'debug' if level <= logging.INFO else "default",
             },
         },
         'loggers': loggers,

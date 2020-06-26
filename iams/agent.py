@@ -7,6 +7,7 @@ import os
 from queue import Queue
 
 import grpc
+import yaml
 
 from google.protobuf.empty_pb2 import Empty
 
@@ -101,6 +102,21 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             return True
         except grpc.RpcError:
             return False
+
+    def call_create(self, name, image, version="latest", config={}) -> (bool, object):
+        try:
+            with framework_channel(credentials=self.parent._credentials) as channel:
+                stub = FrameworkStub(channel)
+                response = stub.create(AgentData(
+                    name=name,
+                    image=image,
+                    version=version,
+                    config=yaml.dump(config).encode('utf-8'),
+                    autostart=True,
+                ), timeout=10)
+            return True, response
+        except grpc.RpcError as e:
+            return False, e.code()
 
     def call_destroy(self) -> bool:
         try:

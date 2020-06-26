@@ -2,10 +2,13 @@
 # vim: set fileencoding=utf-8 :
 
 import logging
-import random
-import os
 
 from logging.config import dictConfig
+from math import sqrt
+
+import grpc
+
+from google.protobuf.empty_pb2 import Empty
 
 from iams.helper import get_logging_config
 from iams.interface import Agent
@@ -15,7 +18,6 @@ import example_pb2
 import example_pb2_grpc
 
 
-random.seed(os.environ.get("IAMS_SEED", None))
 logger = logging.getLogger(__name__)
 
 
@@ -25,77 +27,120 @@ class Servicer(example_pb2_grpc.SinkServicer):
         self.parent = parent
 
     @permissions(has_agent=True)
-    def get_coordinates(self, request, response):
-        return example_pb2.Data(x=self.parent._config["position"]["x"], y=self.parent._config["position"]["y"])
+    def get_eta(self, request, context):
+        if not self.parent.idle:
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "vehicle is working")
+
+        return example_pb2.Time(
+            time=self.parent.get_eta(request.x, request.y),
+        )
 
     @permissions(has_agent=True)
-    def put_part(self, request, response):
-        if self.parent.storage >= self.parent._config["buffer"]:
-            # queue full, wait for next event to unload
-            return example_pb2.Time(time=self.parent.eta - self.parent._simulation.time)
-        else:
-            # start consumation of products after the first product arrives
-            if not self.parent.started:
-                self.parent._simulation.schedule(self.parent.get_next_time(), 'consume_part')
-                self.parent.started = True
-            # queue not full -> dont wait
-            self.parent.storage += 1
-            return example_pb2.Time()
+    def drive(self, request, context):
+        self.parent._simulation.schedule(self.parent.get_eta(request.x, request.y), 'arrive_at_source')
+        self.parent.x = request.x
+        self.parent.y = request.y
+        self.parent.idle = False
+        self.parent.station = context._agent
+
+        return Empty()
 
 
-class Sink(Agent):
+class Vehicle(Agent):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.servicer = Servicer(self)
-        self.part_missed = 0
-        self.part_consumed = 0
-        self.storage = 0
-        self.started = False
-        self.eta = None
+        self.unload = self._config["unload"]
+        self.load = self._config["load"]
+        self.speed = self._config["speed"]
+        self.x = self._config["position"]["x"]
+        self.y = self._config["position"]["y"]
+        self.idle = True
+        self.station = None
 
     def _loop(self):
         pass
 
     def grpc_setup(self):
-        self._grpc.add(example_pb2_grpc.add_SinkServicer_to_server, self.servicer)
+        self._grpc.add(example_pb2_grpc.add_VehicleServicer_to_server, self.servicer)
 
-    def get_next_time(self):
-        time = random.gauss(self._config["mean"], self._config["sigma"])
-        if time > 0:
-            return time
-        return 0.0
+    def simulation_start(self):
+        self.sources = []
 
-    def consume_part(self):
-        if self.storage == 0:
-            self.part_missed += 1
-            logger.info("missed part")
-            self._simulation.log("missed part")
-            self._simulation.metric({
-                "total_consumed": self.part_consumed,
-                "total_missed": self.part_missed,
-                "consumed": 0,
-                "missed": 1,
-                "queue": self.storage,
-            })
+        # get all sources
+        for source in self._iams.get_agents(['iams.image=iams_simulation_sink']):
+            self.sources.append(source.name)
+        self.sources = sorted(self.sources)
+        logger.info("got sources: %s", self.sources)
+
+    def get_eta(self, x, y):
+        return sqrt((self.x - x)**2 + (self.y - y)**2) / self.speed
+
+    def arrive_at_source(self):
+        self._simulation.schedule(self.load, 'pick_part')
+
+    def pick_part(self):
+        with self._channel(self.station) as channel:
+            stub = example_pb2_grpc.SourceStub(channel)
+            response = stub.get_part(Empty())
+        eta = self.get_eta(response.x, response.y)
+        logger.info("part picked up at %s", self.station)
+        self.station = response.name
+        self.x = response.x
+        self.y = response.y
+        self._simulation.schedule(eta, 'arrive_at_sink')
+
+    def arrive_at_sink(self):
+        self._simulation.schedule(self.unload, 'drop_part')
+
+    def drop_part(self):
+        with self._channel(self.station) as channel:
+            stub = example_pb2_grpc.SinkStub(channel)
+            response = stub.put_part(Empty())
+
+        logger.info("part droped at %s", self.station)
+
+        if response.time:
+            # station full -> wait
+            self._simulation.schedule(response.time, 'drop_part')
         else:
-            self.part_consumed += 1
-            self.storage -= 1
-            logger.info("part consumed - queue %s/%s", self.storage, self._config["buffer"])
-            self._simulation.log("consumed part")
-            self._simulation.metric({
-                "total_consumed": self.part_consumed,
-                "total_missed": self.part_missed,
-                "consumed": 1,
-                "missed": 0,
-                "queue": self.storage,
-            })
 
-        # schedule next consume
-        self.eta = self._simulation.schedule(self.get_next_time(), 'consume_part')
+            # call all sources and select oldest order (fifo)
+            times = {}
+            for source in self.sources:
+                try:
+                    with self._channel(source) as channel:
+                        stub = example_pb2_grpc.SourceStub(channel)
+                        response = stub.next_order(Empty())
+                        times[source] = response.time
+                except grpc.RpcError as e:
+                    logger.info(str(e))
+
+            logger.debug("valid sources: %s", times)
+
+            # select nearest vehicle first
+            if times:
+                source = min(times, key=times.get)
+
+                with self._channel(source) as channel:
+                    stub = example_pb2_grpc.SourceStub(channel)
+                    response = stub.reserve_next(Empty())
+
+                logger.info("driving to %s", source)
+
+                eta = self.get_eta(response.x, response.y)
+                self.station = source
+                self.x = response.x
+                self.y = response.y
+
+                # schedule next part generation
+                self._simulation.schedule(eta, 'arrive_at_source')
+            else:
+                self.idle = True
 
 
 if __name__ == "__main__":
     dictConfig(get_logging_config(["iams"], logging.INFO))
-    run = Sink()
+    run = Vehicle()
     run()

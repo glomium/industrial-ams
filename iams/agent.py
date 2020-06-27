@@ -116,6 +116,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
                 ), timeout=10)
             return True, response
         except grpc.RpcError as e:
+            logger.debug(e, exc_info=True)
             return False, e.code()
 
     def call_destroy(self) -> bool:

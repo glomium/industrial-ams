@@ -167,16 +167,19 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         if regex:
             name = self.args.namespace[0:4] + '_' + regex.group(2)
         else:
-            message = 'A name with starting with a letter, ending with an alphanumerical chars and' \
+            message = 'A name with starting with a letter, ending with an alphanumerical chars and ' \
                       'only containing alphanumerical values and hyphens is required to define agents'
+            logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         if not request.image:
             message = 'An image is required to define agents'
+            logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         if not request.version:
             message = 'A version is required to define agents'
+            logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         try:
@@ -194,12 +197,17 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         except docker_errors.ImageNotFound:
             message = f'Could not find image {request.image}:{request.version}'
+            logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
         except docker_errors.NotFound as e:
-            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
+            message = f'{e!s}'
+            logger.debug(message)
+            context.abort(grpc.StatusCode.NOT_FOUND, message)
 
         except ValueError as e:
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, e)
+            message = f'{e!s}'
+            logger.debug(message)
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         self.set_booting(name)
         return framework_pb2.AgentData()
@@ -350,6 +358,9 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
             seed = generate_seed()
         random.seed(seed)
         logger.info("setting seed for random values to %s", seed)
+
+        # reset booting information on servicer
+        self.servicer.booting = set()
 
         # create agents
         logger.info("Creating agents from config")

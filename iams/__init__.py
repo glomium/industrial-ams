@@ -3,7 +3,7 @@
 
 from functools import lru_cache
 
-VERSION = ((0, 5, 1), ('b', 0))
+VERSION = ((0, 5, 2), ('b', 0))
 
 
 @lru_cache(maxsize=8)

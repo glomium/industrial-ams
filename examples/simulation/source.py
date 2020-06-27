@@ -59,7 +59,7 @@ class Source(Agent):
                 return time
 
     def generate_part(self):
-        name = "order_%s" % random.getrandbits(40).to_bytes(5, byteorder="little").hex()
+        name = "order-%s" % random.getrandbits(40).to_bytes(5, byteorder="little").hex()
 
         if len(self.buffer_storage) == self._config["buffer"]:
             self.order_missed += 1
@@ -86,6 +86,8 @@ class Source(Agent):
                     self._config["buffer"],
                 )
                 self._simulation.log("generated order")
+                missed = 1
+                generated = 0
             else:
                 raise RuntimeError('AMS responded with error code %s' % response)
 
@@ -96,6 +98,9 @@ class Source(Agent):
             "missed": missed,
             "queue": len(self.buffer_storage),
         })
+
+        # schedule next event
+        self._simulation.schedule(self.get_next_time(), 'generate_part')
 
 
 if __name__ == "__main__":

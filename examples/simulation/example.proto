@@ -8,6 +8,10 @@ service Source {
 }
 
 
+service Order {
+}
+
+
 service SourceOld {
     /*
     returns the time when the next order is in queue or none if no orders availale or a vehicle is on route

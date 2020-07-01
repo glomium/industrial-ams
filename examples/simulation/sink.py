@@ -9,9 +9,9 @@ from logging.config import dictConfig
 
 from iams.helper import get_logging_config
 from iams.interface import Agent
-from iams.utils.auth import permissions
+# from iams.utils.auth import permissions
 
-import example_pb2
+# import example_pb2
 import example_pb2_grpc
 
 
@@ -24,33 +24,15 @@ class Servicer(example_pb2_grpc.SinkServicer):
     def __init__(self, parent):
         self.parent = parent
 
-    @permissions(has_agent=True)
-    def get_coordinates(self, request, response):
-        return example_pb2.Data(x=self.parent._config["position"]["x"], y=self.parent._config["position"]["y"])
-
-    @permissions(has_agent=True)
-    def put_part(self, request, response):
-        if self.parent.storage >= self.parent._config["buffer"]:
-            # queue full, wait for next event to unload
-            return example_pb2.Time(time=self.parent.eta - self.parent._simulation.time)
-        else:
-            # start consumation of products after the first product arrives
-            if not self.parent.started:
-                self.parent._simulation.schedule(self.parent.get_next_time(), 'consume_part')
-                self.parent.started = True
-            # queue not full -> dont wait
-            self.parent.storage += 1
-            return example_pb2.Time()
-
 
 class Sink(Agent):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.servicer = Servicer(self)
-        self.part_missed = 0
-        self.part_consumed = 0
-        self.storage = 0
+        self.order_missed = 0
+        self.order_consumed = 0
+        self.buffer_storage = []
         self.started = False
         self.eta = None
 
@@ -60,39 +42,56 @@ class Sink(Agent):
     def grpc_setup(self):
         self._grpc.add(example_pb2_grpc.add_SinkServicer_to_server, self.servicer)
 
+    def simulation_start(self):
+        # we start the simulation on the sink only if the first order was received
+        pass
+
     def get_next_time(self):
-        time = random.gauss(self._config["mean"], self._config["sigma"])
-        if time > 0:
-            return time
-        return 0.0
+        while True:
+            time = random.gauss(self._config["mean"], self._config["sigma"])
+            if time > 0.0:
+                return time
 
     def consume_part(self):
-        if self.storage == 0:
-            self.part_missed += 1
-            logger.info("missed part")
-            self._simulation.log("missed part")
-            self._simulation.metric({
-                "total_consumed": self.part_consumed,
-                "total_missed": self.part_missed,
-                "consumed": 0,
-                "missed": 1,
-                "queue": self.storage,
-            })
-        else:
-            self.part_consumed += 1
-            self.storage -= 1
-            logger.info("part consumed - queue %s/%s", self.storage, self._config["buffer"])
-            self._simulation.log("consumed part")
-            self._simulation.metric({
-                "total_consumed": self.part_consumed,
-                "total_missed": self.part_missed,
-                "consumed": 1,
-                "missed": 0,
-                "queue": self.storage,
-            })
+        try:
+            # get the first part in buffer
+            order = self.buffer_storage.pop(0)
 
-        # schedule next consume
-        self.eta = self._simulation.schedule(self.get_next_time(), 'consume_part')
+            # TODO tell ams to kill order or order to kill itself
+
+            self.order_consumed += 1
+            logger.info(
+                "consumed order: %s - queue %s/%s",
+                order,
+                len(self.buffer_storage),
+                self._config["buffer"],
+            )
+            self._simulation.log("consumed order")
+            missed = 0
+            consumed = 1
+
+        except IndexError:
+            # buffer empty
+            self.order_missed += 1
+            logger.info("buffer empty - stopping")
+            self._simulation.log("buffer empty")
+            missed = 1
+            consumed = 0
+
+        self._simulation.metric({
+            "total_consumed": self.order_consumed,
+            "total_missed": self.order_missed,
+            "consumed": consumed,
+            "missed": missed,
+            "queue": len(self.buffer_storage),
+        })
+
+        # schedule next event or stop execution
+        if consumed:
+            self.eta = self._simulation.schedule(self.get_next_time(), 'consume_part')
+        else:
+            self.started = False
+            self.eta = None
 
 
 if __name__ == "__main__":

@@ -8,6 +8,10 @@ service Source {
 }
 
 
+service Sink {
+}
+
+
 service Order {
 }
 
@@ -30,7 +34,7 @@ service SourceOld {
 }
 
 
-service Sink {
+service SinkOld {
     /*
     loads coordinates of sink
     */

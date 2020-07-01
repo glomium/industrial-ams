@@ -86,8 +86,8 @@ class Source(Agent):
                     self._config["buffer"],
                 )
                 self._simulation.log("generated order")
-                missed = 1
-                generated = 0
+                missed = 0
+                generated = 1
             else:
                 raise RuntimeError('AMS responded with error code %s' % response)
 

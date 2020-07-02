@@ -33,7 +33,7 @@ certs:
 	openssl req -x509 -new -SHA384 -key secrets/ca.key -out secrets/ca.crt -days 36525
 
 
-start:
+start: build
 	docker stack deploy -c docker-compose.yaml iams 
 	docker service update --force iams_ctrl -d
 	docker service update --force iams_sim

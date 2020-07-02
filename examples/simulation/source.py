@@ -14,6 +14,8 @@ from logging.config import dictConfig
 from iams.helper import get_logging_config
 from iams.interface import Agent
 # from iams.utils.auth import permissions
+# from iams.utils.auth import permissions
+from iams.mixins.arangodb import ArangoDBMixin
 
 # import example_pb2
 import example_pb2_grpc
@@ -29,7 +31,7 @@ class Servicer(example_pb2_grpc.SourceServicer):
         self.parent = parent
 
 
-class Source(Agent):
+class Source(ArangoDBMixin, Agent):
     """
     Source generates orders in intervalls
     Source have a bufferstorage of X parts, if the buffer is full the generation is skipped

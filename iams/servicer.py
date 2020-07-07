@@ -263,32 +263,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     # RPC
     @permissions(has_agent=True)
-    def set_topology(self, request, context):
-        logger.debug('set_topology called from %s', context._agent)
-
-        edges = []
-        for edge in request.edges:
-            edges.append({
-                "from": request.start,
-                "to": request.end,
-                "weight": request.weight,
-                "symmetric": not request.directed,
-            })
-        self.arango.update_agent(request._agent, edges, pool=request.pool or None)
-        return Empty()
-
-    # RPC
-    @permissions(has_agent=True)
-    def get_topology(self, request, context):
-        logger.debug('get_topology called from %s', context._agent)
-        self.docker.set_service(
-            context._agent,
-            update=True,
-        )
-        return Empty()
-
-    # RPC
-    @permissions(has_agent=True)
     def wake(self, request, context):
         logger.debug('wake called from %s', context._agent)
         service = self.get_service(context, context._agent)

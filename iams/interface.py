@@ -213,13 +213,37 @@ class Agent(ABC):
         """
         this method can be overwritten by mixins
         """
-        pass
+        self._arango.create_agent(
+            self._iams.agent,
+            self.topology_edges(),
+            pool=self.topology_pool(),
+        )
 
-    def topology(self):
+    # @abstractmethod
+    # TODO
+    def topology_edges(self):
         """
-        returns the local topology (all neighbor and child nodes and edges)
+        returns a list of all edges
         """
-        return [], []
+        return []
+
+    # TODO
+    def topology_pool(self):
+        """
+        """
+        # TODO write docstring
+        return None
+
+    # TODO
+    def topology_update(self):
+        """
+        returns a list of all edges
+        """
+        self._arango.update_agent(
+            self._iams.agent,
+            self.topology_edges(),
+            pool=self.topology_pool(),
+        )
 
     def configure(self):
         """

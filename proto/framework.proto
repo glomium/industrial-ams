@@ -61,14 +61,6 @@ service Framework {
     agent sends this command to start another agent (service is scaled to 1)
     */
     rpc wake(AgentData) returns (google.protobuf.Empty) {}
-
-    /*
-    */
-    rpc set_topology(AgentTopology) returns (google.protobuf.Empty) {}
-
-    /*
-    */
-    rpc get_topology(google.protobuf.Empty) returns (AgentTopology) {}
 }
 
 message AgentRequest {
@@ -92,17 +84,4 @@ message AgentData {
     string version = 5;
     bytes config = 6;
     bool autostart = 7;
-}
-
-message Edge {
-    string start = 1;
-    string end = 2;
-    float weight = 3;
-    bool directed = 4;
-}
-
-message AgentTopology {
-    repeated Edge edges = 1;
-    repeated string abilities = 2;
-    string pool = 3;
 }

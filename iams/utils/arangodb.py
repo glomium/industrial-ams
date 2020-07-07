@@ -192,9 +192,9 @@ class Arango(object):
         iterates over all agents with update == true and updates their data
         """
         for data in self.db.collection('agent').find({"update": True}):
-            pass
             # get neighbor agents
             pk = data["_id"]
+
             # TODO use template sysetm from arangodb
             query = f"""
             WITH symmetric, directed

@@ -238,6 +238,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         except docker_errors.NotFound as e:
             context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
+        # TODO: remove agent from arango db
         return Empty()
 
     # RPC

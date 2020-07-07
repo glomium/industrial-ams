@@ -23,11 +23,19 @@ def get_credentials(namespace, password=None):
 
 class Arango(object):
 
-    def __init__(self, namespace, username="root", password=None, hosts="http://tasks.arangodb:8529", docker=None):
+    def __init__(self,
+                 namespace=None, username="root", password=None,
+                 hosts="http://tasks.arangodb:8529", docker=None):
+        # namespace is set by AMS or left as None by agents
+
         self.docker = docker
 
-        self.agent_username, password, self.agent_password = get_credentials(namespace, password)
-        database = self.agent_username
+        if namespace is not None:
+            self.agent_username, password, self.agent_password = get_credentials(namespace, password)
+            database = self.agent_username
+        else:
+            self.agent_username = username
+            self.agent_password = password
 
         client = ArangoClient(hosts=hosts)
 
@@ -50,50 +58,51 @@ class Arango(object):
                     active=True,
                 )
             db.update_permission(username=database, permission="ro", database=database)
-        else:
+        elif namespace is not None:
             raise NotImplementedError("Currently ArangoDB needs to be accessed as root by IAMS")
 
         # setup database
         self.db = client.db(database, username=username, password=password, verify=True)
 
-        # setup collections
-        for collection in ["topology", "agent"]:
-            if not self.db.has_collection(collection):
-                self.db.create_collection(collection)
+        # setup collections - if instance is initialized by IAMS
+        if namespace is not None:
+            for collection in ["topology", "agent"]:
+                if not self.db.has_collection(collection):
+                    self.db.create_collection(collection)
 
-        for edge in ["directed", "symmetric", "logical", "virtual"]:
-            if not self.db.has_collection(edge):
-                self.db.create_collection(edge, edge=True)
+            for edge in ["directed", "symmetric", "logical", "virtual"]:
+                if not self.db.has_collection(edge):
+                    self.db.create_collection(edge, edge=True)
 
-        # setup graphs
-        if not self.db.has_graph('plants'):
-            self.db.create_graph('plants', edge_definitions=[{
-                "edge_collection": "symmetric",
-                "from_vertex_collections": ["topology"],
-                "to_vertex_collections": ["topology"],
-            }, {
-                "edge_collection": "directed",
-                "from_vertex_collections": ["topology"],
-                "to_vertex_collections": ["topology"],
-            }])
+            # setup graphs
+            if not self.db.has_graph('plants'):
+                self.db.create_graph('plants', edge_definitions=[{
+                    "edge_collection": "symmetric",
+                    "from_vertex_collections": ["topology"],
+                    "to_vertex_collections": ["topology"],
+                }, {
+                    "edge_collection": "directed",
+                    "from_vertex_collections": ["topology"],
+                    "to_vertex_collections": ["topology"],
+                }])
 
-        if not self.db.has_graph('connections'):
-            self.db.create_graph('connections', edge_definitions=[{
-                "edge_collection": "logical",
-                "from_vertex_collections": ["agent"],
-                "to_vertex_collections": ["agent"],
-            }])
+            if not self.db.has_graph('connections'):
+                self.db.create_graph('connections', edge_definitions=[{
+                    "edge_collection": "logical",
+                    "from_vertex_collections": ["agent"],
+                    "to_vertex_collections": ["agent"],
+                }])
 
-        if not self.db.has_graph('all_connections'):
-            self.db.create_graph('all_connections', edge_definitions=[{
-                "edge_collection": "logical",
-                "from_vertex_collections": ["agent"],
-                "to_vertex_collections": ["agent"],
-            }, {
-                "edge_collection": "virtual",
-                "from_vertex_collections": ["agent"],
-                "to_vertex_collections": ["agent"],
-            }])
+            if not self.db.has_graph('all_connections'):
+                self.db.create_graph('all_connections', edge_definitions=[{
+                    "edge_collection": "logical",
+                    "from_vertex_collections": ["agent"],
+                    "to_vertex_collections": ["agent"],
+                }, {
+                    "edge_collection": "virtual",
+                    "from_vertex_collections": ["agent"],
+                    "to_vertex_collections": ["agent"],
+                }])
 
     def create_agent(self, name, edges, abilities=[], pool=None):
         nodes = []

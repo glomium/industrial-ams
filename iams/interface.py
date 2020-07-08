@@ -203,7 +203,7 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def _loop(self):
+    def _loop(self):  # pragma: no cover
         """
         this method can be overwritten by mixins
         """
@@ -213,37 +213,7 @@ class Agent(ABC):
         """
         this method can be overwritten by mixins
         """
-        self._arango.create_agent(
-            self._iams.agent,
-            self.topology_edges(),
-            pool=self.topology_pool(),
-        )
-
-    # @abstractmethod
-    # TODO
-    def topology_edges(self):
-        """
-        returns a list of all edges
-        """
-        return []
-
-    # TODO
-    def topology_pool(self):
-        """
-        """
-        # TODO write docstring
-        return None
-
-    # TODO
-    def topology_update(self):
-        """
-        returns a list of all edges
-        """
-        self._arango.update_agent(
-            self._iams.agent,
-            self.topology_edges(),
-            pool=self.topology_pool(),
-        )
+        pass
 
     def configure(self):
         """

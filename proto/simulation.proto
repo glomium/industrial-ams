@@ -31,19 +31,19 @@ message AgentConfig {
 }
 
 message SimulationConfig {
-    float until = 1;
+    double until = 1;
     string seed = 2;
     repeated AgentConfig agents = 3;
 }
 
 message SimulationData {
     string name = 1;
-    float time = 2;
+    double time = 2;
     iams.agent.SimulationLog log = 3;
     iams.agent.SimulationMetric metric = 4;
 }
 
 message EventScheduleRequest {
     bytes uuid = 1;
-    float delay = 2;
+    double delay = 2;
 }

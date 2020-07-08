@@ -26,7 +26,7 @@ service Agent {
 
 message SimulationRequest {
     bytes uuid = 1;
-    float time = 2;
+    double time = 2;
 }
 
 message SimulationLog {
@@ -34,12 +34,12 @@ message SimulationLog {
 }
 
 message SimulationMetric {
-    map<string, float> metrics = 1;
+    map<string, double> metrics = 1;
 }
 
 message SimulationSchedule {
     bytes uuid = 1;
-    float delay = 2;
+    double delay = 2;
 }
 
 message SimulationResponse {
@@ -73,7 +73,7 @@ message Edge {
     bool is_child = 6;
 
     // weight (i.e. time) this edge costs
-    float weight = 7;
+    double weight = 7;
 }
 
 message Topology {

@@ -2,7 +2,9 @@ syntax = "proto3";
 
 package iams.servicer;
 
+import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
+
 
 /*
 */
@@ -84,4 +86,22 @@ message AgentData {
     string version = 5;
     bytes config = 6;
     bool autostart = 7;
+}
+
+
+// TODO use edge definitions accordingly
+// Edge definitions are used internally as a data-object for arangodb
+message Edge {
+    string node_from = 1;
+    string node_to = 2;
+    string agent = 3;
+    double weight = 4;
+    bool symmetric = 5;
+}
+message Node {
+    string name = 1;
+    string default = 2;
+    repeated string pools = 3;
+    repeated Edge edges = 4;
+    map<string, google.protobuf.Any> abilities = 5;
 }

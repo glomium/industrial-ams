@@ -13,9 +13,10 @@ from logging.config import dictConfig
 
 from iams.helper import get_logging_config
 from iams.interface import Agent
-# from iams.utils.auth import permissions
-# from iams.utils.auth import permissions
 from iams.mixins.arangodb import ArangoDBMixin
+from iams.proto.framework_pb2 import Edge
+# from iams.utils.auth import permissions
+# from iams.utils.auth import permissions
 
 # import example_pb2
 import example_pb2_grpc
@@ -53,6 +54,14 @@ class Source(ArangoDBMixin, Agent):
 
     def simulation_start(self):
         self._simulation.schedule(self.get_next_time(), 'generate_part')
+
+    def topology_default_edge(self):
+        return "buffer"
+
+    def topology_get_edges(self):
+        return [
+            Edge(node_from="buffer", node_to="buffer", agent=self._iams.agent.replace("source", "sink"), weight=1),
+        ]
 
     def get_next_time(self):
         while True:

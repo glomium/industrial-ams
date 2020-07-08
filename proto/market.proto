@@ -82,8 +82,8 @@ service OrderTransport {
 message StepInfo {
     string order = 1;
     int32 number = 2;
-    float time_start = 3;
-    float time_finish = 4;
+    double time_start = 3;
+    double time_finish = 4;
     repeated string abilities = 5;
     google.protobuf.Any data = 6;
 }
@@ -95,12 +95,12 @@ message OrderOffer {
 }
 
 message OrderCost {
-    float production_cost = 1;
-    float production_time = 2;
-    float queue_cost = 3;
-    float queue_time = 4;
-    float transport_cost = 5;
-    float transport_time = 6;
+    double production_cost = 1;
+    double production_time = 2;
+    double queue_cost = 3;
+    double queue_time = 4;
+    double transport_cost = 5;
+    double transport_time = 6;
 }
 
 message CancelRequest {

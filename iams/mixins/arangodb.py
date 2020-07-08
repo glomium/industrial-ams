@@ -4,13 +4,17 @@
 import logging
 import os
 
-from arango import ArangoClient
+from abc import ABC
+from abc import abstractmethod
+
+from iams.proto.framework_pb2 import Node
+# from iams.proto.framework_pb2 import Edge
 from iams.utils.arangodb import Arango
 
 logger = logging.getLogger(__name__)
 
 
-class ArangoDBMixin(object):
+class ArangoDBMixin(ABC):
     """
     """
 
@@ -22,12 +26,45 @@ class ArangoDBMixin(object):
         username = os.environ.get('ARANGO_USERNAME', None)
         password = os.environ.get('ARANGO_PASSWORD', None)
 
-        self._arango_utils = Arango()  # TODO
-        self._arango_client = self._arango_utils.client
-
-        # TODO
-        self._arango = ArangoClient(hosts=hosts).db(database, username=username, password=password, verify=True)
+        self._arango_utils = Arango(username=username, password=password, database=database, hosts=hosts)
+        self._arango_client = self._arango_utils.db
 
     def _configure(self):
-        # TODO add agent to arango-db
         super()._configure()
+        self.topology_update()
+
+    def topology_get_abilities(self):
+        """
+        """
+        return {}
+
+    def topology_get_edges(self):
+        """
+        returns a list of all edges
+        """
+        return []
+
+    @abstractmethod
+    def topology_default_edge(self):  # pragma: no cover
+        """
+        """
+        pass
+
+    def topology_get_pools(self):
+        """
+        """
+        # TODO write docstring
+        return []
+
+    # TODO
+    def topology_update(self):
+        """
+        returns a list of all edges
+        """
+        self._arango_utils.update_agent(Node(
+            name=self._iams.agent,
+            default=self.topology_default_edge(),
+            edges=self.topology_get_edges(),
+            abilities=self.topology_get_abilities(),
+            pools=self.topology_get_pools(),
+        ))

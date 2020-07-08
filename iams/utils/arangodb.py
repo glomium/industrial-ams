@@ -4,7 +4,11 @@
 import logging
 import hashlib
 
+from ..proto.framework_pb2 import Edge
+from ..proto.framework_pb2 import Node
+
 from arango import ArangoClient
+from arango import AQLQueryExecuteError
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +29,11 @@ class Arango(object):
 
     def __init__(self,
                  namespace=None, username="root", password=None,
+                 database=None,
                  hosts="http://tasks.arangodb:8529", docker=None):
+
         # namespace is set by AMS or left as None by agents
+        logger.debug("Init: %s(%s, %s, %s, %s)", self.__class__.__qualname__, namespace, username, password, database)
 
         self.docker = docker
 
@@ -43,21 +50,27 @@ class Arango(object):
         if username == "root":
             db = client.db("_system", username=username, password=password, verify=True)
             if not db.has_database(database):
+                logger.info("Create Database: %s", database)
                 db.create_database(database)
 
             if db.has_user(database):
+                logger.debug("Update user: %s:%s", self.agent_username, self.agent_password)
                 db.update_user(
                     username=self.agent_username,
                     password=self.agent_password,
                     active=True,
                 )
             else:
+                logger.debug("Create user: %s:%s", self.agent_username, self.agent_password)
                 db.create_user(
                     username=self.agent_username,
                     password=self.agent_password,
                     active=True,
                 )
-            db.update_permission(username=database, permission="ro", database=database)
+
+            # TODO - potential security risk: all agents get access to database ... restrict to read-only?
+            logger.debug("Set Permissions to read-only for user %s on database %s", self.agent_username, database)
+            db.update_permission(username=self.agent_username, permission="ro", database=database)
         elif namespace is not None:
             raise NotImplementedError("Currently ArangoDB needs to be accessed as root by IAMS")
 
@@ -68,14 +81,18 @@ class Arango(object):
         if namespace is not None:
             for collection in ["topology", "agent"]:
                 if not self.db.has_collection(collection):
+                    logger.debug("Create collection %s", collection)
                     self.db.create_collection(collection)
 
             for edge in ["directed", "symmetric", "logical", "virtual"]:
                 if not self.db.has_collection(edge):
+                    logger.debug("Create edge %s", edge)
                     self.db.create_collection(edge, edge=True)
 
             # setup graphs
             if not self.db.has_graph('plants'):
+                logger.debug("Create graph: plants")
+
                 self.db.create_graph('plants', edge_definitions=[{
                     "edge_collection": "symmetric",
                     "from_vertex_collections": ["topology"],
@@ -87,6 +104,7 @@ class Arango(object):
                 }])
 
             if not self.db.has_graph('connections'):
+                logger.debug("Create graph: connections")
                 self.db.create_graph('connections', edge_definitions=[{
                     "edge_collection": "logical",
                     "from_vertex_collections": ["agent"],
@@ -94,6 +112,7 @@ class Arango(object):
                 }])
 
             if not self.db.has_graph('all_connections'):
+                logger.debug("Create graph: all_connections")
                 self.db.create_graph('all_connections', edge_definitions=[{
                     "edge_collection": "logical",
                     "from_vertex_collections": ["agent"],
@@ -104,65 +123,72 @@ class Arango(object):
                     "to_vertex_collections": ["agent"],
                 }])
 
-    def create_agent(self, name, edges, abilities=[], pool=None):
-        nodes = []
-        if pool:
-            self.db.collection("agent").insert({
-                "_key": name,
-                "update": True,
-                "pool": pool,
-                "abilities": abilities,
-            })
-        else:
-            self.db.collection("agent").insert({
-                "_key": name,
-                "update": True,
-                "abilities": abilities,
-            })
+    def create_agent(self, node):
 
-        for edge in edges:
+        data = {
+            "_key": node.name,
+            "update": True,
+            "abilities": list(node.abilities.keys()),
+        }
 
-            if edge["from"] not in nodes:
+        # TODO support resources to be in multiple pools
+        if node.pools:
+            data["pool"] = node.pools[0]
+
+        self.db.collection("agent").insert(data)
+
+        self.db.collection("topology").insert({
+            "_key": f"{node.name}:{node.default}",
+            "agent": f"agent/{node.name}",
+            "default": True,
+        })
+        nodes = [node.default]
+
+        for edge in node.edges:
+
+            # agent = edge.agent or node.name
+            if edge.node_from not in nodes:
                 self.db.collection("topology").insert({
-                    "_key": f"{name}:{edge['from']}",
-                    "agent": f"agent/{name}",
+                    "_key": f"{node.name}:{edge.node_from}",
+                    "agent": f"agent/{node.name}",
+                    "default": False,
                 })
-                nodes.append(edge["from"])
+                nodes.append(edge.node_from)
 
-            if edge["to"] not in nodes and ":" not in edge["to"]:
+            if edge.node_to not in nodes and edge.agent is None:
                 self.db.collection("topology").insert({
-                    "_key": f"{name}:{edge['to']}",
-                    "agent": f"agent/{name}",
+                    "_key": f"{node.name}:{edge.node_to}",
+                    "agent": f"agent/{node.name}",
+                    "default": False,
                 })
-                nodes.append(edge["to"])
+                nodes.append(edge.node_to)
 
-            if edge.get("symmetric", False) is True:
+            if edge.symmetric:
                 collection = "symmetric"
             else:
                 collection = "directed"
 
-            if ":" in edge["to"]:
+            if edge.agent:
                 self.db.collection(collection).insert({
-                    "_from": f"topology/{name}:{edge['from']}",
-                    "_to": f"topology/{edge['to']}",
-                    "weight": edge["weight"],
+                    "_from": f"topology/{node.name}:{edge.node_from}",
+                    "_to": f"topology/{edge.agent}:{edge.node_to}",
+                    "weight": edge.weight,
                 })
 
                 # agent instance connected to this node needs to be updated
                 if collection == "symmetric":
-                    node = edge["to"].split(":")[0]
-                    data = self.db.collection('agent').get({"_key": node})
-                    logger.info("set update on %s", node)
+                    data = self.db.collection('agent').get({"_key": edge.agent})
                     if data is None:
                         continue
+                    logger.info("set update on %s", node)
                     data["update"] = True
                     self.db.collection('agent').update(data)
 
             else:
                 self.db.collection(collection).insert({
-                    "_from": f"topology/{name}:{edge['from']}",
-                    "_to": f"topology/{name}:{edge['to']}",
-                    "weight": edge["weight"],
+                    "_from": f"topology/{node.name}:{edge.node_from}",
+                    "_to": f"topology/{node.name}:{edge.node_to}",
+                    "weight": edge.weight,
                 })
         self.update_agents()
 
@@ -187,14 +213,18 @@ class Arango(object):
             REMOVE e._key IN virtual OPTIONS { ignoreErrors: true })
         REMOVE PARSE_IDENTIFIER(@agent).key IN agent
         """
-        self.db.aql.execute(query1, bind_vars={"agent": "agent/" + name})
-        self.db.aql.execute(query2, bind_vars={"agent": "agent/" + name})
+        self.db.aql.execute(query1, bind_vars={"agent": f"agent/{name}"})
+        self.db.aql.execute(query2, bind_vars={"agent": f"agent/{name}"})
         if update:
             self.update_agents()
+        return True
 
-    def update_agent(self, name, edges, pool=None):
-        self.delete_agent(name, update=False)
-        self.create_agent(name, edges, pool)
+    def update_agent(self, node):
+        try:
+            self.delete_agent(node.name, update=False)
+        except AQLQueryExecuteError:
+            pass
+        self.create_agent(node)
 
     def update_agents(self):
         """
@@ -204,7 +234,7 @@ class Arango(object):
             # get neighbor agents
             pk = data["_id"]
 
-            # TODO use template sysetm from arangodb
+            # TODO use template system from arangodb
             query = f"""
             WITH symmetric, directed
             LET edge = (FOR doc IN topology FILTER doc.agent == '{pk}' LIMIT 1 RETURN doc._id)[0]
@@ -337,145 +367,184 @@ class Arango(object):
                         })
 
 
-class IMS(object):
-
-    def __init__(self, name, b1=None, b2=None):
-        self.name = name
-        self.pool = "ims"
-        self.b1 = b1
-        self.b2 = b2
-
-    def edges(self):
-        yield {
-            "from": "B1",
-            "to": "B2",
-            "weight": 2.0,
-        }
-        yield {
-            "from": "B1",
-            "to": "P",
-            "weight": 1.2,
-        }
-        yield {
-            "from": "P",
-            "to": "B2",
-            "weight": 1.2,
-        }
-        yield {
-            "from": "P",
-            "to": "B1",
-            "weight": 1.2,
-        }
-        yield {
-            "from": "B2",
-            "to": "B1",
-            "weight": 2.0,
-        }
-
-        if self.b1:
-            yield {
-                "from": "B1",
-                "to": f"{self.b1}",
-                "weight": 1.0,
-            }
-        if self.b2:
-            yield {
-                "from": "B2",
-                "to": f"{self.b2}",
-                "weight": 1.0,
-            }
-
-
-class UR(object):
-
-    def __init__(self, name, p1=None, p2=None, p3=None, p4=None):
-        self.name = name
-        self.pool = None
-        self.p1 = p1
-        self.p2 = p2
-        self.p3 = p3
-        self.p4 = p4
-
-    def edges(self):
-        yield {
-            "from": "P1",
-            "to": "T1",
-            "weight": 1.0,
-            "symmetric": True,
-        }
-        yield {
-            "from": "P2",
-            "to": "T1",
-            "weight": 1.0,
-            "symmetric": True,
-        }
-        yield {
-            "from": "P1",
-            "to": "P2",
-            "weight": 1.0,
-            "symmetric": True,
-        }
-
-        yield {
-            "from": "T1",
-            "to": "T2",
-            "weight": 1.0,
-            "symmetric": True,
-        }
-
-        yield {
-            "from": "P3",
-            "to": "T2",
-            "weight": 1.0,
-            "symmetric": True,
-        }
-        yield {
-            "from": "P4",
-            "to": "T2",
-            "weight": 1.0,
-            "symmetric": True,
-        }
-        yield {
-            "from": "P3",
-            "to": "P4",
-            "weight": 1.0,
-            "symmetric": True,
-        }
-
-        if self.p1:
-            yield {
-                "from": "P1",
-                "to": f"{self.p1}",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-        if self.p2:
-            yield {
-                "from": "P2",
-                "to": f"{self.p2}",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-        if self.p3:
-            yield {
-                "from": "P3",
-                "to": f"{self.p3}",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-        if self.p4:
-            yield {
-                "from": "P4",
-                "to": f"{self.p4}",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-
-
 if __name__ == "__main__":  # pragma: no cover
 
     from random import choices
     from random import shuffle
+
+    from google.protobuf.any_pb2 import Any
+    from google.protobuf.empty_pb2 import Empty
+
+    ANY = Any()
+    ANY.Pack(Empty())
+    ABILITIES = ["A", "B", "C", "D", "E", "F", "G"]
+
+    class IMS(object):
+
+        def __init__(self, name, b1=None, b2=None):
+            self.b1 = b1
+            self.b2 = b2
+
+            self.node = Node(
+                name=name,
+                default="B1",
+                pools=["ims"],
+                abilities=dict((x, ANY) for x in choices(ABILITIES, k=3)),
+                edges=self.get_edges(),
+            )
+
+        def get_edges(self):
+            data = []
+            for edge in self.edges():
+                data.append(Edge(**edge))
+            return data
+
+        def edges(self):
+            yield {
+                "node_from": "B1",
+                "node_to": "B2",
+                "weight": 2.0,
+            }
+            yield {
+                "node_from": "B1",
+                "node_to": "P",
+                "weight": 1.2,
+            }
+            yield {
+                "node_from": "P",
+                "node_to": "B2",
+                "weight": 1.2,
+            }
+            yield {
+                "node_from": "P",
+                "node_to": "B1",
+                "weight": 1.2,
+            }
+            yield {
+                "node_from": "B2",
+                "node_to": "B1",
+                "weight": 2.0,
+            }
+
+            if self.b1:
+                a, e = self.b1.split(':')
+                yield {
+                    "node_from": "B1",
+                    "node_to": e,
+                    "agent": a,
+                    "weight": 1.0,
+                }
+            if self.b2:
+                a, e = self.b2.split(':')
+                yield {
+                    "node_from": "B2",
+                    "node_to": e,
+                    "agent": a,
+                    "weight": 1.0,
+                }
+
+    class UR(object):
+
+        def __init__(self, name, p1=None, p2=None, p3=None, p4=None):
+            self.p1 = p1
+            self.p2 = p2
+            self.p3 = p3
+            self.p4 = p4
+
+            self.node = Node(
+                name=name,
+                default="T1",
+                edges=self.get_edges(),
+            )
+
+        def get_edges(self):
+            data = []
+            for edge in self.edges():
+                data.append(Edge(**edge))
+            return data
+
+        def edges(self):
+            yield {
+                "node_from": "P1",
+                "node_to": "T1",
+                "weight": 1.0,
+                "symmetric": True,
+            }
+            yield {
+                "node_from": "P2",
+                "node_to": "T1",
+                "weight": 1.0,
+                "symmetric": True,
+            }
+            yield {
+                "node_from": "P1",
+                "node_to": "P2",
+                "weight": 1.0,
+                "symmetric": True,
+            }
+
+            yield {
+                "node_from": "T1",
+                "node_to": "T2",
+                "weight": 1.0,
+                "symmetric": True,
+            }
+
+            yield {
+                "node_from": "P3",
+                "node_to": "T2",
+                "weight": 1.0,
+                "symmetric": True,
+            }
+            yield {
+                "node_from": "P4",
+                "node_to": "T2",
+                "weight": 1.0,
+                "symmetric": True,
+            }
+            yield {
+                "node_from": "P3",
+                "node_to": "P4",
+                "weight": 1.0,
+                "symmetric": True,
+            }
+
+            if self.p1:
+                a, e = self.p1.split(':')
+                yield {
+                    "node_from": "P1",
+                    "node_to": e,
+                    "agent": a,
+                    "weight": 1.0,
+                    "symmetric": True,
+                }
+            if self.p2:
+                a, e = self.p2.split(':')
+                yield {
+                    "node_from": "P2",
+                    "node_to": e,
+                    "agent": a,
+                    "weight": 1.0,
+                    "symmetric": True,
+                }
+            if self.p3:
+                a, e = self.p3.split(':')
+                yield {
+                    "node_from": "P3",
+                    "node_to": e,
+                    "agent": a,
+                    "weight": 1.0,
+                    "symmetric": True,
+                }
+            if self.p4:
+                a, e = self.p4.split(':')
+                yield {
+                    "node_from": "P4",
+                    "node_to": e,
+                    "agent": a,
+                    "weight": 1.0,
+                    "symmetric": True,
+                }
 
     AGENTS = [
         IMS("IMS11", "IMS17:B2", "IMS13A:B1"),
@@ -510,8 +579,5 @@ if __name__ == "__main__":  # pragma: no cover
     instance = Arango("prod", hosts="http://localhost:8529", password="root")
 
     for agent in AGENTS:
-        print("===", agent.name, "=" * (75 - len(agent.name)))  # noqa
-        edges = list(agent.edges())
-        abilities = list(set(choices(["A", "B", "C", "D", "E", "F", "G"], k=3)))
-        instance.create_agent(agent.name, edges, abilities, agent.pool)
-    instance.update_agent(agent.name, edges, agent.pool)
+        instance.create_agent(agent.node)
+    instance.update_agent(agent.node)

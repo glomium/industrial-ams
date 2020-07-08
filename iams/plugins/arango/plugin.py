@@ -22,9 +22,14 @@ class Arango(Plugin):
 
     def get_env(self, **kwargs):
         database, unused, password = get_credentials(self.namespace)
+        # username = database
+        username = "root"
+        password = unused
+
+        logger.debug("arango-settings: %s:%s@%s", database, password, username)
         return {
             "ARANGO_HOSTS": os.environ.get("IAMS_ARANGO_HOSTS", "http://tasks.arangodb:8529"),
             "ARANGO_DATABASE": database,
-            "ARANGO_USERNAME": database,
+            "ARANGO_USERNAME": username,
             "ARANGO_PASSWORD": password,
         }

@@ -413,6 +413,19 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
             count += 1
             logger.debug("Execute next simulation step")
 
+        # if logging.root.level <= logging.ERROR or True:  # FIXME: debug
+        #     logger.info("===== EDGES:")
+        #     edges = [
+        #         (x["_from"].split("/", 1)[1], x["_to"].split("/", 1)[1])
+        #         for x in self.servicer.arango.db.graph("connections").edge_collection('logical').all()
+        #     ]
+        #     for f, t in sorted(edges):
+        #         logger.info("== %s -> %s", f, t)
+
+        #     for name in [x["name"] for x in self.servicer.arango.db.collections() if x["name"][0] != "_"]:
+        #         collection = self.servicer.arango.db.collection(name)
+        #         logger.info("%s: %s", name, list(collection.all()))
+
         dt = time.time() - dt
         yield simulation_pb2.SimulationData(
             time=self.time,

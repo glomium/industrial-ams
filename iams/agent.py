@@ -48,6 +48,9 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         self.queue = None
         self.threadpool = threadpool
 
+        # topology cache
+        self._topology = None
+
     @permissions(has_groups=["root"])
     def run_simulation(self, request, context):
         if not self.simulation:
@@ -74,6 +77,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
                 break
         self.queue = None
 
+    # TODO unused?
     @permissions(has_agent=True)
     def topology(self, request, context):
         nodes, edges = self.parent.topology()
@@ -173,6 +177,15 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             return True
         except grpc.RpcError as e:
             logger.debug("Ping response %s: %s from %s", e.code(), e.details(), agent)
+            return False
+
+    def update_topology(self, node) -> bool:
+        try:
+            with framework_channel(credentials=self.parent._credentials) as channel:
+                stub = FrameworkStub(channel)
+                self._topology = stub.topology(node, timeout=10)
+            return True
+        except grpc.RpcError:
             return False
 
 

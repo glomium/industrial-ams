@@ -210,7 +210,15 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         self.set_booting(name)
+        self.create_callback(name)
         return framework_pb2.AgentData()
+
+    def create_callback(self, name):
+        """
+        the create_callback is overwritten by the simulation runtime.
+        it creates two events (start and stop of service), after a service is created
+        """
+        pass
 
     def get_agent_name(self, context, name):
         if context._agent is None and name is None:
@@ -271,6 +279,26 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             service.scale(1)
         return Empty()
 
+    # RPC
+    @permissions(has_agent=True)
+    def topology(self, request, context):
+        logger.debug('topology called from %s', context._agent)
+
+        # iterate over node.edges and change name with regex
+        for edge in request.edges:
+            if edge.agent is not None:
+                regex = self.RE_NAME.match(edge.agent)
+                if regex:
+                    edge.agent = self.args.namespace[0:4] + '_' + regex.group(2)
+                else:
+                    message = 'A name with starting with a letter, ending with an alphanumerical chars and ' \
+                              'only containing alphanumerical values and hyphens is required to define agents'
+                    logger.debug(message)
+                    context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+
+        self.arango.create_agent(context._agent, request)
+        return request
+
 
 class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
@@ -278,6 +306,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         self.event = event
         self.runtests = runtests
         self.servicer = agent_servicer
+        agent_servicer.create_callback = self.create_callback
 
         self.heap = []
         self.simulation = False
@@ -294,6 +323,11 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         # possibility to run into infinite loops if one agents decides to wait
         # for an event on another agent
         heappush(self.heap, (scheduled_time, -delay, agent, uuid))
+
+    def create_callback(self, name):
+        heappush(self.heap, (self.time, 0.0, name, None))
+        if self.until:
+            heappush(self.heap, (self.until, 0.0, name, None))
 
     def reset(self, callback=True):
         if callback:
@@ -350,12 +384,6 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         # create callback if connection breaks
         context.add_callback(self.reset)
 
-        # create startevent for all agents
-        for service in self.servicer.docker.get_service():
-            heappush(self.heap, (0.0, 0.0, service.name, None))
-            if self.until:
-                heappush(self.heap, (self.until, 0.0, service.name, None))
-
         logger.info("Starting simulation")
         agent = None
 
@@ -376,10 +404,10 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                 logger.info("Simulation finished - no more events in queue")
                 break
 
-            # Stop simulation if time is reached
-            if self.time > request.until:
-                logger.info("Simulation finished - time limit reached")
-                break
+            # # Stop simulation if time is reached
+            # if self.time > self.until:
+            #     logger.info("Simulation finished - time limit reached")
+            #     break
 
             if uuid:
                 logger.info(

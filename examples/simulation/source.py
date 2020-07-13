@@ -13,10 +13,10 @@ from logging.config import dictConfig
 
 from iams.helper import get_logging_config
 from iams.interface import Agent
-from iams.mixins.arangodb import ArangoDBMixin
 from iams.proto.framework_pb2 import Edge
 # from iams.utils.auth import permissions
 # from iams.utils.auth import permissions
+from iams.market import MarketWorkerInterface
 
 # import example_pb2
 import example_pb2_grpc
@@ -32,7 +32,7 @@ class Servicer(example_pb2_grpc.SourceServicer):
         self.parent = parent
 
 
-class Source(ArangoDBMixin, Agent):
+class Source(MarketWorkerInterface, Agent):
     """
     Source generates orders in intervalls
     Source have a bufferstorage of X parts, if the buffer is full the generation is skipped
@@ -58,9 +58,14 @@ class Source(ArangoDBMixin, Agent):
     def topology_default_edge(self):
         return "buffer"
 
+    def topology_get_abilities(self):
+        return ['source']
+
     def topology_get_edges(self):
+        agent = self._iams.agent.replace("source", "sink")
+        logger.info("adding edge to %s", agent)
         return [
-            Edge(node_from="buffer", node_to="buffer", agent=self._iams.agent.replace("source", "sink"), weight=1),
+            Edge(node_from="buffer", node_to="buffer", agent=agent, weight=1),
         ]
 
     def get_next_time(self):

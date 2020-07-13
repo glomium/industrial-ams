@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package iams.servicer;
 
-import "google/protobuf/any.proto";
+// import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
 
 
@@ -59,6 +59,9 @@ service Framework {
     */
     rpc upgrade(AgentData) returns (google.protobuf.Empty) {}
 
+    // TODO
+    rpc topology(Node) returns (Node) {}
+
     /*
     agent sends this command to start another agent (service is scaled to 1)
     */
@@ -90,7 +93,6 @@ message AgentData {
 
 
 // TODO use edge definitions accordingly
-// Edge definitions are used internally as a data-object for arangodb
 message Edge {
     string node_from = 1;
     string node_to = 2;
@@ -99,9 +101,9 @@ message Edge {
     bool symmetric = 5;
 }
 message Node {
-    string name = 1;
-    string default = 2;
-    repeated string pools = 3;
-    repeated Edge edges = 4;
-    map<string, google.protobuf.Any> abilities = 5;
+    // string name = 1;
+    string default = 1;
+    repeated string pools = 2;
+    repeated Edge edges = 3;
+    repeated string abilities = 4;
 }

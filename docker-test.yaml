@@ -73,6 +73,8 @@ services:
         deploy:
             mode: replicated
             replicas: 1
+        # ports:
+        #     - "8530:8529"
         secrets:
             - arango
         networks:

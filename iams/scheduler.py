@@ -30,13 +30,14 @@ class Scheduler(object):
 
         self.uuid = b''
         self.time = 0.0
+        self.start = True
 
         self.events = {}
 
     def __next__(self):
         logger.debug("selecting next event: %s", self.uuid)
         if self.uuid == b'':
-            if self.time == 0.0:
+            if self.start:
                 return "simulation_start", {}
             else:
                 return "simulation_finish", {}

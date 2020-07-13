@@ -29,6 +29,9 @@ class ArangoDBMixin(ABC):
         self._arango_utils = Arango(username=username, password=password, database=database, hosts=hosts)
         self._arango_client = self._arango_utils.db
 
+
+class TopologyMixin(ArangoDBMixin, ABC):
+
     def _configure(self):
         super()._configure()
         self.topology_update()
@@ -61,8 +64,7 @@ class ArangoDBMixin(ABC):
         """
         returns a list of all edges
         """
-        self._arango_utils.update_agent(Node(
-            name=self._iams.agent,
+        self._iams.update_topology(Node(
             default=self.topology_default_edge(),
             edges=self.topology_get_edges(),
             abilities=self.topology_get_abilities(),

@@ -7,6 +7,7 @@ package ims.market;
 
 /*
 */
+// OLD
 service OrderCallback {
     /*
     */
@@ -33,6 +34,7 @@ service OrderCallback {
 /*
 Integrated for communication with orders. Has an apply and assign function
 */
+// OLD
 service OrderNegotiate {
     /*
     Requests here are applying for an order. check stock match between abilities and requirements
@@ -59,7 +61,8 @@ service OrderNegotiate {
 
 /*
 */
-service OrderTransport {
+// OLD
+service OrderTransportOLD {
     /*
     */
     rpc apply(stream StepInfo) returns (stream OrderOffer) {}
@@ -79,6 +82,7 @@ service OrderTransport {
     rpc start(StepInfo) returns (google.protobuf.Empty) {}
 }
 
+// OLD
 message StepInfo {
     string order = 1;
     int32 number = 2;
@@ -88,12 +92,14 @@ message StepInfo {
     google.protobuf.Any data = 6;
 }
 
+// OLD
 message OrderOffer {
     string agent = 1;
     StepInfo step = 2;
     OrderCost cost = 3;
 }
 
+// OLD
 message OrderCost {
     double production_cost = 1;
     double production_time = 2;
@@ -103,6 +109,42 @@ message OrderCost {
     double transport_time = 6;
 }
 
+// OLD
 message CancelRequest {
     string order = 1;
+}
+
+service Order {
+}
+
+service OrderWorker {
+    rpc production_assign(Production) returns (Production) {}
+    rpc production_cancel(Production) returns (google.protobuf.Empty) {}
+    rpc production_offer(Production) returns (Production) {}
+    rpc transport_assign(Transport) returns (Transport) {}
+    rpc transport_cancel(Transport) returns (google.protobuf.Empty) {}
+    rpc transport_offer(Transport) returns (Transport) {}
+}
+
+message Transport {
+    string order = 1;
+    string previous_agent = 2;
+    string previous_interface = 3;
+    string next_agent = 4;
+    string next_interface = 5;
+    double cost = 6;
+    double eta = 7;
+    double time_start = 8;
+    double time_queue = 9;
+    double time_work = 10;
+}
+
+message Production {
+    string order = 1;
+    string interface = 3;
+    double cost = 6;
+    double eta = 7;
+    double time_start = 8;
+    double time_queue = 9;
+    double time_work = 10;
 }

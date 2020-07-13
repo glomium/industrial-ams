@@ -7,9 +7,11 @@ __all__ = [
     'InfluxDBMixin',
     'TCPMixin',
     'TCPReadMixin',
+    'TopologyMixin',
 ]
 
 from .arangodb import ArangoDBMixin
+from .arangodb import TopologyMixin
 from .event import EventMixin
 from .influxdb import InfluxDBMixin
 from .tcp import TCPReadMixin

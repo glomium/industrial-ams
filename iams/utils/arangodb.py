@@ -123,42 +123,44 @@ class Arango(object):
                     "to_vertex_collections": ["agent"],
                 }])
 
-    def create_agent(self, node):
+    def create_agent(self, name, node):
 
         data = {
-            "_key": node.name,
+            "_key": name,
             "update": True,
-            "abilities": list(node.abilities.keys()),
+            "abilities": list(node.abilities),
         }
 
         # TODO support resources to be in multiple pools
         if node.pools:
             data["pool"] = node.pools[0]
 
+        logger.debug("adding agent %s with %s", name, data)
+
         self.db.collection("agent").insert(data)
 
         self.db.collection("topology").insert({
-            "_key": f"{node.name}:{node.default}",
-            "agent": f"agent/{node.name}",
+            "_key": f"{name}:{node.default}",
+            "agent": f"agent/{name}",
             "default": True,
         })
         nodes = [node.default]
 
         for edge in node.edges:
 
-            # agent = edge.agent or node.name
+            # agent = edge.agent or name
             if edge.node_from not in nodes:
                 self.db.collection("topology").insert({
-                    "_key": f"{node.name}:{edge.node_from}",
-                    "agent": f"agent/{node.name}",
+                    "_key": f"{name}:{edge.node_from}",
+                    "agent": f"agent/{name}",
                     "default": False,
                 })
                 nodes.append(edge.node_from)
 
             if edge.node_to not in nodes and edge.agent is None:
                 self.db.collection("topology").insert({
-                    "_key": f"{node.name}:{edge.node_to}",
-                    "agent": f"agent/{node.name}",
+                    "_key": f"{name}:{edge.node_to}",
+                    "agent": f"agent/{name}",
                     "default": False,
                 })
                 nodes.append(edge.node_to)
@@ -170,7 +172,7 @@ class Arango(object):
 
             if edge.agent:
                 self.db.collection(collection).insert({
-                    "_from": f"topology/{node.name}:{edge.node_from}",
+                    "_from": f"topology/{name}:{edge.node_from}",
                     "_to": f"topology/{edge.agent}:{edge.node_to}",
                     "weight": edge.weight,
                 })
@@ -186,8 +188,8 @@ class Arango(object):
 
             else:
                 self.db.collection(collection).insert({
-                    "_from": f"topology/{node.name}:{edge.node_from}",
-                    "_to": f"topology/{node.name}:{edge.node_to}",
+                    "_from": f"topology/{name}:{edge.node_from}",
+                    "_to": f"topology/{name}:{edge.node_to}",
                     "weight": edge.weight,
                 })
         self.update_agents()
@@ -219,12 +221,12 @@ class Arango(object):
             self.update_agents()
         return True
 
-    def update_agent(self, node):
+    def update_agent(self, name, node):
         try:
-            self.delete_agent(node.name, update=False)
+            self.delete_agent(name, update=False)
         except AQLQueryExecuteError:
             pass
-        self.create_agent(node)
+        self.create_agent(name, node)
 
     def update_agents(self):
         """
@@ -389,7 +391,7 @@ if __name__ == "__main__":  # pragma: no cover
                 name=name,
                 default="B1",
                 pools=["ims"],
-                abilities=dict((x, ANY) for x in choices(ABILITIES, k=3)),
+                abilities=list(set(choices(ABILITIES, k=3))),
                 edges=self.get_edges(),
             )
 

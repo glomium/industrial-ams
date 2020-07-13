@@ -12,6 +12,8 @@ from logging.config import dictConfig
 
 from iams.helper import get_logging_config
 from iams.interface import Agent
+from iams.market import StepInfo
+from iams.market import MarketInterface
 # from iams.utils.auth import permissions
 
 # import example_pb2
@@ -27,23 +29,56 @@ class Servicer(example_pb2_grpc.OrderServicer):
         self.parent = parent
 
 
-class Order(Agent):
+class Order(MarketInterface, Agent):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.servicer = Servicer(self)
 
-    def _loop(self):
-        pass
-
     def grpc_setup(self):
         self._grpc.add(example_pb2_grpc.add_OrderServicer_to_server, self.servicer)
 
-    def simulation_start(self):
-        pass
+    def order_update_config(self, *kwargs):
+        raise NotImplementedError
+
+    def order_get_data(self):
+        return 3600.0, [StepInfo(abilities=["source"]), StepInfo(abilities=["sink"])]
+
+    def order_started(self):
+        raise NotImplementedError
+
+    def order_reassign(self):
+        raise NotImplementedError
+
+    def order_reassigned(self):
+        raise NotImplementedError
+
+    def order_canceled(self):
+        raise NotImplementedError
+
+    # def order_skip_step(self, step):
+    #     raise NotImplementedError
+
+    def order_start_step(self):
+        raise NotImplementedError
+
+    def order_next_step(self):
+        raise NotImplementedError
+
+    def order_finish_step(self):
+        raise NotImplementedError
+
+    def order_cancel(self):
+        raise NotImplementedError
+
+    def order_finished(self):
+        raise NotImplementedError
+
+    def topology_default_edge(self):
+        return None
 
 
 if __name__ == "__main__":
-    dictConfig(get_logging_config(["iams"], logging.INFO))
+    dictConfig(get_logging_config(["iams"], logging.DEBUG))
     run = Order()
     run()

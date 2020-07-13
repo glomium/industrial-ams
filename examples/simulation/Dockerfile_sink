@@ -11,4 +11,5 @@ RUN python3 -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. example.
 LABEL iams.services.agent=true
 LABEL iams.plugins.arango=true
 LABEL iams.plugins.sentry=true
+
 ENTRYPOINT ["/entrypoint.sh", "sink.py"]

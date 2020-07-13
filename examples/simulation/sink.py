@@ -9,8 +9,9 @@ from logging.config import dictConfig
 
 from iams.helper import get_logging_config
 from iams.interface import Agent
-from iams.mixins.arangodb import ArangoDBMixin
+# from iams.mixins.arangodb import TopologyMixin
 # from iams.utils.auth import permissions
+from iams.market import MarketWorkerInterface
 
 # import example_pb2
 import example_pb2_grpc
@@ -26,7 +27,7 @@ class Servicer(example_pb2_grpc.SinkServicer):
         self.parent = parent
 
 
-class Sink(ArangoDBMixin, Agent):
+class Sink(MarketWorkerInterface, Agent):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -46,6 +47,9 @@ class Sink(ArangoDBMixin, Agent):
     def simulation_start(self):
         # we start the simulation on the sink only if the first order was received
         pass
+
+    def topology_get_abilities(self):
+        return ['sink']
 
     def topology_default_edge(self):
         return "buffer"

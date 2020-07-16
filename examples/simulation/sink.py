@@ -106,6 +106,6 @@ class Sink(MarketWorkerInterface, Agent):
 
 
 if __name__ == "__main__":
-    dictConfig(get_logging_config(["iams"], logging.INFO))
+    dictConfig(get_logging_config(["iams"], logging.DEBUG))
     run = Sink()
     run()

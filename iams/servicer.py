@@ -322,12 +322,12 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
         # to decide which event was added first. this reduces the
         # possibility to run into infinite loops if one agents decides to wait
         # for an event on another agent
-        heappush(self.heap, (scheduled_time, -delay, agent, uuid))
+        heappush(self.heap, (scheduled_time, -delay, agent, uuid, False))
 
     def create_callback(self, name):
-        heappush(self.heap, (self.time, 0.0, name, None))
+        heappush(self.heap, (self.time, 0.0, name, None, False))
         if self.until:
-            heappush(self.heap, (self.until, 0.0, name, None))
+            heappush(self.heap, (self.until, 0.0, name, None, True))
 
     def reset(self, callback=True):
         if callback:
@@ -399,7 +399,7 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                 self.servicer.event.wait()
 
             try:
-                self.time, delay, agent, uuid = heappop(self.heap)
+                self.time, delay, agent, uuid, finish = heappop(self.heap)
             except IndexError:
                 logger.info("Simulation finished - no more events in queue")
                 break
@@ -416,6 +416,11 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
                     self.time,
                     UUID(bytes=uuid),
                 )
+            elif finish:
+                logger.info(
+                    "stop execution of simulation on %s",
+                    agent,
+                )
             else:
                 logger.info(
                     "start execution of simulation on %s",
@@ -424,7 +429,8 @@ class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
 
             with framework_channel(hostname=agent, credentials=self.servicer.credentials) as channel:
                 stub = AgentStub(channel)
-                for r in stub.run_simulation(agent_pb2.SimulationRequest(uuid=uuid, time=self.time), timeout=10):
+                request = agent_pb2.SimulationRequest(uuid=uuid, time=self.time, finish=finish)
+                for r in stub.run_simulation(request, timeout=10):
                     if r.schedule.ByteSize():
                         self.add_event(r.schedule.delay, agent, r.schedule.uuid)
 

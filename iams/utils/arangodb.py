@@ -4,11 +4,12 @@
 import logging
 import hashlib
 
-from ..proto.framework_pb2 import Edge
-from ..proto.framework_pb2 import Node
-
 from arango import ArangoClient
 from arango import AQLQueryExecuteError
+
+from iams.proto.framework_pb2 import Edge
+from iams.proto.framework_pb2 import Node
+
 
 logger = logging.getLogger(__name__)
 
@@ -374,25 +375,23 @@ if __name__ == "__main__":  # pragma: no cover
     from random import choices
     from random import shuffle
 
-    from google.protobuf.any_pb2 import Any
-    from google.protobuf.empty_pb2 import Empty
-
-    ANY = Any()
-    ANY.Pack(Empty())
     ABILITIES = ["A", "B", "C", "D", "E", "F", "G"]
 
     class IMS(object):
 
         def __init__(self, name, b1=None, b2=None):
+            self.name = name
             self.b1 = b1
             self.b2 = b2
 
+            abilities = list(set(choices(ABILITIES, k=3)))
+            edges = self.get_edges()
+
             self.node = Node(
-                name=name,
                 default="B1",
                 pools=["ims"],
-                abilities=list(set(choices(ABILITIES, k=3))),
-                edges=self.get_edges(),
+                abilities=abilities,
+                edges=edges,
             )
 
         def get_edges(self):
@@ -452,9 +451,9 @@ if __name__ == "__main__":  # pragma: no cover
             self.p2 = p2
             self.p3 = p3
             self.p4 = p4
+            self.name = name
 
             self.node = Node(
-                name=name,
                 default="T1",
                 edges=self.get_edges(),
             )
@@ -576,10 +575,10 @@ if __name__ == "__main__":  # pragma: no cover
 
     client = ArangoClient(hosts='http://localhost:8529')
     db = client.db("_system", username="root", password="root", verify=True)
-    if db.has_database("iams_prod"):
-        db.delete_database("iams_prod")
-    instance = Arango("prod", hosts="http://localhost:8529", password="root")
+    if db.has_database("iams_test"):
+        db.delete_database("iams_test")
+    instance = Arango("test", hosts="http://localhost:8529", password="root")
 
     for agent in AGENTS:
-        instance.create_agent(agent.node)
-    instance.update_agent(agent.node)
+        instance.create_agent(agent.name, agent.node)
+    # instance.update_agent(agent.name, agent.node)

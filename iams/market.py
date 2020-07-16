@@ -24,7 +24,7 @@ from .mixins import ArangoDBMixin
 from .mixins import TopologyMixin
 from .proto import market_pb2
 from .proto import market_pb2_grpc
-from .proto.market_pb2 import StepInfo  # noqa
+from .proto.market_pb2 import Step
 
 
 logger = logging.getLogger(__name__)
@@ -39,8 +39,9 @@ class StepQueue:
     cost: float
     time: float
     step: int
-    agent: str
-    steps: list = field(default_factory=list, compare=False)
+    agent: str = field(compare=False, repr=False, default=None)
+    steps: list = field(default_factory=list, compare=False, repr=False)
+    # interface: str = field(compare=False, repr=False, default=None)
 
 
 # === Order ===================================================================
@@ -128,9 +129,21 @@ class OrderWorkerServicer(market_pb2_grpc.OrderWorkerServicer):
         self.parent = parent
 
     @permissions(has_agent=True)
+    def transport_assign(self, request, context):
+        logger.debug("%s.transport_assign was called by %s", self.__class__.__qualname__, context._agent)
+        logger.debug("transport_assign request: %s", request)
+        return request
+
+    @permissions(has_agent=True)
     def transport_offer(self, request, context):
         logger.debug("%s.transport_offer was called by %s", self.__class__.__qualname__, context._agent)
         request.cost += 5.0
+        return request
+
+    @permissions(has_agent=True)
+    def production_assign(self, request, context):
+        logger.debug("%s.production_assign was called by %s", self.__class__.__qualname__, context._agent)
+        request.cost += 1.0
         return request
 
     @permissions(has_agent=True)
@@ -219,7 +232,7 @@ class MarketInterface(ArangoDBMixin, ABC):
 
         eta, steps = self.order_get_data()
         try:
-            costs = self._order_get_costs(eta, steps)
+            item = self._market_get_order(eta, steps)
         except NoExecute:
             logger.error("Shutdown - order %s does not contain steps", self)
             self._order_state = OrderStates.SHUTDOWN
@@ -227,7 +240,7 @@ class MarketInterface(ArangoDBMixin, ABC):
                 self._simulation.schedule(0, '_loop')
             return None
 
-        if costs is None:
+        if item is None:
             logger.info("Retry in 60s - can not build order %s", self)
             self.loop_wait()
             return None
@@ -241,39 +254,115 @@ class MarketInterface(ArangoDBMixin, ABC):
             self._order_state == OrderStates.WAIT
 
     # TODO
-    def _order_select(self, item):
+    def _market_select(self, item):
         """
         iterates over the information stored in item and schedules the order steps on the agents
         """
-        return True
 
-    def _order_cost_transport(self, agent, target, futures):
+        # compress production on the same agent to a single call
+        current = None
+        merge = {}
+        for n, data in enumerate(item.steps):
+            agent, step = data
+            if isinstance(step, market_pb2.Transport):
+                previous = None
+            elif isinstance(step, market_pb2.Production):
+                if previous == agent:
+                    try:
+                        merge[current].append(n)
+                    except KeyError:
+                        merge[current] = [n]
+                else:
+                    current = n
+                previous = agent
+            else:
+                raise NotImplementedError("Step is not an instance of Transport or Production")
+
+        logger.debug("merging production steps: %s", merge)
+
+        delete = []
+        for step, data in merge.items():
+            for i in data:
+                item.steps[step].steps += item.steps[i].steps
+                delete.append(i)
+        delete.sort(reverse=True)
+        for i in delete:
+            del item.steps[i]
+        del merge
+
+        agents_transport = set()
+        agents_production = set()
+        try:
+            for agent, step in item.steps:
+                if isinstance(step, market_pb2.Transport):
+                    with self._channel(agent) as channel:
+                        stub = market_pb2_grpc.OrderWorkerStub(channel)
+                        result = stub.transport_assign(step, timeout=10)
+                    agents_transport.add(agent)
+                    logger.debug("RESULT: %s", result)
+                elif isinstance(step, market_pb2.Production):
+                    with self._channel(agent) as channel:
+                        stub = market_pb2_grpc.OrderWorkerStub(channel)
+                        result = stub.production_assign(step, timeout=10)
+                    agents_production.add(agent)
+                    logger.debug("RESULT: %s", result)
+            return True
+
+        except grpc.RpcError as e:
+            logger.info("Order %s could not be started: %s - %s", self._iams.agent, e.code(), e.details())
+        except NotImplementedError as e:
+            logger.exception(e)
+
+        # abort and cleanup
+        for agent in agents_transport:
+            # cancel order on agent
+            with self._channel(agent) as channel:
+                stub = market_pb2_grpc.OrderWorkerStub(channel)
+                stub.transport_cancel(market_pb2.Cancel(order=self._iams.agent), timeout=10)
+            agents_transport.remove(agent)
+
+        for agent in agents_production:
+            # cancel order on agent
+            with self._channel(agent) as channel:
+                stub = market_pb2_grpc.OrderWorkerStub(channel)
+                stub.production_cancel(market_pb2.Cancel(order=self._iams.agent), timeout=10)
+            agents_production.remove(agent)
+
+        return False
+
+    def _market_cost_transport(self, agent, target, futures):
         if futures:
             concurrent.futures.wait(futures[-1])
-            previous = futures[-1].result()
+            result = futures[-1].result()
+            previous_agent = result.current_agent
         else:
-            previous = None
-
-        # TODO: this does not include a scheduler
-        # TODO: this also needs to include information about the transported item
+            previous_agent = None
 
         try:
             logger.debug("calling transport_offer from OrderWorkerStub on %s", agent)
-            request = market_pb2.Transport()
-            logger.debug("previous result %s", previous)
+            # TODO: this also needs to include information about the transported item
+            request = market_pb2.Transport(
+                order=self._iams.agent,
+                previous_agent=previous_agent,
+                current_agent=agent,
+                target_agent=target,
+            )
+            logger.debug("transport at %s from %s to %s", agent, previous_agent, target)
 
             with self._channel(agent) as channel:
                 stub = market_pb2_grpc.OrderWorkerStub(channel)
                 result = stub.transport_offer(request, timeout=10)
                 logger.debug("Estimate transport cost from %s to %s: %s", agent, target, result)
-                return stub.transport_offer(request, timeout=10)
+                return agent, stub.transport_offer(request, timeout=10)
 
         except grpc.RpcError as e:
             logger.debug("[%s] %s: %s", agent, e.code(), e.details())
-            return None
+            return agent, None
 
-    def _order_cost_production(self, agent, step, eta, item, futures):
+    def _market_cost_production(self, agent, step, eta, item, futures):
         logger.debug("calling %s to estimate production cost", agent)
+        assert isinstance(step, market_pb2.Step), "Step %s is not an instance of market_pb2.Step" % step.__class__.__qualname__  # noqa: E501
+
         # logger.debug("%s %s %s %s", step, eta, item, futures)
         # wait for futures to be executed
         done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_EXCEPTION)
@@ -284,23 +373,24 @@ class MarketInterface(ArangoDBMixin, ABC):
                 continue
 
             # get the result (or on failure raise the exception)
-            result = f.result()
+            transport_agent, result = f.result()
 
             # skip this path, if the transport is not valid
             if result is None:
                 return None
 
             # add the transport response to the steps
-            item.steps.append(result)
+            item.steps.append((transport_agent, result))
 
             item.cost += result.cost
             item.time += result.time_work + result.time_queue
 
-        # TODO: this does not include a scheduler
-        # TODO: this also needs to include information about the produced unit
         try:
             logger.debug("calling production_offer from OrderWorkerStub on %s", agent)
-            request = market_pb2.Production()
+            request = market_pb2.Production(
+                order=self._iams.agent,
+                steps=[step],
+            )
 
             with self._channel(agent) as channel:
                 stub = market_pb2_grpc.OrderWorkerStub(channel)
@@ -318,8 +408,9 @@ class MarketInterface(ArangoDBMixin, ABC):
         # add the production response to the item, mark the step as finished and return the object
         logger.info("%s accepted the step with cost %s and duration %s", agent, item.cost, item.time)
         item.step += 1
-        item.steps.append(result)
+        item.steps.append((agent, result))
         item.agent = agent
+        # item.interface = result.steps[-1].interface or None
         return item
 
         # if item.time > eta:
@@ -327,24 +418,28 @@ class MarketInterface(ArangoDBMixin, ABC):
         #     return None
         # logger.info("%s accepted the step with cost %s and duration %s", agent, cost, time)
 
-    def _order_get_costs(self, eta, steps):
+    def _market_get_order(self, eta, steps):
         logger.debug("get order costs for steps: %s", steps)
         queue = PriorityQueue()
-        position, step = self.order_get_current()
+        position = self._iams.position
+        step = self.market_get_current_step()
         item = StepQueue(cost=0.0, time=0.0, step=step, agent=position)
-        self._order_findall(queue, item, steps[step], eta)
+        self._market_findall(queue, item, steps[step], eta)
 
         try:
             while True:
                 item = queue.get(block=False)
                 if item.step == len(steps):
-                    if self._order_select(item):
+                    if self._market_select(item):
                         logger.info("Found optimal production: %s", item)
                         return item
                     else:
                         logger.info("Order execution was rejected: %s", item)
                 else:
-                    self._order_findall(queue, item, steps[item.step], eta)
+                    current_step = steps[item.step]
+                    if not isinstance(current_step, Step):
+                        raise NoExecute("Step %s is not an instance of Step", item.step)
+                    self._market_findall(queue, item, steps[item.step], eta)
                 queue.task_done()
 
         except QueueEmpty:
@@ -358,7 +453,7 @@ class MarketInterface(ArangoDBMixin, ABC):
             if current is None:
                 yield [agent]
             else:
-                logger.debug("looking for paths between %s and %s", agent, current)
+                logger.debug("looking for paths between %s and %s", current, agent)
                 query = '''WITH logical
                 FOR p IN OUTBOUND K_SHORTEST_PATHS @current TO @agent GRAPH 'connections'
                 RETURN p.vertices[*]._key'''
@@ -373,7 +468,7 @@ class MarketInterface(ArangoDBMixin, ABC):
                 for path in self._arango_client.aql.execute(query, bind_vars=bind_vars):
                     yield path
 
-    def _order_findall(self, queue, item, step, eta):
+    def _market_findall(self, queue, item, step, eta):
         logger.debug("findall  %s %s", item, step)
 
         findall_futures = set()
@@ -392,13 +487,13 @@ class MarketInterface(ArangoDBMixin, ABC):
                     cached_futures = list([cache[key] for key in path[1:x + 1]])
                     if target not in cache:
                         cache[target] = self._executor.submit(
-                            self._order_cost_transport, current, target, cached_futures,
+                            self._market_cost_transport, current, target, cached_futures,
                         )
                         futures.append(cache[target])
 
             # collect cost for execution
             findall_futures.add(self._executor.submit(
-                self._order_cost_production, target, step, eta, deepcopy(item), futures,
+                self._market_cost_production, target, step, eta, deepcopy(item), futures,
             ))
 
         # wait for futures to be executed then add (valid) results to queue
@@ -432,11 +527,11 @@ class MarketInterface(ArangoDBMixin, ABC):
         """
         pass
 
-    def order_get_current(self):
+    def market_get_current(self) -> int:
         """
-        returns the current position (agent name) and step (integer)
+        returns the current step (integer)
         """
-        return None, 0
+        return 0
 
     @abstractmethod
     def order_get_data(self):

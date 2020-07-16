@@ -11,17 +11,23 @@ service Agent {
     /*
     Receive scheduled events in simulation run
     */
-    rpc run_simulation(SimulationRequest) returns (stream SimulationResponse) {}
+    rpc ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
+    Updates the current position to the agent called this function
+    */
+    rpc position(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 
     /*
     Receive scheduled events in simulation run
     */
-    rpc ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    rpc run_simulation(SimulationRequest) returns (stream SimulationResponse) {}
 }
 
 message SimulationRequest {
     bytes uuid = 1;
     double time = 2;
+    bool finish = 3;
 }
 
 message SimulationLog {

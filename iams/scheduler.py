@@ -30,17 +30,17 @@ class Scheduler(object):
 
         self.uuid = b''
         self.time = 0.0
-        self.start = True
+        self.finish = False
 
         self.events = {}
 
     def __next__(self):
         logger.debug("selecting next event: %s", self.uuid)
         if self.uuid == b'':
-            if self.start:
-                return "simulation_start", {}
-            else:
+            if self.finish:
                 return "simulation_finish", {}
+            else:
+                return "simulation_start", {}
 
         try:
             callback, kwargs = self.events.pop(self.uuid)
@@ -85,9 +85,10 @@ class Scheduler(object):
 
         return self.time + delay
 
-    def set_event(self, uuid, time):
+    def set_event(self, uuid, time, finish):
         self.uuid = uuid
         self.time = time
+        self.finish = finish
 
         # continue execution in main thread
         self.parent._loop_event.set()

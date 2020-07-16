@@ -12,7 +12,7 @@ from logging.config import dictConfig
 
 from iams.helper import get_logging_config
 from iams.interface import Agent
-from iams.market import StepInfo
+from iams.market import Step
 from iams.market import MarketInterface
 # from iams.utils.auth import permissions
 
@@ -38,11 +38,20 @@ class Order(MarketInterface, Agent):
     def grpc_setup(self):
         self._grpc.add(example_pb2_grpc.add_OrderServicer_to_server, self.servicer)
 
+    def configure(self):
+        self._iams.update_position(self._config["position"])
+
+    def market_get_current_step(self):
+        """
+        returns the current position (agent name) and step (integer)
+        """
+        return 0
+
     def order_update_config(self, *kwargs):
         raise NotImplementedError
 
     def order_get_data(self):
-        return 3600.0, [StepInfo(abilities=["source"]), StepInfo(abilities=["sink"])]
+        return 3600.0, [Step(abilities=["sink"])]
 
     def order_started(self):
         raise NotImplementedError

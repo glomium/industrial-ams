@@ -2,88 +2,111 @@ syntax = "proto3";
 
 import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
 package ims.market;
 
+service Order {
+}
+
+service OrderWorker {
+    rpc production_assign(Production) returns (Production) {}
+    rpc production_cancel(Cancel) returns (google.protobuf.Empty) {}
+    rpc production_offer(Production) returns (Production) {}
+    rpc transport_assign(Transport) returns (Transport) {}
+    rpc transport_cancel(Cancel) returns (google.protobuf.Empty) {}
+    rpc transport_offer(Transport) returns (Transport) {}
+}
+
+message Cancel {
+    string order = 1;
+}
+
+message Transport {
+    string order = 1;
+    double cost = 2;
+    oneof eta {
+        google.protobuf.Timestamp timestamp = 3;
+        double relative = 4;
+        bool skip_eta = 5;
+    }
+    double time_queue = 6;
+    double time_work = 7;
+
+    // transport from this agent
+    string previous_agent = 8;
+    string current_agent = 9;
+    string target_agent = 10;
+}
+
+message Step {
+    string order = 1;
+    // int32 number = 2;
+    // double time_start = 3;
+    // double time_finish = 4;
+    repeated string abilities = 5;
+    google.protobuf.Any data = 6;
+    string interface = 7;
+}
+
+message Production {
+    string order = 1;
+    double cost = 2;
+    oneof eta {
+        google.protobuf.Timestamp timestamp = 3;
+        double relative = 4;
+        bool skip_eta = 5;
+    }
+    double time_queue = 6;
+    double time_work = 7;
+    repeated Step steps = 8;
+}
+
 /*
-*/
-// OLD
-service OrderCallback {
-    /*
-    */
+service OrderCallbackOLD {
     rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
 
-    /*
-    */
     rpc finish_step(StepInfo) returns (google.protobuf.Empty) {}
 
-    /*
-    */
     rpc next_step(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 
-    /*
-    */
     rpc reassign(CancelRequest) returns (google.protobuf.Empty) {}
 
-    /*
-    */
     rpc start_step(StepInfo) returns (google.protobuf.Empty) {}
 
 }
 
-/*
 Integrated for communication with orders. Has an apply and assign function
-*/
-// OLD
-service OrderNegotiate {
-    /*
+service OrderNegotiateOLD {
     Requests here are applying for an order. check stock match between abilities and requirements
     than decide to accept the order or reject it. The orders decides to wich agent it's assigned,
     so calls to this function dont need to be stored in the agent.
-    */
     rpc apply(stream StepInfo) returns (stream OrderOffer) {}
 
-    /*
     requests here are assiging the order. validate it first, than add it directly to a queue
-    */
     rpc assign(stream StepInfo) returns (stream OrderCost) {}
 
-    /*
     Cancels the order
-    */
     rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
 
-    /*
     Start step
-    */
     rpc start(StepInfo) returns (google.protobuf.Empty) {}
 }
 
-/*
-*/
-// OLD
 service OrderTransportOLD {
-    /*
-    */
     rpc apply(stream StepInfo) returns (stream OrderOffer) {}
 
-    /*
-    */
     rpc assign(stream StepInfo) returns (stream OrderCost) {}
 
-    /*
     Cancels the order
-    */
     rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
 
-    /*
     Start step
-    */
     rpc start(StepInfo) returns (google.protobuf.Empty) {}
 }
 
 // OLD
-message StepInfo {
+message StepInfoOLD {
     string order = 1;
     int32 number = 2;
     double time_start = 3;
@@ -93,58 +116,25 @@ message StepInfo {
 }
 
 // OLD
-message OrderOffer {
+message OrderOfferOLD {
     string agent = 1;
     StepInfo step = 2;
     OrderCost cost = 3;
 }
 
 // OLD
-message OrderCost {
+message OrderCostOLD {
     double production_cost = 1;
     double production_time = 2;
     double queue_cost = 3;
     double queue_time = 4;
     double transport_cost = 5;
     double transport_time = 6;
+    google.protobuf.Timestamp eta = 7;
 }
 
 // OLD
-message CancelRequest {
+message CancelRequestOLD {
     string order = 1;
 }
-
-service Order {
-}
-
-service OrderWorker {
-    rpc production_assign(Production) returns (Production) {}
-    rpc production_cancel(Production) returns (google.protobuf.Empty) {}
-    rpc production_offer(Production) returns (Production) {}
-    rpc transport_assign(Transport) returns (Transport) {}
-    rpc transport_cancel(Transport) returns (google.protobuf.Empty) {}
-    rpc transport_offer(Transport) returns (Transport) {}
-}
-
-message Transport {
-    string order = 1;
-    string previous_agent = 2;
-    string previous_interface = 3;
-    string next_agent = 4;
-    string next_interface = 5;
-    double cost = 6;
-    double eta = 7;
-    double time_start = 8;
-    double time_queue = 9;
-    double time_work = 10;
-}
-
-message Production {
-    string order = 1;
-    string interface = 3;
-    double cost = 6;
-    double eta = 7;
-    double time_start = 8;
-    double time_queue = 9;
-    double time_work = 10;
-}
+*/

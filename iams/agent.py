@@ -45,11 +45,23 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             self.prefix = ""
 
         self.parent = parent
+        self.position = None
         self.queue = None
         self.threadpool = threadpool
 
-        # topology cache
+        # caches
         self._topology = None
+
+    @permissions(has_agent=True, has_groups=["root"])
+    def ping(self, request, context):
+        return Empty()
+
+    @permissions(has_agent=True)
+    def position(self, request, context):
+        if self.update_position(context._agent):
+            return Empty()
+        message = 'Agent is already at requested position'
+        context.abort(grpc.StatusCode.ALREADY_EXISTS, message)
 
     @permissions(has_groups=["root"])
     def run_simulation(self, request, context):
@@ -60,34 +72,36 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         logger.debug("run simulation called")
 
         self.queue = Queue()
-        self.parent._simulation.set_event(request.uuid, request.time)
+        self.parent._simulation.set_event(request.uuid, request.time, request.finish)
 
         while True:
             data = self.queue.get()
-            logger.debug("found %s in queue", type(data))
             if isinstance(data, agent_pb2.SimulationLog):
+                logger.debug("Sending SimulationLog")
                 yield agent_pb2.SimulationResponse(log=data)
             elif isinstance(data, agent_pb2.SimulationMetric):
+                logger.debug("Sending SimulationMetric")
                 yield agent_pb2.SimulationResponse(metric=data)
             elif isinstance(data, agent_pb2.SimulationSchedule):
+                logger.debug("Sending SimulationSchedule")
                 yield agent_pb2.SimulationResponse(schedule=data)
             elif isinstance(data, agent_pb2.SimulationResponse):
+                logger.debug("Sending SimulationResponse")
                 yield data
             else:
+                logger.debug("Stopping current event execution")
                 break
         self.queue = None
 
-    # TODO unused?
-    @permissions(has_agent=True)
-    def topology(self, request, context):
-        nodes, edges = self.parent.topology()
-        return agent_pb2.Topology(name=self.agent, nodes=nodes, edges=edges)
-
-    @permissions(has_agent=True, has_groups=["root"])
-    def ping(self, request, context):
-        return Empty()
-
     # === calls to iams =======================================================
+
+    def update_position(self, position) -> bool:
+        if self.position == position:
+            return False
+
+        self.position = position
+        # TODO: position update callback on previous position
+        return True
 
     def get_agents(self, labels=[]) -> list:
         try:

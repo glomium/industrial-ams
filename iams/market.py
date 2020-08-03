@@ -30,10 +30,6 @@ from .proto.market_pb2 import Step
 logger = logging.getLogger(__name__)
 
 
-class NoExecute(Exception):
-    pass
-
-
 @dataclass(order=True)
 class StepQueue:
     cost: float
@@ -42,9 +38,6 @@ class StepQueue:
     agent: str = field(compare=False, repr=False, default=None)
     steps: list = field(default_factory=list, compare=False, repr=False)
     # interface: str = field(compare=False, repr=False, default=None)
-
-
-# === Order ===================================================================
 
 
 class OrderStates(Enum):
@@ -56,67 +49,6 @@ class OrderStates(Enum):
     REASSIGN = auto()  # Callback function
     CANCEL = auto()  # Callback function
     SHUTDOWN = auto()  # order agent is waiting to be killed by docker
-
-
-# class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
-#   def __init__(self, parent):
-#       self.parent = parent
-
-#   @permissions(has_agent=True)
-#   def cancel(self, request, context):
-#       logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
-#       if self.parent._order_state != OrderStates.RUNNING:
-#           context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
-#       if self.parent.order_cancel():
-#           self.parent._order_state = OrderStates.REASSIGN
-#           if self._iams.simulation:
-#               self._simulation.schedule(0.0, '_loop')
-#           else:
-#               self.parent._loop_event.set()
-#           return Empty()
-#       else:
-#           context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
-#   @permissions(has_agent=True)
-#   def finish_step(self, request, context) -> Empty:
-#       logger.debug("%s.finish_step was called by %s", self.__class__.__qualname__, context._agent)
-#       if self.parent._order_state != OrderStates.RUNNING:
-#           context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
-#       if self.parent.order_finish_step(request):
-#           return Empty()
-#       else:
-#           context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
-#   @permissions(has_agent=True)
-#   def next_step(self, request: Empty, context) -> Empty:
-#       logger.debug("%s.next_step was called by %s", self.__class__.__qualname__, context._agent)
-#       if self.parent._order_state != OrderStates.RUNNING:
-#           context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
-#       if self.parent.order_next_step(request):
-#           return Empty()
-#       else:
-#           context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
-#   @permissions(has_agent=True)
-#   def reassign(self, request, context):
-#       logger.debug("%s.reassign was called by %s", self.__class__.__qualname__, context._agent)
-#       if self.parent._order_state != OrderStates.RUNNING:
-#           context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
-#       if self.parent.order_reassign():
-#           self.parent._order_state = OrderStates.APPLY
-#           if self._iams.simulation:
-#               self._simulation.schedule(0.0, '_loop')
-#           else:
-#               self.parent._loop_event.set()
-#           return Empty()
-#       else:
-#           context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
-#   @permissions(has_agent=True)
-#   def start_step(self, request, context) -> Empty:
-#       logger.debug("%s.start_step was called by %s", self.__class__.__qualname__, context._agent)
-#       if self.parent._order_state != OrderStates.RUNNING:
-#           context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
-#       if self.parent.order_start_step(request):
-#           return Empty()
-#       else:
-#           context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
 
 class OrderServicer(market_pb2_grpc.OrderServicer):
@@ -173,9 +105,9 @@ class MarketInterface(ArangoDBMixin, ABC):
         )
 
     def setup(self):
-        config = self.order_update_config(10)
+        config = self.market_update_config(10)
         if config is not None:
-            logger.debug("%s_config is overwritten with config from service", self.__class__.__qualname__)
+            logger.debug("%s._config is overwritten with config from service", self.__class__.__qualname__)
             self._config = config
 
     def simulation_start(self):
@@ -230,11 +162,11 @@ class MarketInterface(ArangoDBMixin, ABC):
         """
         logger.debug("running loop_apply")
 
-        eta, steps = self.order_get_data()
+        eta, steps = self.market_get_order()
         try:
             item = self._market_get_order(eta, steps)
-        except NoExecute:
-            logger.error("Shutdown - order %s does not contain steps", self)
+        except RuntimeError:
+            logger.exception("Shutdown - order %s does not contain steps", self)
             self._order_state = OrderStates.SHUTDOWN
             if self._iams.simulation:
                 self._simulation.schedule(0, '_loop')
@@ -253,7 +185,6 @@ class MarketInterface(ArangoDBMixin, ABC):
         else:
             self._order_state == OrderStates.WAIT
 
-    # TODO
     def _market_select(self, item):
         """
         iterates over the information stored in item and schedules the order steps on the agents
@@ -290,6 +221,9 @@ class MarketInterface(ArangoDBMixin, ABC):
             del item.steps[i]
         del merge
 
+        # TODO: The assign can be done in reverse so that the schedule take place with
+        # respect of an eta
+        # item.steps.reverse()
         agents_transport = set()
         agents_production = set()
         try:
@@ -359,11 +293,10 @@ class MarketInterface(ArangoDBMixin, ABC):
             logger.debug("[%s] %s: %s", agent, e.code(), e.details())
             return agent, None
 
-    def _market_cost_production(self, agent, step, eta, item, futures):
+    def _market_cost_production(self, agent, step, item, futures):
         logger.debug("calling %s to estimate production cost", agent)
         assert isinstance(step, market_pb2.Step), "Step %s is not an instance of market_pb2.Step" % step.__class__.__qualname__  # noqa: E501
 
-        # logger.debug("%s %s %s %s", step, eta, item, futures)
         # wait for futures to be executed
         done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_EXCEPTION)
         for f in futures:
@@ -413,16 +346,11 @@ class MarketInterface(ArangoDBMixin, ABC):
         # item.interface = result.steps[-1].interface or None
         return item
 
-        # if item.time > eta:
-        #     logger.debug("Cannot produce order in time - abort")
-        #     return None
-        # logger.info("%s accepted the step with cost %s and duration %s", agent, cost, time)
-
     def _market_get_order(self, eta, steps):
         logger.debug("get order costs for steps: %s", steps)
         queue = PriorityQueue()
         position = self._iams.position
-        step = self.market_get_current_step()
+        step = self.market_current_step()
         item = StepQueue(cost=0.0, time=0.0, step=step, agent=position)
         self._market_findall(queue, item, steps[step], eta)
 
@@ -438,7 +366,7 @@ class MarketInterface(ArangoDBMixin, ABC):
                 else:
                     current_step = steps[item.step]
                     if not isinstance(current_step, Step):
-                        raise NoExecute("Step %s is not an instance of Step", item.step)
+                        raise RuntimeError("Step %s is not an instance of Step", item.step)
                     self._market_findall(queue, item, steps[item.step], eta)
                 queue.task_done()
 
@@ -493,7 +421,7 @@ class MarketInterface(ArangoDBMixin, ABC):
 
             # collect cost for execution
             findall_futures.add(self._executor.submit(
-                self._market_cost_production, target, step, eta, deepcopy(item), futures,
+                self._market_cost_production, target, step, deepcopy(item), futures,
             ))
 
         # wait for futures to be executed then add (valid) results to queue
@@ -503,6 +431,11 @@ class MarketInterface(ArangoDBMixin, ABC):
         for f in done:
             result = f.result()
             if isinstance(result, StepQueue):
+
+                # check if order can be produced within an eta
+                if eta > 0.0 and result.time > eta:
+                    logger.info("Cannot produce within given ETA - continue with different path")
+                    continue
                 logger.debug("adding %s to queue", result)
                 queue.put(result)
                 valid = True
@@ -520,21 +453,21 @@ class MarketInterface(ArangoDBMixin, ABC):
             logger.debug("waiting for event")
             self._loop_event.wait()
 
-    @abstractmethod
-    def order_update_config(self, retries: int = 0):
-        """
-        receive order data from service
-        """
-        pass
-
-    def market_get_current(self) -> int:
+    def market_current_step(self) -> int:
         """
         returns the current step (integer)
         """
         return 0
 
     @abstractmethod
-    def order_get_data(self):
+    def market_update_config(self, retries: int = 0):
+        """
+        receive order data from service
+        """
+        pass
+
+    @abstractmethod
+    def market_get_order(self):
         """
         return due date (eta) and a tree (list) of step instances.
 
@@ -650,7 +583,77 @@ class MarketInterface(ArangoDBMixin, ABC):
         pass
 
 
-# === NEGOTIATE ===============================================================
+class MarketWorkerInterface(TopologyMixin, ABC):
+    """
+    """
+
+    def _grpc_setup(self):
+        super()._grpc_setup()
+        self._grpc.add(
+            market_pb2_grpc.add_OrderWorkerServicer_to_server,
+            OrderWorkerServicer(self),
+        )
+
+
+# class OrderCallbackServicer(market_pb2_grpc.OrderCallbackServicer):
+#   def __init__(self, parent):
+#       self.parent = parent
+
+#   @permissions(has_agent=True)
+#   def cancel(self, request, context):
+#       logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
+#       if self.parent._order_state != OrderStates.RUNNING:
+#           context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
+#       if self.parent.order_cancel():
+#           self.parent._order_state = OrderStates.REASSIGN
+#           if self._iams.simulation:
+#               self._simulation.schedule(0.0, '_loop')
+#           else:
+#               self.parent._loop_event.set()
+#           return Empty()
+#       else:
+#           context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
+#   @permissions(has_agent=True)
+#   def finish_step(self, request, context) -> Empty:
+#       logger.debug("%s.finish_step was called by %s", self.__class__.__qualname__, context._agent)
+#       if self.parent._order_state != OrderStates.RUNNING:
+#           context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
+#       if self.parent.order_finish_step(request):
+#           return Empty()
+#       else:
+#           context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
+#   @permissions(has_agent=True)
+#   def next_step(self, request: Empty, context) -> Empty:
+#       logger.debug("%s.next_step was called by %s", self.__class__.__qualname__, context._agent)
+#       if self.parent._order_state != OrderStates.RUNNING:
+#           context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
+#       if self.parent.order_next_step(request):
+#           return Empty()
+#       else:
+#           context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
+#   @permissions(has_agent=True)
+#   def reassign(self, request, context):
+#       logger.debug("%s.reassign was called by %s", self.__class__.__qualname__, context._agent)
+#       if self.parent._order_state != OrderStates.RUNNING:
+#           context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
+#       if self.parent.order_reassign():
+#           self.parent._order_state = OrderStates.APPLY
+#           if self._iams.simulation:
+#               self._simulation.schedule(0.0, '_loop')
+#           else:
+#               self.parent._loop_event.set()
+#           return Empty()
+#       else:
+#           context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
+#   @permissions(has_agent=True)
+#   def start_step(self, request, context) -> Empty:
+#       logger.debug("%s.start_step was called by %s", self.__class__.__qualname__, context._agent)
+#       if self.parent._order_state != OrderStates.RUNNING:
+#           context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "Request does not match state-machine")
+#       if self.parent.order_start_step(request):
+#           return Empty()
+#       else:
+#           context.abort(grpc.StatusCode.UNAVAILABLE, "Request was aborted")
 
 
 # class OrderNegotiateServicer(market_pb2_grpc.OrderNegotiateServicer):
@@ -669,7 +672,6 @@ class MarketInterface(ArangoDBMixin, ABC):
 #           context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
 #       yield response
 
-#   # TODO
 #   @permissions(has_agent=True)
 #   def assign(self, request, context) -> market_pb2.OrderCost:
 #       logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
@@ -715,18 +717,6 @@ class MarketInterface(ArangoDBMixin, ABC):
 #       else:
 #           context.abort(grpc.StatusCode.NOT_FOUND, "Error cancelling order %s" % order)
 
-
-class MarketWorkerInterface(TopologyMixin, ABC):
-    """
-    """
-
-    def _grpc_setup(self):
-        super()._grpc_setup()
-        self._grpc.add(
-            market_pb2_grpc.add_OrderWorkerServicer_to_server,
-            OrderWorkerServicer(self),
-        )
-
 #   def _order_start_step(self, order, step):
 #       """
 #       """
@@ -755,32 +745,10 @@ class MarketWorkerInterface(TopologyMixin, ABC):
 #           logger.debug("%s: %s - %s", order, e.code(), e.details())
 #           return False
 
-#   @abstractmethod
-#   def order_negotiate_validate(self, order: str, step, start: float, finish: float) -> market_pb2.OrderCost:
-#       """
-#       Called from servicer when the step of an order needs to be evaluated
-#       retuns market_pb2.OrderCost or None if the request is not valid
-#       """
-#       pass
-
-#   @abstractmethod
-#   def order_negotiate_start(self, order: str, steps, eta: float) -> bool:  # from servicer
-#       """
-#       """
-#       pass
-
-#   @abstractmethod
-#   def order_negotiate_cancel(self, order: str) -> bool:  # from servicer
-#       """
-#       """
-#       pass
-
-
 # class OrderProductionServicer(market_pb2_grpc.OrderProductionServicer):
 #     def __init__(self, parent):
 #        self.parent = parent
 
-#   # TODO
 #   @permissions(has_agent=True)
 #   def apply(self, request, context) -> market_pb2.OrderOffer:
 #       logger.debug("%s.apply was called by %s", self.__class__.__qualname__, context._agent)
@@ -792,7 +760,6 @@ class MarketWorkerInterface(TopologyMixin, ABC):
 #           context.abort(grpc.StatusCode.NOT_FOUND, "Agent can not provide the services required")
 #       yield response
 
-#   # TODO
 #   @permissions(has_agent=True)
 #   def assign(self, request, context) -> market_pb2.OrderCost:
 #       logger.debug("%s.assign was called by %s", self.__class__.__qualname__, context._agent)
@@ -829,7 +796,6 @@ class MarketWorkerInterface(TopologyMixin, ABC):
 #       else:
 #           context.abort(grpc.StatusCode.NOT_FOUND, "Error assigning order %s" % (request.order or context._agent))
 
-#   # TODO
 #   @permissions(has_agent=True)
 #   def cancel(self, request: market_pb2.CancelRequest, context) -> Empty:
 #       logger.debug("%s.cancel was called by %s", self.__class__.__qualname__, context._agent)
@@ -839,7 +805,6 @@ class MarketWorkerInterface(TopologyMixin, ABC):
 #       else:
 #           context.abort(grpc.StatusCode.NOT_FOUND, "Error cancelling order %s" % order)
 
-#   # TODO
 #   @permissions(has_agent=True)
 #   def start(self, request: StepInfo, context) -> Empty:
 #       logger.debug("%s.startl was called by %s", self.__class__.__qualname__, context._agent)
@@ -876,29 +841,3 @@ class MarketWorkerInterface(TopologyMixin, ABC):
 #       except grpc.RpcError as e:
 #           logger.debug("%s: %s - %s", order, e.code(), e.details())
 #           return False
-
-#   @abstractmethod
-#   def order_transport_validate(self, order: str, step, start: float, finish: float) -> market_pb2.OrderCost:
-#       """
-#       Called from servicer when the step of an order needs to be evaluated
-#       retuns market_pb2.OrderCost or None if the request is not valid
-#       """
-#       pass
-
-#   @abstractmethod
-#   def order_transport_start(self, order: str, steps, eta: float) -> bool:  # from servicer
-#       """
-#       """
-#       pass
-
-#   @abstractmethod
-#   def order_transport_cancel(self, order: str) -> bool:  # from servicer
-#       """
-#       """
-#       pass
-
-
-# === SCHEDULER ===============================================================
-
-
-# TODO: implement a scheduler with order_start and order_cancel

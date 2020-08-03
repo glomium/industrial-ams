@@ -41,17 +41,17 @@ class Order(MarketInterface, Agent):
     def configure(self):
         self._iams.update_position(self._config["position"])
 
-    def market_get_current_step(self):
+    def market_current_step(self):
         """
         returns the current position (agent name) and step (integer)
         """
         return 0
 
-    def order_update_config(self, *kwargs):
+    def market_update_config(self, *kwargs):
         raise NotImplementedError
 
-    def order_get_data(self):
-        return 3600.0, [Step(abilities=["sink"])]
+    def market_get_order(self):
+        return 0, [Step(abilities=["sink"])]
 
     def order_started(self):
         raise NotImplementedError

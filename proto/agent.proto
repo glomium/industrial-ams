@@ -19,6 +19,11 @@ service Agent {
     rpc position(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 
     /*
+    Updates the current position to the agent called this function
+    */
+    // rpc transfer(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
     Receive scheduled events in simulation run
     */
     rpc run_simulation(SimulationRequest) returns (stream SimulationResponse) {}

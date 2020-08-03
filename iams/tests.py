@@ -3,39 +3,37 @@
 
 import unittest
 
-from iams.recipe import Graph
-from iams.recipe import RecepieData
+from iams.recipe import Recipe
+from iams.recipe import RecipeData
 
 
 class RecipeTests(unittest.TestCase):
 
     def test_split(self):
-        graph = Graph()
-        graph.load([
-            RecepieData("X", edges=['A1', 'A2'], split=True),
-            RecepieData("A1", edges=['B1']),
-            RecepieData("A2", edges=['B2']),
-            RecepieData("B1", edges=['D']),
-            RecepieData("B2", edges=['D']),
-            RecepieData("D"),
+        graph = Recipe([
+            RecipeData("X", edges=['A1', 'A2'], split=True),
+            RecipeData("A1", edges=['B1']),
+            RecipeData("A2", edges=['B2']),
+            RecipeData("B1", edges=['D']),
+            RecipeData("B2", edges=['D']),
+            RecipeData("D"),
         ])
 
         nodes = next(graph)
         self.assertEqual(nodes[0].name, 'A1')
         self.assertEqual(nodes[1].name, 'A2')
 
-        graph.finish(nodes[0])
+        graph(nodes[0])
         nodes = next(graph)
         self.assertEqual(nodes[0].name, 'B1')
 
         self.assertEqual(len(graph.g), 2)
 
     def test_graph(self):
-        graph = Graph()
-        graph.load([
-            RecepieData("A", edges=['C']),
-            RecepieData("B", edges=['C']),
-            RecepieData("C"),
+        graph = Recipe([
+            RecipeData("A", edges=['C']),
+            RecipeData("B", edges=['C']),
+            RecipeData("C"),
         ])
 
         self.assertEqual(bool(graph), True)
@@ -44,15 +42,15 @@ class RecipeTests(unittest.TestCase):
         self.assertEqual(nodes[0].name, 'A')
         self.assertEqual(nodes[1].name, 'B')
 
-        graph.finish(nodes[0])
+        graph(nodes[0])
         nodes = next(graph)
         self.assertEqual(nodes[0].name, 'B')
 
-        graph.finish(nodes[0])
+        graph(nodes[0])
         nodes = next(graph)
         self.assertEqual(nodes[0].name, 'C')
 
-        graph.finish(nodes[0])
+        graph(nodes[0])
         self.assertEqual(len(graph.g), 0)
 
         with self.assertRaises(StopIteration):

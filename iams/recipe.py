@@ -30,7 +30,7 @@ class RecepieData:
 
 class Graph(object):
 
-    def __iter__(self):
+    def __iter__(self):  # pragma: no cover
         return self
 
     def __next__(self):
@@ -41,10 +41,7 @@ class Graph(object):
 
         # which nodes have no predecessors
         for node_name in self.g.nodes.keys():
-            try:
-                node = self.g.nodes[node_name]["data"]
-            except KeyError:
-                raise KeyError("Cannot find %s in nodes" % node_name)
+            node = self.g.nodes[node_name]["data"]
 
             if sum([1 for x in self.g.predecessors(node.name)]) == 0:
                 if node.split:
@@ -71,10 +68,7 @@ class Graph(object):
         while True:
             nodes = []
             for node_name in g.nodes.keys():
-                try:
-                    node = self.g.nodes[node_name]["data"]
-                except KeyError:
-                    raise KeyError("Cannot find %s in nodes" % node_name)
+                node = self.g.nodes[node_name]["data"]
 
                 if sum([1 for x in g.predecessors(node.name)]) == 0:
                     node.level = level
@@ -88,7 +82,7 @@ class Graph(object):
                 break
             level += 1
 
-    def copy(self):
+    def copy(self):  # pragma: no cover
         return deepcopy(self)
 
     def finish(self, node: RecepieData) -> bool:
@@ -154,7 +148,7 @@ class Graph(object):
         self._calculate_levels()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
 
     import random
     from logging.config import dictConfig

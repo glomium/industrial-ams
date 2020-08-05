@@ -6,10 +6,10 @@ import "google/protobuf/timestamp.proto";
 
 package ims.market;
 
-service Order {
+service OrderMaster {
 }
 
-service OrderWorker {
+service OrderMinion {
     rpc production_assign(Production) returns (Production) {}
     rpc production_cancel(Cancel) returns (google.protobuf.Empty) {}
     rpc production_offer(Production) returns (Production) {}
@@ -22,119 +22,71 @@ message Cancel {
     string order = 1;
 }
 
-message Transport {
-    string order = 1;
-    double cost = 2;
-    oneof eta {
-        google.protobuf.Timestamp timestamp = 3;
-        double relative = 4;
-        bool skip_eta = 5;
-    }
-    double time_queue = 6;
-    double time_work = 7;
-
-    // transport from this agent
-    string previous_agent = 8;
-    string current_agent = 9;
-    string target_agent = 10;
+message Material {
+    string name = 1;
+    google.protobuf.Any data = 2;
+    bytes config = 3;
+    int32 quantity = 4;
 }
 
+message Ability {
+    string name = 1;
+    google.protobuf.Any data = 2;
+    bytes config = 3;
+}
+
+// graph model
 message Step {
-    string order = 1;
-    // int32 number = 2;
-    // double time_start = 3;
-    // double time_finish = 4;
-    repeated string abilities = 5;
-    google.protobuf.Any data = 6;
-    string interface = 7;
+    string name = 1;
+    string group = 2;
+    bool primary = 3;
+    repeated string edges = 4;
+    repeated Ability abilities = 5;
+    repeated Material materials = 6;
+    google.protobuf.Timestamp start = 7;
+    google.protobuf.Timestamp finish = 8;
+}
+
+message Scheduler {
+    double cost = 1;
+    oneof eta {
+        google.protobuf.Timestamp timestamp = 2;
+        double relative = 3;
+        bool skip_eta = 4;
+    }
+    double time_queue = 5;
+    double time_work = 6;
 }
 
 message Production {
     string order = 1;
-    double cost = 2;
-    oneof eta {
-        google.protobuf.Timestamp timestamp = 3;
-        double relative = 4;
-        bool skip_eta = 5;
-    }
-    double time_queue = 6;
-    double time_work = 7;
-    repeated Step steps = 8;
+    repeated Step steps = 3;
 }
 
-/*
-service OrderCallbackOLD {
-    rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
-
-    rpc finish_step(StepInfo) returns (google.protobuf.Empty) {}
-
-    rpc next_step(google.protobuf.Empty) returns (google.protobuf.Empty) {}
-
-    rpc reassign(CancelRequest) returns (google.protobuf.Empty) {}
-
-    rpc start_step(StepInfo) returns (google.protobuf.Empty) {}
-
-}
-
-Integrated for communication with orders. Has an apply and assign function
-service OrderNegotiateOLD {
-    Requests here are applying for an order. check stock match between abilities and requirements
-    than decide to accept the order or reject it. The orders decides to wich agent it's assigned,
-    so calls to this function dont need to be stored in the agent.
-    rpc apply(stream StepInfo) returns (stream OrderOffer) {}
-
-    requests here are assiging the order. validate it first, than add it directly to a queue
-    rpc assign(stream StepInfo) returns (stream OrderCost) {}
-
-    Cancels the order
-    rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
-
-    Start step
-    rpc start(StepInfo) returns (google.protobuf.Empty) {}
-}
-
-service OrderTransportOLD {
-    rpc apply(stream StepInfo) returns (stream OrderOffer) {}
-
-    rpc assign(stream StepInfo) returns (stream OrderCost) {}
-
-    Cancels the order
-    rpc cancel(CancelRequest) returns (google.protobuf.Empty) {}
-
-    Start step
-    rpc start(StepInfo) returns (google.protobuf.Empty) {}
-}
-
-// OLD
-message StepInfoOLD {
+message Transport {
     string order = 1;
-    int32 number = 2;
-    double time_start = 3;
-    double time_finish = 4;
-    repeated string abilities = 5;
-    google.protobuf.Any data = 6;
+    string interface = 2;
+    string target_agent = 3;
+    string target_interface = 4;
+    google.protobuf.Any payload = 5;
 }
 
-// OLD
-message OrderOfferOLD {
+message Task {
     string agent = 1;
-    StepInfo step = 2;
-    OrderCost cost = 3;
+    string interface = 2;
+    Scheduler scheduler = 3;
+
+    oneof data {
+        Transport transport = 4;
+        Production production = 5;
+    }
+
+    google.protobuf.Timestamp start = 6;
+    google.protobuf.Timestamp finish = 7;
 }
 
-// OLD
-message OrderCostOLD {
-    double production_cost = 1;
-    double production_time = 2;
-    double queue_cost = 3;
-    double queue_time = 4;
-    double transport_cost = 5;
-    double transport_time = 6;
-    google.protobuf.Timestamp eta = 7;
+message Order {
+    string identifier = 1;
+    repeated Step steps = 2;
+    repeated Task tasks = 3;
 }
-
-// OLD
-message CancelRequestOLD {
-    string order = 1;
-}
-*/

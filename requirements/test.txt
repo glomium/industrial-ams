@@ -7,7 +7,7 @@ flake8-todo==0.7
 pep8-naming==0.11.1
 
 coverage==5.2.1
-wheel==0.34.2
+wheel==0.35.1
 
 opcua==0.98.12
 paho-mqtt==1.5.0

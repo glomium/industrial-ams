@@ -8,7 +8,7 @@ import os
 from logging.config import dictConfig
 
 from iams.helper import get_logging_config
-from iams.interface import Agent
+from iams.interfaces import Agent
 from iams.utils.auth import permissions
 
 import example_pb2

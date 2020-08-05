@@ -67,7 +67,7 @@ services:
 
     arangodb:
         <<: *defaults
-        image: arangodb:3.6.4
+        image: arangodb:3.6.5
         environment:
             ARANGO_ROOT_PASSWORD_FILE: /run/secrets/arango
         deploy:

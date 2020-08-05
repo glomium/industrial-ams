@@ -3,7 +3,7 @@ UBUNTU=rolling
 
 
 build:
-	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --target basestage -t iams-base:local .
+	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --pull --target basestage -t iams-base:local .
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --cache-from iams-build:local --cache-from iams:local -t iams:local .
 	cd examples/simulation && docker build -f Dockerfile_carrier -t iams_simulation_carrier:local .

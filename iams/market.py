@@ -7,10 +7,11 @@ import logging
 from abc import ABC
 from abc import abstractmethod
 from copy import deepcopy
-from dataclasses import dataclass
-from dataclasses import field
+# from dataclasses import dataclass
+# from dataclasses import field
 from enum import auto
 from enum import Enum
+from hashlib import sha512
 from queue import Empty as QueueEmpty
 from queue import PriorityQueue
 
@@ -30,16 +31,6 @@ from .proto.market_pb2 import Step
 logger = logging.getLogger(__name__)
 
 
-@dataclass(order=True)
-class StepQueue:
-    cost: float
-    time: float
-    step: int
-    agent: str = field(compare=False, repr=False, default=None)
-    steps: list = field(default_factory=list, compare=False, repr=False)
-    # interface: str = field(compare=False, repr=False, default=None)
-
-
 class OrderStates(Enum):
     APPLY = auto()  # order is applying to agents
     WAIT = auto()  # order apply failed and is waiting to re-request
@@ -51,12 +42,12 @@ class OrderStates(Enum):
     SHUTDOWN = auto()  # order agent is waiting to be killed by docker
 
 
-class OrderServicer(market_pb2_grpc.OrderServicer):
+class OrderMasterServicer(market_pb2_grpc.OrderMasterServicer):
     def __init__(self, parent):
         self.parent = parent
 
 
-class OrderWorkerServicer(market_pb2_grpc.OrderWorkerServicer):
+class OrderMinionServicer(market_pb2_grpc.OrderMinionServicer):
     def __init__(self, parent):
         self.parent = parent
 
@@ -85,13 +76,16 @@ class OrderWorkerServicer(market_pb2_grpc.OrderWorkerServicer):
         return request
 
 
-class MarketInterface(ArangoDBMixin, ABC):
+class MarketMasterInterface(ArangoDBMixin, ABC):
     """
     Has the steps, asks agents to produce the steps and tracks the process
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        cls = self.market_get_order_class()
+        self._market_order = self.market_get_order(cls)
 
         self._order_state = OrderStates.APPLY
         self._order_applications = {}
@@ -100,8 +94,8 @@ class MarketInterface(ArangoDBMixin, ABC):
     def _grpc_setup(self):
         super()._grpc_setup()
         self._grpc.add(
-            market_pb2_grpc.add_OrderServicer_to_server,
-            OrderServicer(self),
+            market_pb2_grpc.add_OrderMasterServicer_to_server,
+            OrderMasterServicer(self),
         )
 
     def setup(self):
@@ -157,14 +151,27 @@ class MarketInterface(ArangoDBMixin, ABC):
             if self._iams.simulation is False:
                 self._loop_event.clear()
 
+    @abstractmethod
+    def market_get_order_class(self):
+        pass
+
+    def market_get_order(self, cls):
+        return cls(self._iams.agent, config=self._config)
+
     def loop_apply(self):
         """
         """
         logger.debug("running loop_apply")
+        self.market_order.application.start()
 
-        eta, steps = self.market_get_order()
+        while True:
+            try:
+                request, nodes = self.market_order.application.next()
+            except StopIteration:
+                break
+
         try:
-            item = self._market_get_order(eta, steps)
+            item = self._market_get_order()
         except RuntimeError:
             logger.exception("Shutdown - order %s does not contain steps", self)
             self._order_state = OrderStates.SHUTDOWN
@@ -185,6 +192,80 @@ class MarketInterface(ArangoDBMixin, ABC):
         else:
             self._order_state == OrderStates.WAIT
 
+    def _market_prepare_order(self):
+        recipe = self.market_get_recipe()
+
+        # iterate over all steps and ask all machines to estimate a production cost for the specific step
+        # these production costs are used as weights for an A*-like algorithm
+        cache = {}
+        futures = []
+        for key, value in recipe.values():
+            msg = market_pb2.Production(  # TODO
+                order=self._iams.agent,
+            )
+            sha = sha512(msg.SerializeToString()).digest()
+            if sha in cache:
+                cost = cache[sha]
+            else:
+                logger.debug("looking for all agents with abilities: %s", value.abilities)
+                query = 'WITH logical FOR a IN agent FILTER @abilities ALL IN a.abilities RETURN a._key'
+                bind_vars = {"abilities": list(value.abilities)}
+                for agent in self._arango_client.aql.execute(query, bind_vars=bind_vars):
+
+                    futures.append(self._executor.submit(  # TODO
+                        self._market_cost_production, agent, msg,
+                    ))
+                concurrent.futures.wait(futures)
+
+                costs = []
+                for f in futures:
+                    try:
+                        result = f.result()
+                        costs.append(result.cost)
+                    except Exception:
+                        logger.exception("Error in executing cost estimation")
+
+                cost = min(costs)
+                cache[sha] = cost
+
+            recipe.set_cost(value.set_cost, cost)
+
+        eta = self.market_get_eta()
+        queue = PriorityQueue()
+
+        # TODO: 2
+        # build heap and init with all first steps and machines that can fullfill the ability requirement
+        steps = recipe
+
+        # TODO: 3
+        # walk over heap (cheapest first)
+
+        logger.debug("get order costs for steps: %s (eta: %s)", steps, eta)
+        # position = self._iams.position
+        # step = self.market_current_step()
+        # item = StepQueue(cost=0.0, time=0.0, step=step, agent=position)
+        # self._market_findall(queue, item, steps[step], eta)
+
+        try:
+            while True:
+                item = queue.get(block=False)
+                if item.step == len(steps):
+                    if self._market_select(item):
+                        logger.info("Found optimal production: %s", item)
+                        return item
+                    else:
+                        logger.info("Order execution was rejected: %s", item)
+                else:
+                    current_step = steps[item.step]
+                    if not isinstance(current_step, Step):
+                        raise RuntimeError("Step %s is not an instance of Step", item.step)
+                    self._market_findall(queue, item, steps[item.step], eta)
+                queue.task_done()
+
+        except QueueEmpty:
+            return None
+
+    # TODO
     def _market_select(self, item):
         """
         iterates over the information stored in item and schedules the order steps on the agents
@@ -264,6 +345,7 @@ class MarketInterface(ArangoDBMixin, ABC):
 
         return False
 
+    # TODO
     def _market_cost_transport(self, agent, target, futures):
         if futures:
             concurrent.futures.wait(futures[-1])
@@ -293,6 +375,7 @@ class MarketInterface(ArangoDBMixin, ABC):
             logger.debug("[%s] %s: %s", agent, e.code(), e.details())
             return agent, None
 
+    # TODO
     def _market_cost_production(self, agent, step, item, futures):
         logger.debug("calling %s to estimate production cost", agent)
         assert isinstance(step, market_pb2.Step), "Step %s is not an instance of market_pb2.Step" % step.__class__.__qualname__  # noqa: E501
@@ -346,13 +429,32 @@ class MarketInterface(ArangoDBMixin, ABC):
         # item.interface = result.steps[-1].interface or None
         return item
 
-    def _market_get_order(self, eta, steps):
-        logger.debug("get order costs for steps: %s", steps)
+    # TODO
+    def _market_get_order(self):
+        recipe = self.market_get_recipe()
+
+        # TODO: 1
+        # iterate over all steps and ask all machines to estimate a production cost for the specific step
+        # these production costs are used as weights for an A* algorithm
+        for step in recipe.items():
+            pass
+
+        steps = recipe
+
+        eta = self.market_get_eta()
         queue = PriorityQueue()
-        position = self._iams.position
-        step = self.market_current_step()
-        item = StepQueue(cost=0.0, time=0.0, step=step, agent=position)
-        self._market_findall(queue, item, steps[step], eta)
+
+        # TODO: 2
+        # build heap and init with all first steps and machines that can fullfill the ability requirement
+
+        # TODO: 3
+        # walk over heap (cheapest first)
+
+        logger.debug("get order costs for steps: %s (eta: %s)", steps, eta)
+        # position = self._iams.position
+        # step = self.market_current_step()
+        # item = StepQueue(cost=0.0, time=0.0, step=step, agent=position)
+        # self._market_findall(queue, item, steps[step], eta)
 
         try:
             while True:
@@ -381,10 +483,19 @@ class MarketInterface(ArangoDBMixin, ABC):
             if current is None:
                 yield [agent]
             else:
+                # TODO: try the following
+                query = '''WITH logical
+                FOR a IN agent
+                FILTER @abilities ALL IN a.abilities
+                LET paths = (FOR p IN OUTBOUND K_SHORTEST_PATHS
+                    @current TO a GRAPH 'connections' RETURN p.vertices[*]._key)
+                FILTER paths != [] RETURN [a._key, paths]'''
+
                 logger.debug("looking for paths between %s and %s", current, agent)
                 query = '''WITH logical
                 FOR p IN OUTBOUND K_SHORTEST_PATHS @current TO @agent GRAPH 'connections'
                 RETURN p.vertices[*]._key'''
+
                 # TODO: this searches ALL possible connections, which might lead to some performance issues
                 # for larger graphs. The recommendation is to use K_SHORTEST_PATHS only with a LIMIT, which
                 # is also dependent on the size of the samples.
@@ -428,17 +539,16 @@ class MarketInterface(ArangoDBMixin, ABC):
         done, not_done = concurrent.futures.wait(findall_futures)
 
         valid = False
-        for f in done:
-            result = f.result()
-            if isinstance(result, StepQueue):
-
-                # check if order can be produced within an eta
-                if eta > 0.0 and result.time > eta:
-                    logger.info("Cannot produce within given ETA - continue with different path")
-                    continue
-                logger.debug("adding %s to queue", result)
-                queue.put(result)
-                valid = True
+        # for f in done:
+        #     result = f.result()
+        #     if isinstance(result, StepQueue):
+        #         # check if order can be produced within an eta
+        #         if eta > 0.0 and result.time > eta:
+        #             logger.info("Cannot produce within given ETA - continue with different path")
+        #             continue
+        #         logger.debug("adding %s to queue", result)
+        #         queue.put(result)
+        #         valid = True
 
         # if this step cannot be executed, we're trying ask if it is allowed to be skipped
         if not valid and self.order_skip_step(step):
@@ -466,50 +576,11 @@ class MarketInterface(ArangoDBMixin, ABC):
         """
         pass
 
+    def market_get_eta(self):  # pragma: no cover
+        pass
+
     @abstractmethod
-    def market_get_order(self):
-        """
-        return due date (eta) and a tree (list) of step instances.
-
-        One Step
-        [
-            1,
-            2,
-        ]
-
-        find best execution place for 1, then find best execution for 2
-
-        linear (list) -> TODO: Not implemented
-        [
-            [1,2,3],
-            4
-        ]
-
-        find best execution for [1,2,3], then find best execution for 4
-
-        parallel (set) -> TODO: Not Implemented!
-        [
-            {[1, 2], 3},
-            4,
-        ]
-
-        Schedule [1,2] and 3, if [1,2] and 3 is finished schedule 4
-
-        multipath -> TODO: Not Implemented!
-        [
-            {"a":1,"b":2,"c":3},
-            4,
-        ]
-
-        Find best between a, b and c and schedule one, then schedule 4
-
-        combined -> TODO: Not Implemented!
-        [
-            [1,2]
-            {"a":[3,4],"b":5,"c":{6,[7,8]}},
-            9,
-        ]
-        """
+    def market_get_recipe(self):  # pragma: no cover
         pass
 
     @abstractmethod
@@ -583,15 +654,15 @@ class MarketInterface(ArangoDBMixin, ABC):
         pass
 
 
-class MarketWorkerInterface(TopologyMixin, ABC):
+class MarketMinionInterface(TopologyMixin, ABC):
     """
     """
 
     def _grpc_setup(self):
         super()._grpc_setup()
         self._grpc.add(
-            market_pb2_grpc.add_OrderWorkerServicer_to_server,
-            OrderWorkerServicer(self),
+            market_pb2_grpc.add_OrderMinionServicer_to_server,
+            OrderMinionServicer(self),
         )
 
 

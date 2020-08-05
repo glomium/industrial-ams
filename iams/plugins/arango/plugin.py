@@ -4,7 +4,7 @@
 import logging
 import os
 
-from ...interface import Plugin
+from ...interfaces.plugin import Plugin
 from ...utils.arangodb import get_credentials
 
 

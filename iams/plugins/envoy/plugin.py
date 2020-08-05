@@ -3,7 +3,7 @@
 
 import logging
 
-from ...interface import Plugin
+from ...interfaces.plugin import Plugin
 
 
 logger = logging.getLogger(__name__)

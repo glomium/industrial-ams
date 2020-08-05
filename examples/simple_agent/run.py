@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # vim: set fileencoding=utf-8 :
 
-from iams.interface import Agent
+from iams.interfaces import Agent
 
 
 class Simple(Agent):

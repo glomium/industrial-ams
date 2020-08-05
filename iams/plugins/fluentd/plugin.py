@@ -5,7 +5,7 @@ import logging
 import os
 
 from ...exceptions import SkipPlugin
-from ...interface import Plugin
+from ...interfaces.plugin import Plugin
 
 
 logger = logging.getLogger(__name__)

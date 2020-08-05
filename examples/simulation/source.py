@@ -12,11 +12,11 @@ from logging.config import dictConfig
 # from google.protobuf.empty_pb2 import Empty
 
 from iams.helper import get_logging_config
-from iams.interface import Agent
+from iams.interfaces import Agent
 from iams.proto.framework_pb2 import Edge
 # from iams.utils.auth import permissions
 # from iams.utils.auth import permissions
-from iams.market import MarketWorkerInterface
+from iams.market import MarketMinionInterface
 
 # import example_pb2
 import example_pb2_grpc
@@ -32,7 +32,7 @@ class Servicer(example_pb2_grpc.SourceServicer):
         self.parent = parent
 
 
-class Source(MarketWorkerInterface, Agent):
+class Source(MarketMinionInterface, Agent):
     """
     Source generates orders in intervalls
     Source have a bufferstorage of X parts, if the buffer is full the generation is skipped

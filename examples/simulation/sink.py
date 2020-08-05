@@ -8,10 +8,10 @@ import os
 from logging.config import dictConfig
 
 from iams.helper import get_logging_config
-from iams.interface import Agent
+from iams.interfaces import Agent
 # from iams.mixins.arangodb import TopologyMixin
 # from iams.utils.auth import permissions
-from iams.market import MarketWorkerInterface
+from iams.market import MarketMinionInterface
 
 # import example_pb2
 import example_pb2_grpc
@@ -27,7 +27,7 @@ class Servicer(example_pb2_grpc.SinkServicer):
         self.parent = parent
 
 
-class Sink(MarketWorkerInterface, Agent):
+class Sink(MarketMinionInterface, Agent):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

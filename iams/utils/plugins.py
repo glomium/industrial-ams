@@ -9,7 +9,7 @@ from importlib.util import find_spec
 from inspect import getmembers, isclass
 
 
-from ..interface import Plugin
+from ..interfaces.plugin import Plugin
 
 
 plugin_name = "plugin"

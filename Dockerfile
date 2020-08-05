@@ -10,11 +10,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-instal
     python3-grpc-tools \
     python3-grpcio \
     python3-pip \
-    python3-protobuf \
     python3-requests \
     python3-setuptools \
     python3-yaml \
-&& pip3 install --no-cache-dir docker python-arango sentry-sdk \
+&& pip3 install -U --no-cache-dir docker python-arango sentry-sdk protobuf \
 && apt-get remove --purge --autoremove -y -q \
     build-essential \
     python3-dev \
@@ -23,6 +22,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-instal
 # curl is needed to upload coverage reports via ftp
 # grpc-tools are added to compile protofiles to python
 # installing "python3-docker" via apt delivers on 19.10 an old version not working with the framework
+# installing "python3-protobuf" via apt delivers on 20.04 an old version which fails the tests
 
 # === test stage ==============================================================
 FROM basestage as test

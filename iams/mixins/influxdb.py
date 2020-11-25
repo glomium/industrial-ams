@@ -20,7 +20,7 @@ try:
     from influxdb import InfluxDBClient
     INFLUXDB = True
 except ImportError:
-    logger.info("Could not import influxdb")
+    logger.info("Could not import influxdb library")
     INFLUXDB = False
 
 
@@ -33,7 +33,7 @@ class InfluxDBMixin(object):
 
         if INFLUXDB:
             self._influxdb = InfluxDBClient(host=HOST, database=DATABASE, timeout=0.5)
-            logger.info("Infludb initialized with host %s", HOST)
+            logger.info("Influxdb initialized with host %s", HOST)
 
     def influxdb_write(self, data, time=None):
         """

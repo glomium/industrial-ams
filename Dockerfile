@@ -1,19 +1,24 @@
 ARG UBUNTU=rolling
 FROM ubuntu:$UBUNTU as basestage
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
+ENV DEBIAN_FRONTEND noninteractive
+ENV LANG en_US.utf8
+
+RUN apt-get update && apt-get install --no-install-recommends -y -q \
     build-essential \
     curl \
     python3 \
     python3-cryptography \
     python3-dev \
+    python3-docker \
     python3-grpc-tools \
     python3-grpcio \
     python3-pip \
+    python3-protobuf \
     python3-requests \
     python3-setuptools \
     python3-yaml \
-&& pip3 install -U --no-cache-dir docker python-arango sentry-sdk protobuf \
+&& pip3 install -U --no-cache-dir python-arango sentry-sdk \
 && apt-get remove --purge --autoremove -y -q \
     build-essential \
     python3-dev \
@@ -28,7 +33,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-instal
 FROM basestage as test
 WORKDIR /usr/src/app
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
+ENV DEBIAN_FRONTEND noninteractive
+ENV LANG en_US.utf8
+
+RUN apt-get update && apt-get install --no-install-recommends -y -q \
     build-essential \
     libxml2-dev \
     libxslt-dev \
@@ -62,7 +70,7 @@ FROM basestage as build
 COPY --from=test /usr/src/app/dist/iams-*-py3-none-any.whl /tmp/
 
 # TODO delete iams-build-py3-none-any.whl (when there is a official release on pypi)
-RUN pip3 install --no-index /tmp/iams-*-py3-none-any.whl
+RUN pip3 install --no-index /tmp/iams-*-py3-none-any.whl && rm -rf /tmp/*
 
 MAINTAINER Sebastian Braun <sebastian.braun@fh-aachen.de>
 # ENV PYTHONUNBUFFERED=1

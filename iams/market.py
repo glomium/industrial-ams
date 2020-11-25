@@ -162,29 +162,91 @@ class MarketMasterInterface(ArangoDBMixin, ABC):
         """
         """
         logger.debug("running loop_apply")
-        self.market_order.application.start()
+        self._market_order.application.start()
 
         while True:
             try:
-                request, nodes = self.market_order.application.next()
+                requests, nodes = self._market_order.application.next()
             except StopIteration:
                 break
 
-        try:
-            item = self._market_get_order()
-        except RuntimeError:
-            logger.exception("Shutdown - order %s does not contain steps", self)
-            self._order_state = OrderStates.SHUTDOWN
-            if self._iams.simulation:
-                self._simulation.schedule(0, '_loop')
-            return None
+            abilities = set()
+            for i in requests.steps:
+                for j in i.abilities:
+                    abilities.add(j.name)
+            abilities = list(abilities)
+            futures = []
+            logger.debug("looking for all agents with abilities: %s", abilities)
+            query = 'WITH logical FOR a IN agent FILTER @abilities ALL IN a.abilities RETURN a._key'
+            bind_vars = {"abilities": abilities}
 
-        if item is None:
+            # request cost from each agent
+            for agent in self._arango_client.aql.execute(query, bind_vars=bind_vars):
+                futures.append(self._executor.submit(
+                    self._market_cost_production, agent, requests,
+                ))
+
+            # wait for agents to answer
+            concurrent.futures.wait(futures)
+
+            # add answers to order
+            count = 0
+            for f in futures:
+                try:
+                    agent, response = f.result()
+                except Exception:
+                    logger.exception("Error in executing cost estimation")
+                    continue
+
+                if response is None:
+                    continue
+
+                self._market_order.application_add(response, [])
+                count += 1
+
+            # no agent responded to at least one step
+            if count == 0:
+                logger.info("Retry in 60s - can not build order %s", self)
+                self.loop_wait()
+                return None
+
+        # optimize transport costs
+        for data in self._market_order.application_optimize():
+            futures = []
+
+            # calculate transport costs between agent_i and agent_f
+            for agent_i, agent_f, request, key in data:
+                futures.append(self._executor.submit(
+                    self._market_cost_transport, agent_i, agent_f, request, key,
+                ))
+
+            # wait for agents to answer
+            concurrent.futures.wait(futures)
+
+            for f in futures:
+                try:
+                    key, response = f.result()
+                except Exception:
+                    logger.exception("Error in executing cost estimation")
+                    self._market_order.application_update(key, None, delete=True)
+                    continue
+
+                if response is None:
+                    self._market_order.application_update(key, None, delete=True)
+                    continue
+
+                self._market_order.application_update(key, response)
+
+        count = 0
+        for transport, request in self._market_order.application_apply():
+            count += 1
+            # TODO
+
+        if count == 0:
             logger.info("Retry in 60s - can not build order %s", self)
             self.loop_wait()
-            return None
-
-        self._order_state = OrderStates.START
+        else:
+            self._order_state = OrderStates.START
 
     def loop_wait(self):
         if self._iams.simulation:
@@ -345,72 +407,48 @@ class MarketMasterInterface(ArangoDBMixin, ABC):
 
         return False
 
-    # TODO
-    def _market_cost_transport(self, agent, target, futures):
-        if futures:
-            concurrent.futures.wait(futures[-1])
-            result = futures[-1].result()
-            previous_agent = result.current_agent
-        else:
-            previous_agent = None
+    def _market_cost_transport(self, agent, target, key):
+        # TODO
+        pass
 
-        try:
-            logger.debug("calling transport_offer from OrderWorkerStub on %s", agent)
-            # TODO: this also needs to include information about the transported item
-            request = market_pb2.Transport(
-                order=self._iams.agent,
-                previous_agent=previous_agent,
-                current_agent=agent,
-                target_agent=target,
-            )
-            logger.debug("transport at %s from %s to %s", agent, previous_agent, target)
+        # if futures:
+        #     concurrent.futures.wait(futures[-1])
+        #     result = futures[-1].result()
+        #     previous_agent = result.current_agent
+        # else:
+        #     previous_agent = None
 
-            with self._channel(agent) as channel:
-                stub = market_pb2_grpc.OrderWorkerStub(channel)
-                result = stub.transport_offer(request, timeout=10)
-                logger.debug("Estimate transport cost from %s to %s: %s", agent, target, result)
-                return agent, stub.transport_offer(request, timeout=10)
+        # try:
+        #     logger.debug("calling transport_offer from OrderWorkerStub on %s", agent)
+        #     # TODO: this also needs to include information about the transported item
+        #     request = market_pb2.Transport(
+        #         order=self._iams.agent,
+        #         previous_agent=previous_agent,
+        #         current_agent=agent,
+        #         target_agent=target,
+        #     )
+        #     logger.debug("transport at %s from %s to %s", agent, previous_agent, target)
 
-        except grpc.RpcError as e:
-            logger.debug("[%s] %s: %s", agent, e.code(), e.details())
-            return agent, None
+        #     with self._channel(agent) as channel:
+        #         stub = market_pb2_grpc.OrderWorkerStub(channel)
+        #         result = stub.transport_offer(request, timeout=10)
+        #         logger.debug("Estimate transport cost from %s to %s: %s", agent, target, result)
+        #         return agent, stub.transport_offer(request, timeout=10)
 
-    # TODO
-    def _market_cost_production(self, agent, step, item, futures):
+        # except grpc.RpcError as e:
+        #     logger.debug("[%s] %s: %s", agent, e.code(), e.details())
+        #     return agent, None
+
+    def _market_cost_production(self, agent, requests):
         logger.debug("calling %s to estimate production cost", agent)
-        assert isinstance(step, market_pb2.Step), "Step %s is not an instance of market_pb2.Step" % step.__class__.__qualname__  # noqa: E501
 
-        # wait for futures to be executed
-        done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_EXCEPTION)
-        for f in futures:
-
-            # skip if a future is not done with it's execution
-            if not f.done():
-                continue
-
-            # get the result (or on failure raise the exception)
-            transport_agent, result = f.result()
-
-            # skip this path, if the transport is not valid
-            if result is None:
-                return None
-
-            # add the transport response to the steps
-            item.steps.append((transport_agent, result))
-
-            item.cost += result.cost
-            item.time += result.time_work + result.time_queue
-
+        # TODO
         try:
             logger.debug("calling production_offer from OrderWorkerStub on %s", agent)
-            request = market_pb2.Production(
-                order=self._iams.agent,
-                steps=[step],
-            )
 
             with self._channel(agent) as channel:
-                stub = market_pb2_grpc.OrderWorkerStub(channel)
-                result = stub.production_offer(request, timeout=10)
+                stub = market_pb2_grpc.OrderWorkerStub(channel)  # TODO
+                result = stub.production_offer(requests, timeout=10)  # TODO
 
             logger.debug("Estimate production cost from %s: %s", agent, result)
 
@@ -418,16 +456,7 @@ class MarketMasterInterface(ArangoDBMixin, ABC):
             logger.debug("[%s] %s: %s", agent, e.code(), e.details())
             return None
 
-        item.cost += result.cost
-        item.time += result.time_work + result.time_queue
-
-        # add the production response to the item, mark the step as finished and return the object
-        logger.info("%s accepted the step with cost %s and duration %s", agent, item.cost, item.time)
-        item.step += 1
-        item.steps.append((agent, result))
-        item.agent = agent
-        # item.interface = result.steps[-1].interface or None
-        return item
+        return agent, result
 
     # TODO
     def _market_get_order(self):

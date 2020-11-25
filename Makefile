@@ -17,7 +17,7 @@ build:
 
 
 buildx:
-	docker buildx build --platform linux/amd64,linux/arm64 --build-arg UBUNTU=$(UBUNTU) -t glomium/industrial-ams:multiarch --push .
+	docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 --build-arg UBUNTU=$(UBUNTU) -t glomium/industrial-ams:multiarch --push .
 
 
 test: build

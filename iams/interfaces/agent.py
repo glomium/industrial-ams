@@ -47,7 +47,10 @@ class Agent(ABC):
             try:
                 with open('/config', 'rb') as fobj:
                     self._config = yaml.load(fobj, Loader=yaml.SafeLoader)
+                logger.debug('Loaded configuration from /config')
+
             except FileNotFoundError:
+                logger.debug('Configuration at /config was not found')
                 self._config = {}
         else:
             self._credentials = None

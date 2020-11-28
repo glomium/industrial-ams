@@ -2,11 +2,26 @@
 # vim: set fileencoding=utf-8 :
 
 import logging
-
-import paho.mqtt.client as mqttclient
-
+import os
 
 logger = logging.getLogger(__name__)
+
+HOST = os.environ.get('MQTT_HOST', None)
+PORT = int(os.environ.get('MQTT_HOST', 1883))
+TOPIC = os.environ.get('MQTT_TOPIC', None)
+
+
+if HOST is None:
+    logger.debug("mqtt hostname is not specified")
+    MQTT = False
+
+try:
+    import paho.mqtt.client as mqttclient
+    MQTT = True
+except ImportError:
+    logger.info("Could not import mqtt library")
+    MQTT = False
+
 
 LOG_MAP = {
     mqttclient.MQTT_LOG_DEBUG: logging.DEBUG,
@@ -17,10 +32,6 @@ LOG_MAP = {
 }
 
 
-def on_message(client, userdata, message):
-    logger.debug("Got message %s", message)
-
-
 def on_log(client, userdata, level, buf):  # pragma: no cover
     """
     redirect logs to python logging system
@@ -28,40 +39,47 @@ def on_log(client, userdata, level, buf):  # pragma: no cover
     logger.log(LOG_MAP[level], buf)
 
 
-def on_connect(client, userdata, flags, rc):  # pragma: no cover
-    logger.info("Connected with result code %s", rc)
+class MQTTMixin(object):
+    """
+    """
 
-    logger.debug("Subscribe to $SYS/broker/load/connections/1min")
-    client.subscribe("$SYS/broker/load/connections/1min")
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    logger.debug("Subscribe to $SYS/broker/load/sockets/1min")
-    client.subscribe("$SYS/broker/load/sockets/1min")
+        if MQTT:
+            self._mqtt = mqttclient.Client()
+            self._mqtt.on_connect = self.on_connect
+            self._mqtt.on_message = self.on_message
+            self._mqtt.on_log = on_log
 
-    logger.debug("Subscribe to $SYS/broker/load/messages/+/1min")
-    client.subscribe("$SYS/broker/load/messages/+/1min")
+    def _pre_setup(self):
+        super()._pre_setup()
+        if MQTT:
+            while True:
+                try:
+                    self._mqtt.connect(HOST, PORT)
+                    break
+                except OSError:
+                    pass
+            self._mqtt.loop_start()
+            logger.info(f"MQTT initialized with {HOST}:{PORT}")
 
-    logger.debug("Subscribe to $SYS/broker/load/bytes/+/1min")
-    client.subscribe("$SYS/broker/load/bytes/+/1min")
+    def _teardown(self):
+        super()._teardown()
+        if MQTT:
+            self._mqtt.loop_stop(force=True)
 
-    logger.debug("Subscribe to data/+")
-    client.subscribe("data/+")
-    logger.debug("Subscribe to data/+/+")
-    client.subscribe("data/+/+")
-    logger.debug("Subscribe to data/+/+/+")
-    client.subscribe("data/+/+/+")
+    def mqtt_on_connect(self, client, userdata, flags, rc):
+        logger.info("Connected with result code %s", rc)
 
+    def mqtt_on_message(self, client, userdata, message):
+        logger.debug("Got message %s", message)
 
-if __name__ == "__main__":
-    logger.info("Starting mqtt listener")
-    client = mqttclient.Client()
-    client.on_connect = on_connect
-    client.on_message = on_message
-    client.on_log = on_log
-    try:
-        client.connect(
-            "tasks.mqtt",
-            1883,
-        )
-    except OSError:
-        raise SystemExit("Could not connect to MQTT-Broker")
-    client.loop_forever(retry_first_connection=True)
+    def mqtt_publish(self, topic=TOPIC, payload=None, qos=0, retain=False):
+        """
+        sends data (list of dictionaries) to MQTT
+        """
+        if not MQTT or topic:
+            return False
+        self._mqtt.publish(topic, payload=payload, qos=qos, retain=retain)
+        return True

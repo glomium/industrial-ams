@@ -67,6 +67,7 @@ class TCPReadMixin(EventMixin):
         logger.info("TCP reader stopped")
 
     def _teardown(self):
+        super()._teardown()
         logger.debug("Closing TCP socket")
         try:
             self._socket.shutdown(socket.SHUT_RDWR)

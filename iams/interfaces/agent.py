@@ -265,3 +265,13 @@ class Agent(ABC):
         the simulation runtime schedules this event for the end of the simulation
         """
         pass
+
+    def callback_agent_upgrade(self):
+        """
+        """
+        pass
+
+    def callback_agent_update(self):
+        """
+        """
+        pass

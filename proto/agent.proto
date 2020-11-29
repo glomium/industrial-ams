@@ -11,7 +11,7 @@ service Agent {
     /*
     Receive scheduled events in simulation run
     */
-    rpc ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    rpc ping(PingRequest) returns (google.protobuf.Empty) {}
 
     /*
     Updates the current position to the agent called this function
@@ -27,6 +27,11 @@ service Agent {
     Receive scheduled events in simulation run
     */
     rpc run_simulation(SimulationRequest) returns (stream SimulationResponse) {}
+}
+
+message PingRequest {
+    bool update = 1;
+    bool upgrade = 2;
 }
 
 message SimulationRequest {

@@ -54,6 +54,10 @@ class Servicer(agent_pb2_grpc.AgentServicer):
 
     @permissions(has_agent=True, has_groups=["root"])
     def ping(self, request, context):
+        if request.upgrade:
+            self.parent.agent_callback_upgrade()
+        elif request.update:
+            self.parent.agent_callback_update()
         return Empty()
 
     @permissions(has_agent=True)
@@ -182,11 +186,11 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         except grpc.RpcError:
             return False
 
-    def call_ping(self, agent):
+    def call_ping(self, agent, update=False):
         try:
             with framework_channel(agent) as channel:
                 stub = AgentStub(channel)
-                stub.ping(Empty(), timeout=10)
+                stub.ping(agent_pb2.PingRequest(update=update), timeout=10)
             logger.debug("Ping response (%s)", agent)
             return True
         except grpc.RpcError as e:

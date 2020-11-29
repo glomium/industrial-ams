@@ -55,9 +55,9 @@ class Servicer(agent_pb2_grpc.AgentServicer):
     @permissions(has_agent=True, has_groups=["root", "web"])
     def ping(self, request, context):
         if request.upgrade:
-            self.parent.agent_callback_upgrade()
+            self.parent.callback_agent_upgrade()
         elif request.update:
-            self.parent.agent_callback_update()
+            self.parent.callback_agent_update()
         return Empty()
 
     @permissions(has_agent=True)

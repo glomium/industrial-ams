@@ -52,7 +52,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         # caches
         self._topology = None
 
-    @permissions(has_agent=True, has_groups=["root"])
+    @permissions(has_agent=True, has_groups=["root", "web"])
     def ping(self, request, context):
         if request.upgrade:
             self.parent.agent_callback_upgrade()

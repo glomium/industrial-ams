@@ -156,7 +156,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         if created:
             self.set_booting(name)
 
-        return framework_pb2.AgentData()
+        return framework_pb2.AgentData(name=name)
 
     # RPC
     @permissions(has_agent=True, has_groups=["root", "web"])
@@ -211,7 +211,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         self.set_booting(name)
         self.create_callback(name)
-        return framework_pb2.AgentData()
+        return framework_pb2.AgentData(name=name)
 
     def create_callback(self, name):
         """

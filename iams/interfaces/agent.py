@@ -268,14 +268,14 @@ class Agent(ABC):
 
     def callback_agent_upgrade(self):
         """
-        This function can be called from the agents and services to suggest 
+        This function can be called from the agents and services to suggest
         hat the agent should upgrate it's software (i.e. docker image)
         """
         pass
 
     def callback_agent_update(self):
         """
-        This function can be called from the agents and services to suggest 
+        This function can be called from the agents and services to suggest
         that the agent should update its configuration or state
         """
         pass

@@ -75,7 +75,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
             'host': os.environ.get('FLUENTD_HOST'),
             'port': int(os.environ.get('FLUENTD_PORT', 24224)),
             'tag': os.environ.get('FLUENTD_TAG'),
-            'level': 'DEBUG',
+            'level': os.environ.get('FLUENTD_LEVEL', 'INFO'),
             'formatter': 'fluentd',
             'nanosecond_precision': True,
         }

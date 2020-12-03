@@ -23,23 +23,26 @@ class Handler(SubHandler):
         """
         """
         logger.debug("New data change event %s %s", node, val)
-        self.parent.opcua_datachange(node, val, data)
-        self.parent._loop_event.set()
+        response = self.parent.opcua_datachange(node, val, data)
+        if response is None or response is True:
+            self.parent._loop_event.set()
 
     def event_notification(self, event):
         """
         """
         logger.debug("New event %s", event)
-        self.parent.opcua_event(event)
-        self.parent._loop_event.set()
+        response = self.parent.opcua_event(event)
+        if response is None or response is True:
+            self.parent._loop_event.set()
 
     def status_change_notification(self, status):
         """
         called for every status change notification from server
         """
         logger.debug("Status changed to %s", status)
-        self.parent.opcua_status_change(status)
-        # self.parent._loop_event.set()
+        response = self.parent.opcua_status_change(status)
+        if response is True:
+            self.parent._loop_event.set()
 
 
 class OPCUAMixin(EventMixin):

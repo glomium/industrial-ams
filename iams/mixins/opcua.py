@@ -48,6 +48,7 @@ class Handler(SubHandler):
 class OPCUAMixin(EventMixin):
     OPCUA_PORT = 4840
     OPCUA_TIMEOUT = 15
+    OPCUA_HEARTBEAT = 12.5
     OPCUA_EVENT_SUBSCRIPTION = None
 
     def __init__(self, *args, **kwargs) -> None:
@@ -65,7 +66,7 @@ class OPCUAMixin(EventMixin):
 
         address = "opc.tcp://%s:%s/" % (self._iams.address, self._iams.port or self.OPCUA_PORT)
         logger.debug("Creating opcua-client %s", address)
-        self.opua_client = Client("opc.tcp://%s/" % address, timeout=10)
+        self.opcua_client = Client(address, timeout=10)
 
         wait = 0
         while not self._stop_event.is_set():
@@ -77,7 +78,7 @@ class OPCUAMixin(EventMixin):
                     wait += 1
                 logger.info('Connection to %s refused (retry in %ss)', address, wait)
                 self._stop_event.wait(wait)
-        logger.debug("OPCUA connected to %s:%s", address)
+        logger.debug("OPCUA connected to %s", address)
 
         self.opcua_client.load_type_definitions()
         self.opcua_objects = self.opcua_client.get_objects_node()
@@ -86,6 +87,18 @@ class OPCUAMixin(EventMixin):
             subscription = self.opcua_client.create_subscription(self.OPCUA_EVENT_SUBSCRIPTION, SubHandler(self))
             subscription.subscribe_events()
             self.opcua_subscriptions[self.OPCUA_EVENT_SUBSCRIPTION] = subscription
+
+        if self.OPCUA_HEARTBEAT:
+            self._executor.submit(self._opcua_heartbeat)
+
+    def _opcua_heartbeat(self):
+        while True:
+            try:
+                self.opcua_client.get_values([self.opcua_client.get_objects_node()])
+            except Exception:
+                self.stop()
+                break
+            self._stop_event.wait(self.OPCUA_HEARTBEAT)
 
     def opcua_datachange(self, node, val, data):
         """
@@ -122,9 +135,9 @@ class OPCUAMixin(EventMixin):
         assert node not in self.opcua_handles
 
         try:
-            subscription = self.opcua_handlers[interval]
+            subscription = self.opcua_subscriptions[interval]
         except KeyError:
-            subscription = self.opcua_client.create_subscription(interval, SubHandler(self))
+            subscription = self.opcua_client.create_subscription(interval, Handler(self))
             self.opcua_subscriptions[interval] = subscription
 
         handle = subscription.subscribe_data_change(node)
@@ -146,8 +159,3 @@ class OPCUAMixin(EventMixin):
             self.opcua_client.disconnect()
         except (TimeoutError, AttributeError):
             pass
-
-    def _loop(self):
-        if not self.client.uaclient._uasocket._thread.isAlive():
-            raise NotImplementedError
-        super()._loop()

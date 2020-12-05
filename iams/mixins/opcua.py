@@ -92,7 +92,7 @@ class OPCUAMixin(EventMixin):
             self._executor.submit(self._opcua_heartbeat)
 
     def _opcua_heartbeat(self):
-        while True:
+        while not self._stop_event.is_set():
             try:
                 self.opcua_client.get_values([self.opcua_client.get_objects_node()])
             except Exception:

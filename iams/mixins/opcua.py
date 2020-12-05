@@ -129,19 +129,21 @@ class OPCUAMixin(EventMixin):
             values.append(DataValue(Variant(value, datatype)))
         self.opcua_client.set_values(nodes, values)
 
-    def opcua_subscribe(self, node, interval):
+    def opcua_subscribe(self, nodes, interval):
         """
         """
-        assert node not in self.opcua_handles
-
         try:
             subscription = self.opcua_subscriptions[interval]
         except KeyError:
             subscription = self.opcua_client.create_subscription(interval, Handler(self))
             self.opcua_subscriptions[interval] = subscription
 
-        handle = subscription.subscribe_data_change(node)
-        self.opcua_handles[node] = (subscription, handle)
+        handle = subscription.subscribe_data_change(nodes)
+        try:
+            for node in nodes:
+                self.opcua_handles[node] = (subscription, handle)
+        except TypeError:
+            self.opcua_handles[nodes] = (subscription, handle)
 
     def opcua_unsubscribe(self, node):
         """

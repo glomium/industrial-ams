@@ -73,7 +73,7 @@ class OPCUAMixin(EventMixin):
             try:
                 self.opcua_client.connect()
                 break
-            except ConnectionRefusedError:
+            except (ConnectionRefusedError, OSError):
                 if wait < 60:
                     wait += 1
                 logger.info('Connection to %s refused (retry in %ss)', address, wait)

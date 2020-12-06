@@ -9,7 +9,7 @@ from abc import abstractmethod
 from concurrent import futures
 from contextlib import contextmanager
 from threading import Event
-from threading import RLock
+from threading import Lock
 from time import sleep
 
 import grpc
@@ -62,7 +62,7 @@ class Agent(ABC):
         else:
             self._simulation = None
 
-        self._lock = RLock()
+        self._lock = Lock()
         self._loop_event = Event()
         self._stop_event = Event()
 

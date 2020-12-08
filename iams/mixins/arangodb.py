@@ -9,9 +9,15 @@ from abc import abstractmethod
 
 from iams.proto.framework_pb2 import Node
 # from iams.proto.framework_pb2 import Edge
-from iams.utils.arangodb import Arango
+
 
 logger = logging.getLogger(__name__)
+
+
+try:
+    from iams.utils.arangodb import Arango
+except ImportError:
+    logger.exception("ArangoDB not found")
 
 
 class ArangoDBMixin(ABC):

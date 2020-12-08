@@ -43,7 +43,7 @@ class InfluxDBMixin(object):
         if not INFLUXDB:
             return None
 
-        if time is None:
+        if time is not None:
             now = datetime.datetime.utcnow()
             for i in range(len(data)):
                 if "time" not in data[i]:

@@ -18,18 +18,16 @@ if HOST is None:
 try:
     import paho.mqtt.client as mqttclient
     MQTT = True
+    LOG_MAP = {
+        mqttclient.MQTT_LOG_DEBUG: logging.DEBUG,
+        mqttclient.MQTT_LOG_NOTICE: logging.INFO,
+        mqttclient.MQTT_LOG_INFO: logging.INFO,
+        mqttclient.MQTT_LOG_WARNING: logging.WARNING,
+        mqttclient.MQTT_LOG_ERR: logging.ERROR,
+    }
 except ImportError:
     logger.info("Could not import mqtt library")
     MQTT = False
-
-
-LOG_MAP = {
-    mqttclient.MQTT_LOG_DEBUG: logging.DEBUG,
-    mqttclient.MQTT_LOG_NOTICE: logging.INFO,
-    mqttclient.MQTT_LOG_INFO: logging.INFO,
-    mqttclient.MQTT_LOG_WARNING: logging.WARNING,
-    mqttclient.MQTT_LOG_ERR: logging.ERROR,
-}
 
 
 def on_log(client, userdata, level, buf):  # pragma: no cover

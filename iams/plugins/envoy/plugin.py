@@ -3,7 +3,7 @@
 
 import logging
 
-from ...interfaces.plugin import Plugin
+from iams.interfaces.plugin import Plugin
 
 
 logger = logging.getLogger(__name__)

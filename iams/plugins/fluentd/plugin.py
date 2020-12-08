@@ -4,8 +4,8 @@
 import logging
 import os
 
-from ...exceptions import SkipPlugin
-from ...interfaces.plugin import Plugin
+from iams.exceptions import SkipPlugin
+from iams.interfaces.plugin import Plugin
 
 
 logger = logging.getLogger(__name__)

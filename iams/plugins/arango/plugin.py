@@ -4,8 +4,8 @@
 import logging
 import os
 
-from ...interfaces.plugin import Plugin
-from ...utils.arangodb import get_credentials
+from iams.interfaces.plugin import Plugin
+from iams.utils.arangodb import get_credentials
 
 
 logger = logging.getLogger(__name__)

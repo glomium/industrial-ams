@@ -19,7 +19,7 @@ try:
     import paho.mqtt.client as mqttclient
     MQTT = True
 except ImportError:
-    logger.info("Could not import mqtt library")
+    logger.exception("Could not import mqtt library")
     MQTT = False
 
 
@@ -43,18 +43,13 @@ class MQTTMixin(object):
     """
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def _pre_setup(self):
+        super()._pre_setup()
         if MQTT:
             self._mqtt = mqttclient.Client()
             self._mqtt.on_connect = self.on_connect
             self._mqtt.on_message = self.on_message
             self._mqtt.on_log = on_log
-
-    def _pre_setup(self):
-        super()._pre_setup()
-        if MQTT:
             while True:
                 try:
                     self._mqtt.connect(HOST, PORT)

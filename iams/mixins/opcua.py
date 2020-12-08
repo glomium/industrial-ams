@@ -3,15 +3,21 @@
 
 import logging
 
-from opcua.client.client import Client
-from opcua.common.subscription import SubHandler
-from opcua.ua.uatypes import DataValue
-from opcua.ua.uatypes import Variant
-
 from .event import EventMixin
 
 
 logger = logging.getLogger(__name__)
+
+
+try:
+    from opcua.client.client import Client
+    from opcua.common.subscription import SubHandler
+    from opcua.ua.uatypes import DataValue
+    from opcua.ua.uatypes import Variant
+    OPCUA = True
+except ImportError:
+    logger.exception("Could not import mqtt library")
+    OPCUA = False
 
 
 class Handler(SubHandler):
@@ -64,32 +70,33 @@ class OPCUAMixin(EventMixin):
         super()._pre_setup()
         assert self._iams.address is not None, 'Must define IAMS_ADDRESS in environment'
 
-        address = "opc.tcp://%s:%s/" % (self._iams.address, self._iams.port or self.OPCUA_PORT)
-        logger.debug("Creating opcua-client %s", address)
-        self.opcua_client = Client(address, timeout=10)
+        if OPCUA:
+            address = "opc.tcp://%s:%s/" % (self._iams.address, self._iams.port or self.OPCUA_PORT)
+            logger.debug("Creating opcua-client %s", address)
+            self.opcua_client = Client(address, timeout=10)
 
-        wait = 0
-        while not self._stop_event.is_set():
-            try:
-                self.opcua_client.connect()
-                break
-            except (ConnectionRefusedError, OSError):
-                if wait < 60:
-                    wait += 1
-                logger.info('Connection to %s refused (retry in %ss)', address, wait)
-                self._stop_event.wait(wait)
-        logger.debug("OPCUA connected to %s", address)
+            wait = 0
+            while not self._stop_event.is_set():
+                try:
+                    self.opcua_client.connect()
+                    break
+                except (ConnectionRefusedError, OSError):
+                    if wait < 60:
+                        wait += 1
+                    logger.info('Connection to %s refused (retry in %ss)', address, wait)
+                    self._stop_event.wait(wait)
+            logger.debug("OPCUA connected to %s", address)
 
-        self.opcua_client.load_type_definitions()
-        self.opcua_objects = self.opcua_client.get_objects_node()
+            self.opcua_client.load_type_definitions()
+            self.opcua_objects = self.opcua_client.get_objects_node()
 
-        if self.OPCUA_EVENT_SUBSCRIPTION:
-            subscription = self.opcua_client.create_subscription(self.OPCUA_EVENT_SUBSCRIPTION, SubHandler(self))
-            subscription.subscribe_events()
-            self.opcua_subscriptions[self.OPCUA_EVENT_SUBSCRIPTION] = subscription
+            if self.OPCUA_EVENT_SUBSCRIPTION:
+                subscription = self.opcua_client.create_subscription(self.OPCUA_EVENT_SUBSCRIPTION, SubHandler(self))
+                subscription.subscribe_events()
+                self.opcua_subscriptions[self.OPCUA_EVENT_SUBSCRIPTION] = subscription
 
-        if self.OPCUA_HEARTBEAT:
-            self._executor.submit(self._opcua_heartbeat)
+            if self.OPCUA_HEARTBEAT:
+                self._executor.submit(self._opcua_heartbeat)
 
     def _opcua_heartbeat(self):
         while not self._stop_event.is_set():
@@ -122,6 +129,8 @@ class OPCUAMixin(EventMixin):
         """
         data is a list or tuple of node, value and datatype
         """
+        if not OPCUA:
+            return None
         nodes = []
         values = []
         for node, value, datatype in data:
@@ -132,6 +141,8 @@ class OPCUAMixin(EventMixin):
     def opcua_subscribe(self, nodes, interval):
         """
         """
+        if not OPCUA:
+            return None
         try:
             subscription = self.opcua_subscriptions[interval]
         except KeyError:
@@ -148,6 +159,8 @@ class OPCUAMixin(EventMixin):
     def opcua_unsubscribe(self, node):
         """
         """
+        if not OPCUA:
+            return None
         try:
             subscription, handle = self.opcua_handles[node]
         except KeyError:
@@ -157,7 +170,8 @@ class OPCUAMixin(EventMixin):
     def _teardown(self):
         super()._teardown()
         logger.debug("Closing OPCUA")
-        try:
-            self.opcua_client.disconnect()
-        except (TimeoutError, AttributeError):
-            pass
+        if OPCUA:
+            try:
+                self.opcua_client.disconnect()
+            except (TimeoutError, AttributeError):
+                pass

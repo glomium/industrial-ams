@@ -5,6 +5,8 @@ __all__ = [
     'ArangoDBMixin',
     'EventMixin',
     'InfluxDBMixin',
+    'MQTTMixin',
+    'OPCUAMixin',
     'TCPMixin',
     'TCPReadMixin',
     'TopologyMixin',
@@ -16,3 +18,5 @@ from .event import EventMixin
 from .influxdb import InfluxDBMixin
 from .tcp import TCPReadMixin
 from .tcp import TCPMixin
+from .opcua import OPCUAMixin
+from .mqtt import MQTTMixin

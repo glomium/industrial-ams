@@ -7,13 +7,9 @@ import os
 logger = logging.getLogger(__name__)
 
 HOST = os.environ.get('MQTT_HOST', None)
-PORT = int(os.environ.get('MQTT_HOST', 1883))
+PORT = int(os.environ.get('MQTT_PORT', 1883))
 TOPIC = os.environ.get('MQTT_TOPIC', None)
 
-
-if HOST is None:
-    logger.debug("mqtt hostname is not specified")
-    MQTT = False
 
 try:
     import paho.mqtt.client as mqttclient
@@ -27,6 +23,11 @@ try:
     }
 except ImportError:
     logger.exception("Could not import mqtt library")
+    MQTT = False
+
+
+if HOST is None:
+    logger.debug("mqtt hostname is not specified")
     MQTT = False
 
 
@@ -45,8 +46,8 @@ class MQTTMixin(object):
         super()._pre_setup()
         if MQTT:
             self._mqtt = mqttclient.Client()
-            self._mqtt.on_connect = self.on_connect
-            self._mqtt.on_message = self.on_message
+            self._mqtt.on_connect = self.mqtt_on_connect
+            self._mqtt.on_message = self.mqtt_on_message
             self._mqtt.on_log = on_log
             while True:
                 try:
@@ -63,7 +64,7 @@ class MQTTMixin(object):
             self._mqtt.loop_stop(force=True)
 
     def mqtt_on_connect(self, client, userdata, flags, rc):
-        logger.info("Connected with result code %s", rc)
+        logger.info("Connected to MQTT-Broker with result code %s", rc)
 
     def mqtt_on_message(self, client, userdata, message):
         logger.debug("Got message %s", message)

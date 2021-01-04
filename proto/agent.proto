@@ -14,6 +14,18 @@ service Agent {
     rpc ping(PingRequest) returns (google.protobuf.Empty) {}
 
     /*
+    */
+    rpc update(UpdateRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc upgrade(UpgradeRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc reset(ResetRequest) returns (google.protobuf.Empty) {}
+
+    /*
     Updates the current position to the agent called this function
     */
     rpc position(google.protobuf.Empty) returns (google.protobuf.Empty) {}
@@ -30,8 +42,17 @@ service Agent {
 }
 
 message PingRequest {
-    bool update = 1;
-    bool upgrade = 2;
+    bool update = 1;  //  REMOVE ME
+    bool upgrade = 2;  //  REMOVE ME
+}
+
+message UpdateRequest {
+}
+
+message UpgradeRequest {
+}
+
+message ResetRequest {
 }
 
 message SimulationRequest {

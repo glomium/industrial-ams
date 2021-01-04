@@ -54,11 +54,31 @@ class Servicer(agent_pb2_grpc.AgentServicer):
 
     @permissions(has_agent=True, has_groups=["root", "web"])
     def ping(self, request, context):
-        if request.upgrade:
-            self.parent.callback_agent_upgrade()
-        elif request.update:
-            self.parent.callback_agent_update()
         return Empty()
+
+    @permissions(has_agent=True, has_groups=["root", "web"])
+    def upgrade(self, request, context):
+        if self.parent.callback_agent_upgrade():
+            return Empty()
+        else:
+            message = 'Upgrade is not allowed'
+            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+
+    @permissions(has_agent=True, has_groups=["root", "web"])
+    def update(self, request, context):
+        if self.parent.callback_agent_update():
+            return Empty()
+        else:
+            message = 'Update is not allowed'
+            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+
+    @permissions(has_agent=True, has_groups=["root", "web"])
+    def reset(self, request, context):
+        if self.parent.callback_agent_reset():
+            return Empty()
+        else:
+            message = 'Reset is not allowed'
+            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
     @permissions(has_agent=True)
     def position(self, request, context):
@@ -186,15 +206,37 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         except grpc.RpcError:
             return False
 
-    def call_ping(self, agent, update=False):
+    def call_ping(self, agent):
         try:
             with framework_channel(agent) as channel:
                 stub = AgentStub(channel)
-                stub.ping(agent_pb2.PingRequest(update=update), timeout=10)
+                stub.ping(agent_pb2.PingRequest(), timeout=10)
             logger.debug("Ping response (%s)", agent)
             return True
         except grpc.RpcError as e:
             logger.debug("Ping response %s: %s from %s", e.code(), e.details(), agent)
+            return False
+
+    def call_update(self, agent):
+        try:
+            with framework_channel(agent) as channel:
+                stub = AgentStub(channel)
+                stub.update(agent_pb2.UpdateRequest(), timeout=10)
+            logger.debug("Update response (%s)", agent)
+            return True
+        except grpc.RpcError as e:
+            logger.debug("Update response %s: %s from %s", e.code(), e.details(), agent)
+            return False
+
+    def call_reset(self, agent):
+        try:
+            with framework_channel(agent) as channel:
+                stub = AgentStub(channel)
+                stub.reset(agent_pb2.ResetRequest(), timeout=10)
+            logger.debug("Reset response (%s)", agent)
+            return True
+        except grpc.RpcError as e:
+            logger.debug("Reset response %s: %s from %s", e.code(), e.details(), agent)
             return False
 
     def update_topology(self, node) -> bool:

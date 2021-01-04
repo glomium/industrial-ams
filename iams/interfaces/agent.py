@@ -279,3 +279,10 @@ class Agent(ABC):
         that the agent should update its configuration or state
         """
         pass
+
+    def callback_agent_reset(self):
+        """
+        This function can be called from the agents and services to suggest
+        that the agent should reset its connected device
+        """
+        pass

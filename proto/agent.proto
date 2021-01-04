@@ -42,8 +42,6 @@ service Agent {
 }
 
 message PingRequest {
-    bool update = 1;  //  REMOVE ME
-    bool upgrade = 2;  //  REMOVE ME
 }
 
 message UpdateRequest {

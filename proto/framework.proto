@@ -89,6 +89,8 @@ message AgentData {
     string version = 5;
     bytes config = 6;
     bool autostart = 7;
+    repeated string constraints = 8;
+    repeated string preferences = 9;
 }
 
 

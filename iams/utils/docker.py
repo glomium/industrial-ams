@@ -404,8 +404,8 @@ class Docker(object):
             log_driver=docker.types.DriverConfig("json-file", {"max-file": "10", "max-size": "1m"}),
             networks=networks,
             placement=docker.types.Placement(
-                constraints=placement_constraints,
-                preferences=[docker.types.PlacementPreference('spread', pref) for pref in placement_preferences],
+                constraints=list(placement_constraints),
+                preferences=list([docker.types.PlacementPreference('spread', pref) for pref in placement_preferences]),
             ),
         )
 

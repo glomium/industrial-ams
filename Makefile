@@ -43,5 +43,10 @@ stop:
 	docker stack rm iams 
 
 
+grpc:
+	python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/agent.proto proto/framework.proto proto/market.proto proto/simulation.proto
+	sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
+
+
 pip:
 	${VENV_NAME}/bin/pip-upgrade requirements/dev.txt requirements/docs.txt requirements/test.txt --skip-package-installation

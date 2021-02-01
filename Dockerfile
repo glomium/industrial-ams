@@ -60,9 +60,10 @@ COPY examples ./examples
 
 RUN doc8 iams examples
 RUN flake8 iams examples
+RUN python3 setup.py test
 
 # build wheel package
-RUN python3 setup.py bdist_wheel  # && mv dist/iams-*-py3-none-any.whl iams-build-py3-none-any.whl
+RUN python3 setup.py bdist_wheel
 
 # === build stage =============================================================
 FROM basestage as build

@@ -26,8 +26,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
 && rm -rf /var/lib/apt/lists/*
 # curl is needed to upload coverage reports via ftp
 # grpc-tools are added to compile protofiles to python
-# installing "python3-docker" via apt delivers on 19.10 an old version not working with the framework
-# installing "python3-protobuf" via apt delivers on 20.04 an old version which fails the tests
 
 # === test stage ==============================================================
 FROM basestage as test

@@ -145,6 +145,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 port=request.port,
                 config=request.config,
                 autostart=request.autostart,
+                placement_constraints=request.constraints,
+                placement_preferences=request.preferences,
             )
 
         except docker_errors.ImageNotFound:
@@ -193,6 +195,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 autostart=request.autostart,
                 create=True,
                 seed=getattr(context, '_seed', None),
+                placement_constraints=request.constraints,
+                placement_preferences=request.preferences,
             )
 
         except docker_errors.ImageNotFound:

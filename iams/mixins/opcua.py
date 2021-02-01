@@ -3,7 +3,7 @@
 
 import logging
 
-from .event import EventMixin
+from iams.mixins.event import EventMixin
 
 
 logger = logging.getLogger(__name__)
@@ -16,11 +16,17 @@ try:
     from opcua.ua.uatypes import Variant
     OPCUA = True
 except ImportError:
-    logger.exception("Could not import mqtt library")
+    logger.exception("Could not import opcua library")
     OPCUA = False
 
 
 class Handler(SubHandler):
+    """
+    Subscription Handler. To receive events from server for a subscription
+    data_change and event methods are called directly from receiving thread.
+    Do not do expensive, slow or network operation there. Create another
+    thread if you need to do such a thing
+    """
 
     def __init__(self, parent):
         self.parent = parent
@@ -91,7 +97,7 @@ class OPCUAMixin(EventMixin):
             self.opcua_objects = self.opcua_client.get_objects_node()
 
             if self.OPCUA_EVENT_SUBSCRIPTION:
-                subscription = self.opcua_client.create_subscription(self.OPCUA_EVENT_SUBSCRIPTION, SubHandler(self))
+                subscription = self.opcua_client.create_subscription(self.OPCUA_EVENT_SUBSCRIPTION, Handler(self))
                 subscription.subscribe_events()
                 self.opcua_subscriptions[self.OPCUA_EVENT_SUBSCRIPTION] = subscription
 

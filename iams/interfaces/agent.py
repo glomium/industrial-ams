@@ -15,15 +15,15 @@ from time import sleep
 import grpc
 import yaml
 
-from ..agent import Servicer
-from ..exceptions import Continue
-from ..exceptions import EventNotFound
-from ..scheduler import Scheduler
-from ..utils.grpc import Grpc
-from ..utils.grpc import framework_channel
-from ..utils.grpc import get_channel_credentials
-from ..utils.grpc import get_server_credentials
-from ..utils.ssl import validate_certificate
+from iams.agent import Servicer
+from iams.exceptions import Continue
+from iams.exceptions import EventNotFound
+from iams.scheduler import Scheduler
+from iams.utils.grpc import Grpc
+from iams.utils.grpc import framework_channel
+from iams.utils.grpc import get_channel_credentials
+from iams.utils.grpc import get_server_credentials
+from iams.utils.ssl import validate_certificate
 
 
 logger = logging.getLogger(__name__)
@@ -155,7 +155,9 @@ class Agent(ABC):
         self._grpc.stop()
 
         if not self._iams.simulation:
+            logger.debug("call self.teardown")
             self.teardown()
+            logger.debug("call self._teardown")
             self._teardown()
 
         logger.info("Exit %s", self._iams.agent)

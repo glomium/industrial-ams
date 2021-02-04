@@ -73,7 +73,12 @@ class MQTTMixin(object):
         """
         sends data (list of dictionaries) to MQTT
         """
-        if not MQTT or topic:
+        if not MQTT:
             return False
-        self._mqtt.publish(topic, payload=payload, qos=qos, retain=retain)
+
+        try:
+            self._mqtt.publish(topic, payload=payload, qos=qos, retain=retain)
+        except Exception:
+            logger.exception("Error publishing MQTT-message")
+
         return True

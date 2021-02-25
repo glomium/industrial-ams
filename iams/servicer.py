@@ -39,7 +39,8 @@ def generate_seed():
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
-    def __init__(self, client, cfssl, cloud, args, credentials, threadpool, plugins, runtests):
+    def __init__(self, runtime, client, cfssl, cloud, args, credentials, threadpool, plugins, runtests):
+        self.runtime = runtime
         self.args = args
         self.cfssl = cfssl
         self.cloud = cloud
@@ -95,7 +96,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         # Use a seperate thread to renew the certificate in docker's secrets
         if request.hard:
-            self.threadpool.submit(self.docker.set_service, name=request.name, update=True)
+            self.threadpool.submit(self.runtime.update_agent, framework_pb2.AgentData(name=request.name), update=True)  # noqa
+            # self.threadpool.submit(self.docker.set_service, name=request.name, update=True)
             return framework_pb2.RenewResponse()
 
         # mark container as booting
@@ -117,37 +119,38 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         return Empty()
 
     # RPC
-    @permissions(has_agent=True, has_groups=["root", "web"])
-    def agents(self, request, context):
-        """
-        """
-        filters = list(request.filter) + [f"iams.namespace={self.args.namespace}"]
-        for service in self.docker.client.services.list(filters={'label': filters}):
-            image, version = service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].rsplit(':', 1)  # noqa
-            yield framework_pb2.AgentData(
-                name=service.name,
-                image=image,
-                version=version,
-            )
+    # @permissions(has_agent=True, has_groups=["root", "web"])
+    # def agents(self, request, context):
+    #     """
+    #     """
+    #     filters = list(request.filter) + [f"iams.namespace={self.args.namespace}"]
+    #     for service in self.docker.client.services.list(filters={'label': filters}):
+    #         image, version = service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].rsplit(':', 1)  # noqa
+    #         yield framework_pb2.AgentData(
+    #             name=service.name,
+    #             image=image,
+    #             version=version,
+    #         )
 
     # RPC
     @permissions(has_agent=True, has_groups=["root", "web"])
     def update(self, request, context):
         logger.debug('Update called from %s', context._username)
-        name = self.get_agent_name(context, request.name)
+        request.name = self.get_agent_name(context, request.name)
 
         try:
-            created = self.docker.set_service(
-                name,
-                image=request.image,
-                version=request.version,
-                address=request.address,
-                port=request.port,
-                config=request.config,
-                autostart=request.autostart,
-                placement_constraints=request.constraints,
-                placement_preferences=request.preferences,
-            )
+            created = self.runtime.update_agent(request)
+            # created = self.docker.set_service(
+            #     name,
+            #     image=request.image,
+            #     version=request.version,
+            #     address=request.address,
+            #     port=request.port,
+            #     config=request.config,
+            #     autostart=request.autostart,
+            #     placement_constraints=request.constraints,
+            #     placement_preferences=request.preferences,
+            # )
 
         except docker_errors.ImageNotFound:
             message = f'Could not find image {request.image}:{request.version}'
@@ -156,9 +159,9 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
         if created:
-            self.set_booting(name)
+            self.set_booting(request.name)
 
-        return framework_pb2.AgentData(name=name)
+        return framework_pb2.AgentData(name=request.name)
 
     # RPC
     @permissions(has_agent=True, has_groups=["root", "web"])
@@ -167,7 +170,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         regex = self.RE_NAME.match(request.name)
         if regex:
-            name = self.args.namespace[0:4] + '_' + regex.group(2)
+            request.name = self.args.namespace[0:4] + '_' + regex.group(2)
         else:
             message = 'A name with starting with a letter, ending with an alphanumerical chars and ' \
                       'only containing alphanumerical values and hyphens is required to define agents'
@@ -185,19 +188,20 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         try:
-            self.docker.set_service(
-                name,
-                image=request.image,
-                version=request.version,
-                address=request.address,
-                port=request.port,
-                config=request.config,
-                autostart=request.autostart,
-                create=True,
-                seed=getattr(context, '_seed', None),
-                placement_constraints=request.constraints,
-                placement_preferences=request.preferences,
-            )
+            self.runtime.update_agent(request)
+            # self.docker.set_service(
+            #     name,
+            #     image=request.image,
+            #     version=request.version,
+            #     address=request.address,
+            #     port=request.port,
+            #     config=request.config,
+            #     autostart=request.autostart,
+            #     create=True,
+            #     seed=getattr(context, '_seed', None),
+            #     placement_constraints=request.constraints,
+            #     placement_preferences=request.preferences,
+            # )
 
         except docker_errors.ImageNotFound:
             message = f'Could not find image {request.image}:{request.version}'
@@ -213,9 +217,9 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        self.set_booting(name)
-        self.create_callback(name)
-        return framework_pb2.AgentData(name=name)
+        self.set_booting(request.name)
+        self.create_callback(request.name)
+        return framework_pb2.AgentData(name=request.name)
 
     def create_callback(self, name):
         """
@@ -267,10 +271,11 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     @permissions(has_agent=True)
     def upgrade(self, request, context):
         logger.debug('upgrade called from %s', context._agent)
-        self.docker.set_service(
-            context._agent,
-            update=True,
-        )
+        self.runtime.update_agent(framework_pb2.AgentData(name=request.name), update=True)  # noqa
+        # self.docker.set_service(
+        #     context._agent,
+        #     update=True,
+        # )
         return Empty()
 
     # RPC

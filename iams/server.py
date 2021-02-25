@@ -18,12 +18,12 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
 from .constants import AGENT_PORT
-# from .cloud.compose import Compose
 from .cloud.swarm import Swarm
 from .exceptions import SkipPlugin
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
 from .proto.simulation_pb2_grpc import add_SimulationServicer_to_server
+from .runtime import DockerSwarmRuntime
 from .servicer import FrameworkServicer
 from .servicer import SimulationServicer
 from .utils.cfssl import CFSSL
@@ -136,6 +136,9 @@ def execute_command_line():
     else:
         args.hosts = ["127.0.0.1", "localhost"]
 
+    cfssl = CFSSL(args.cfssl, args.rsa, args.hosts)
+    runtime = DockerSwarmRuntime(cfssl)
+
     # dynamically load services from environment
     plugins = []
     for cls in get_plugins():
@@ -145,6 +148,7 @@ def execute_command_line():
                 simulation=args.simulation,
             ))
             logger.info("Loaded plugin %s (usage label: %s)", cls.__qualname__, cls.label())
+            runtime.register_plugin(plugins[-1])
         except SkipPlugin:
             logger.info("Skipped plugin %s", cls.__qualname__)
         except Exception:
@@ -155,7 +159,6 @@ def execute_command_line():
     server = grpc.server(threadpool)
 
     logger.info("Generating certificates")
-    cfssl = CFSSL(args.cfssl, args.rsa, args.hosts)
     if cloud:
         response = cfssl.get_certificate(cloud.servername, hosts=[cloud.servername], groups=["root"])
     else:
@@ -187,6 +190,7 @@ def execute_command_line():
         server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
 
     servicer = FrameworkServicer(
+        runtime,
         client,
         cfssl,
         cloud,

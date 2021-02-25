@@ -60,7 +60,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
     }
 
     # FLUENTD plugin
-    if FLUENTD and os.environ.get('FLUENTD_HOST') and os.environ.get('FLUENTD_TAG'):
+    if FLUENTD and os.environ.get('FLUENTD_HOST') and os.environ.get('FLUENTD_TAG'):  # pragma: no branch
         conf["formatters"]["fluentd"] = {
             '()': 'fluent.handler.FluentRecordFormatter',
             'format': {
@@ -82,7 +82,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
         conf["root"]["handlers"].append("fluentd")
 
     # SENTRY plugin
-    if SENTRY and os.environ.get('SENTRY_DSN'):
+    if SENTRY and os.environ.get('SENTRY_DSN'):  # pragma: no branch
         sentry_sdk.init(
             os.environ.get('SENTRY_DSN'),
             server_name=os.environ.get('IAMS_AGENT', None),

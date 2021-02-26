@@ -2,9 +2,7 @@
 # vim: set fileencoding=utf-8 :
 
 import logging
-import os
 import random
-import re
 import time
 
 from heapq import heappush
@@ -17,15 +15,14 @@ import grpc
 from docker import errors as docker_errors
 from google.protobuf.empty_pb2 import Empty
 
+from .exceptions import InvalidAgentName
 from .proto import agent_pb2
-from .proto import simulation_pb2
-from .proto import simulation_pb2_grpc
 from .proto import framework_pb2
 from .proto import framework_pb2_grpc
+from .proto import simulation_pb2
+from .proto import simulation_pb2_grpc
 from .stub import AgentStub
-from .utils.arangodb import Arango
 from .utils.auth import permissions
-from .utils.docker import Docker
 from .utils.grpc import framework_channel
 from .utils.ssl import validate_certificate
 
@@ -39,41 +36,47 @@ def generate_seed():
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
-    def __init__(self, runtime, client, cfssl, cloud, args, credentials, threadpool, plugins, runtests):
+    def __init__(self, runtime, ca, df, threadpool):
         self.runtime = runtime
-        self.args = args
-        self.cfssl = cfssl
-        self.cloud = cloud
-        self.credentials = credentials
-        self.runtests = runtests
+        self.ca = ca
+        self.df = df
+
         self.threadpool = threadpool
 
         self.booting = set()
         self.event = Event()
         self.event.set()
 
-        self.docker = Docker(client, cfssl, cloud, args.namespace, args.simulation, plugins)
-        self.arango = Arango(
-            cloud.namespace,
-            hosts=os.environ.get("IAMS_ARANGO_HOSTS", "http://tasks.arangodb:8529"),
-            docker=self.docker,
-        )
+        # self.credentials = credentials
+        # self.args = args
+        # self.cfssl = cfssl
+        # self.cloud = cloud
+        # self.runtests = runtests
 
-        self.RE_NAME = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.args.namespace[0:4])
+        # self.docker = Docker(client, cfssl, cloud, args.namespace, args.simulation, plugins)
+        # self.arango = Arango(
+        #     cloud.namespace,
+        #     hosts=os.environ.get("IAMS_ARANGO_HOSTS", "http://tasks.arangodb:8529"),
+        #     docker=self.docker,
+        # )
 
-    def set_booting(self, name):
-        logger.debug("adding %s to %s", name, self.booting)
-        self.booting.add(name)
-        self.event.clear()
+        # self.RE_NAME = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.runtime.iams_namespace[0:4])
 
-    def del_booting(self, name):
-        logger.debug("removing %s from %s", name, self.booting)
-        try:
-            self.booting.remove(name)
-            if not self.booting:
-                self.event.set()
-        except KeyError:
-            pass
+    # -- TODO -----------------------------------------------------------------
+
+    # def set_booting(self, name):
+    #     logger.debug("adding %s to %s", name, self.booting)
+    #     self.booting.add(name)
+    #     self.event.clear()
+
+    # def del_booting(self, name):
+    #     logger.debug("removing %s from %s", name, self.booting)
+    #     try:
+    #         self.booting.remove(name)
+    #         if not self.booting:
+    #             self.event.set()
+    #     except KeyError:
+    #         pass
 
     # RPC
     @permissions(is_optional=True)
@@ -101,7 +104,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             return framework_pb2.RenewResponse()
 
         # mark container as booting
-        self.set_booting(request.name)
+        # self.set_booting(request.name)
 
         # generate pk and certificate and send it
         # the request is authenticated and origins from an agent, i.e it contains image and version
@@ -111,12 +114,12 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             certificate=response["result"]["certificate"],
         )
 
-    # RPC
-    @permissions(has_agent=True)
-    def booted(self, request, context):
-        logger.debug('booted called from %s', context._agent)
-        self.del_booting(context._agent)
-        return Empty()
+    # # RPC
+    # @permissions(has_agent=True)
+    # def booted(self, request, context):
+    #     logger.debug('booted called from %s', context._agent)
+    #     self.del_booting(context._agent)
+    #     return Empty()
 
     # RPC
     # @permissions(has_agent=True, has_groups=["root", "web"])
@@ -140,17 +143,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         try:
             created = self.runtime.update_agent(request)
-            # created = self.docker.set_service(
-            #     name,
-            #     image=request.image,
-            #     version=request.version,
-            #     address=request.address,
-            #     port=request.port,
-            #     config=request.config,
-            #     autostart=request.autostart,
-            #     placement_constraints=request.constraints,
-            #     placement_preferences=request.preferences,
-            # )
             logger.debug("update_agent responded with created=%s", created)
 
         except docker_errors.ImageNotFound:
@@ -162,8 +154,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             logger.debug(message)
             context.abort(grpc.StatusCode.NOT_FOUND, message)
 
-        if created:
-            self.set_booting(request.name)
+        # if created:
+        #     self.set_booting(request.name)
 
         return framework_pb2.AgentData(name=request.name)
 
@@ -193,19 +185,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         try:
             self.runtime.update_agent(request)
-            # self.docker.set_service(
-            #     name,
-            #     image=request.image,
-            #     version=request.version,
-            #     address=request.address,
-            #     port=request.port,
-            #     config=request.config,
-            #     autostart=request.autostart,
-            #     create=True,
-            #     seed=getattr(context, '_seed', None),
-            #     placement_constraints=request.constraints,
-            #     placement_preferences=request.preferences,
-            # )
 
         except docker_errors.ImageNotFound:
             message = f'Could not find image {request.image}:{request.version}'
@@ -221,16 +200,16 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        self.set_booting(request.name)
-        self.create_callback(request.name)
+        # self.set_booting(request.name)
+        # self.create_callback(request.name)
         return framework_pb2.AgentData(name=request.name)
 
-    def create_callback(self, name):
-        """
-        the create_callback is overwritten by the simulation runtime.
-        it creates two events (start and stop of service), after a service is created
-        """
-        pass
+    # RPC
+    @permissions(has_agent=True)
+    def upgrade(self, request, context):
+        logger.debug('upgrade called from %s', context._agent)
+        self.runtime.update_agent(framework_pb2.AgentData(name=request.name), update=True)  # noqa
+        return Empty()
 
     def get_agent_name(self, context, name):
         if context._agent is None and name is None:
@@ -241,9 +220,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             return context._agent
 
         try:
-            regex = self.RE_NAME.match(name)
-            return self.args.namespace[0:4] + '_' + regex.group(2)
-        except AttributeError:
+            return self.runtime.get_valid_agent_name(name)
+        except InvalidAgentName:
             message = 'Given an invalid agent name (%s) in request' % name
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
@@ -251,66 +229,64 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     @permissions(has_agent=True, has_groups=["root", "web"])
     def destroy(self, request, context):
         logger.debug('Destroy called from %s', context._username)
-        agent = self.get_agent_name(context, request.name)
-
         try:
-            self.docker.del_service(agent)
+            request.name = self.get_agent_name(context, request.name)
+            if self.runtime.delete_agent(request.name):
+                return Empty()
+
         except docker_errors.NotFound as e:
             context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
-
-        # TODO: remove agent from arango db
-        return Empty()
 
     # RPC
     @permissions(has_agent=True)
     def sleep(self, request, context):
         logger.debug('sleep called from %s', context._agent)
         try:
-            self.docker.set_scale(context._agent, 0)
+            request.name = self.get_agent_name(context, request.name)
+            if self.runtime.sleep_agent(request.name):
+                return Empty()
+
         except docker_errors.NotFound as e:
             context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
-        return Empty()
-
-    # RPC
-    @permissions(has_agent=True)
-    def upgrade(self, request, context):
-        logger.debug('upgrade called from %s', context._agent)
-        self.runtime.update_agent(framework_pb2.AgentData(name=request.name), update=True)  # noqa
-        # self.docker.set_service(
-        #     context._agent,
-        #     update=True,
-        # )
-        return Empty()
 
     # RPC
     @permissions(has_agent=True)
     def wake(self, request, context):
         logger.debug('wake called from %s', context._agent)
-        service = self.get_service(context, context._agent)
-        if service.attrs['Spec']['Mode']['Replicated']['Replicas'] > 0:
-            logger.debug('scale service %s to 1', context._agent)
-            service.scale(1)
-        return Empty()
+        try:
+            request.name = self.get_agent_name(context, request.name)
+            if self.runtime.wake_agent(request.name):
+                return Empty()
 
-    # RPC
-    @permissions(has_agent=True)
-    def topology(self, request, context):
-        logger.debug('topology called from %s', context._agent)
+        except docker_errors.NotFound as e:
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
-        # iterate over node.edges and change name with regex
-        for edge in request.edges:
-            if edge.agent is not None:
-                regex = self.RE_NAME.match(edge.agent)
-                if regex:
-                    edge.agent = self.args.namespace[0:4] + '_' + regex.group(2)
-                else:
-                    message = 'A name with starting with a letter, ending with an alphanumerical chars and ' \
-                              'only containing alphanumerical values and hyphens is required to define agents'
-                    logger.debug(message)
-                    context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+    # def create_callback(self, name):
+    #     """
+    #     the create_callback is overwritten by the simulation runtime.
+    #     it creates two events (start and stop of service), after a service is created
+    #     """
+    #     pass
 
-        self.arango.create_agent(context._agent, request)
-        return request
+    # # RPC
+    # @permissions(has_agent=True)
+    # def topology(self, request, context):
+    #     logger.debug('topology called from %s', context._agent)
+
+    #     # iterate over node.edges and change name with regex
+    #     for edge in request.edges:
+    #         if edge.agent is not None:
+    #             regex = self.RE_NAME.match(edge.agent)
+    #             if regex:
+    #                 edge.agent = self.args.namespace[0:4] + '_' + regex.group(2)
+    #             else:
+    #                 message = 'A name with starting with a letter, ending with an alphanumerical chars and ' \
+    #                           'only containing alphanumerical values and hyphens is required to define agents'
+    #                 logger.debug(message)
+    #                 context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+
+    #     self.arango.create_agent(context._agent, request)
+    #     return request
 
 
 class SimulationServicer(simulation_pb2_grpc.SimulationServicer):

@@ -9,6 +9,12 @@ class SkipPlugin(AssertionError):
     pass
 
 
+class InvalidAgentName(ValueError):
+    """
+    """
+    pass
+
+
 # Simulation loop
 class EventNotFound(StopIteration):
     """

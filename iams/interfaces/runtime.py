@@ -21,6 +21,13 @@ class RuntimeInterface(ABC):
         self.plugins = []
 
     @abstractmethod
+    def get_valid_agent_name(self, name):  # pragma: no cover
+        """
+        returns the validated agent name, or raises an InvalidAgentName
+        """
+        pass
+
+    @abstractmethod
     def get_agent_plugins(self, name):  # pragma: no cover
         pass
 
@@ -53,5 +60,14 @@ class RuntimeInterface(ABC):
     def update_agent(self, request, create=False, update=False):  # pragma: no cover
         pass
 
+    @abstractmethod
+    def sleep_agent(self, name):  # pragma: no cover
+        pass
+
+    @abstractmethod
+    def wake_agent(self, name):  # pragma: no cover
+        pass
+
+    # TODO unused
     def disconnect(self):
         pass

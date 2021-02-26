@@ -16,10 +16,19 @@ class TestPlugin(Plugin):
 
 class Runtime(RuntimeInterface):
 
+    def get_valid_agent_name(self, name):
+        pass
+
     def get_agent_plugins(self, name):
         pass
 
     def get_agent_config(self, name):
+        pass
+
+    def wake_agent(self, name):
+        pass
+
+    def sleep_agent(self, name):
         pass
 
     def delete_agent(self, name):

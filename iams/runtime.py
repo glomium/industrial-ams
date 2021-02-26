@@ -9,6 +9,7 @@ import re
 
 from socket import gethostname
 
+from iams.exceptions import InvalidAgentName
 from iams.interfaces.runtime import RuntimeInterface
 
 import docker
@@ -21,18 +22,29 @@ class DockerSwarmRuntime(RuntimeInterface):
 
     RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT)=(.*)$')
 
-    def __init__(self, cfssl) -> None:
+    def __init__(self, ca, cfssl) -> None:
         super().__init__()
+        self.ca = ca
         self.client = docker.DockerClient()
+
         self.cfssl = cfssl
 
-        container = self.client.containers.get(gethostname())
-        service = container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
+        self.container = self.client.containers.get(gethostname())
+        service = self.container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
 
         self.label = "com.docker.stack.namespace"
-        self.namespace = container.attrs["Config"]["Labels"][self.label]
+        self.namespace = self.container.attrs["Config"]["Labels"][self.label]
         self.servername = "tasks." + service[len(self.namespace) + 1:]
         self.iams_namespace = "prod"
+
+        self.regex = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.iams_namespace[0:4])
+
+    def get_valid_agent_name(self, name):
+        regex = self.regex.match(name)
+        if regex:
+            return self.iams_namespace[0:4] + '_' + regex.group(2)
+        else:
+            raise InvalidAgentName("%s is not a valid agent-name" % name)
 
     def get_service_and_name(self, name):
         if isinstance(name, docker.models.services.Service):
@@ -70,15 +82,28 @@ class DockerSwarmRuntime(RuntimeInterface):
         else:
             return None
 
-    def delete_agent(self, name):  # pragma: no cover
+    def wake_agent(self, name):
+        service, name = self.get_service(name)
+        if service.attrs['Spec']['Mode']['Replicated']['Replicas'] != 1:
+            logger.debug('scale service %s to 1', name)
+            service.scale(1)
+
+    def sleep_agent(self, name):
+        service, name = self.get_service(name)
+        if service.attrs['Spec']['Mode']['Replicated']['Replicas'] != 0:
+            logger.debug('scale service %s to 0', name)
+            service.scale(0)
+
+    def delete_agent(self, name):
         service, name = self.get_service_and_name(name)
         logger.info("Delete agent: %s", name)
         service.remove()
         self.delete_agent_plugins(service)
         self.delete_agent_secrets(name)
         self.delete_agent_configs(name)
+        return True
 
-    def delete_agent_secrets(self, name):  # pragma: no cover
+    def delete_agent_secrets(self, name):
         for secret in self.client.secrets.list(filters={"label": [
             f"{self.label}={self.namespace}",
             f"iams.namespace={self.iams_namespace}",
@@ -86,7 +111,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         ]}):
             secret.remove()
 
-    def delete_agent_configs(self, name):  # pragma: no cover
+    def delete_agent_configs(self, name):
         for config in self.client.configs.list(filters={"label": [
             f"{self.label}={self.namespace}",
             f"iams.namespace={self.iams_namespace}",
@@ -125,7 +150,7 @@ class DockerSwarmRuntime(RuntimeInterface):
                     address = value
                 if env_name == "PORT":
                     port = value
-            config = self.get_agent_config(self, service)
+            config = self.get_agent_config(service)
 
             if request.image is None:
                 request.image = image

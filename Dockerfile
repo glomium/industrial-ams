@@ -58,7 +58,7 @@ COPY examples ./examples
 
 RUN doc8 iams examples
 RUN flake8 iams examples
-RUN python3 setup.py test
+RUN python3 -m unittest
 
 # build wheel package
 RUN python3 setup.py bdist_wheel

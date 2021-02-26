@@ -155,6 +155,7 @@ class DockerSwarmRuntime(RuntimeInterface):
                 update = True
 
         except docker.errors.NotFound:
+            create = True
             scale = int(request.autostart)
 
         if create and update:
@@ -165,6 +166,7 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         # no changes occur
         if not update and not create:
+            logger.debug("no changes occured - skip updating agent: %s", request.name)
             return None
 
         if create:
@@ -266,23 +268,23 @@ class DockerSwarmRuntime(RuntimeInterface):
             new_secrets.append(docker.types.SecretReference(secret.id, secret.name, filename=filename))
 
         # update config
-        logger.debug("using config %s", config)
+        logger.debug("using config %s", request.config)
         if request.config:
-            config, old_configs = self.set_config(service, request.config)
+            config, old_configs = self.set_config(request.name, request.config)
             new_configs = [docker.types.ConfigReference(config.id, config.name, filename="/config")]
         else:
             new_configs = []
             old_configs = []
 
-        if not request.placement_preferences:
-            if self.simulation:
-                request.placement_preferences = ["node.labels.simulation"]
-            else:
-                request.placement_preferences = ["node.labels.worker"]
+        if not request.preferences:
+            # if self.simulation:
+            #     request.preferences = ["node.labels.simulation"]
+            # else:
+            request.preferences.append("node.labels.worker")
 
         task_template = docker.types.TaskTemplate(
             container_spec=docker.types.ContainerSpec(
-                f'{image!s}:{version!s}',
+                f'{request.image!s}:{request.version!s}',
                 env=env,
                 configs=new_configs,
                 secrets=new_secrets,
@@ -290,9 +292,9 @@ class DockerSwarmRuntime(RuntimeInterface):
             log_driver=docker.types.DriverConfig("json-file", {"max-file": "10", "max-size": "1m"}),
             networks=networks,
             placement=docker.types.Placement(
-                constraints=list(request.placement_constraints),
+                constraints=list(request.constraints),
                 preferences=list([
-                    docker.types.PlacementPreference('spread', pref) for pref in request.placement_preferences
+                    docker.types.PlacementPreference('spread', pref) for pref in request.preferences
                 ]),
             ),
         )
@@ -330,6 +332,41 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         return False
 
+    def set_secret(self, service, name, data):
+        md5 = hashlib.md5(service.encode())
+        md5.update(data)
+        md5 = md5.hexdigest()[0:8]
+        secret_name = f"{service}_{name}_{md5}"
+
+        # select
+        secret = None
+        old_secrets = []
+        for s in self.client.secrets.list(filters={"label": [
+            f"{self.label}={self.namespace}",
+            f"iams.namespace={self.iams_namespace}",
+            f"iams.agent={service}",
+            f"iams.secret={name}",
+        ]}):
+            if s.name == secret_name:
+                secret = s
+            else:
+                old_secrets.append(s)
+
+        if secret is None:
+            logger.debug('creating secret %s for %s', name, service)
+            secret = self.client.secrets.create(
+                name=secret_name,
+                data=data,
+                labels={
+                    self.label: self.namespace,
+                    'iams.namespace': self.iams_namespace,
+                    'iams.agent': service,
+                    'iams.secret': name,
+                },
+            )
+            secret.reload()  # workarround for https://github.com/docker/docker-py/issues/2025
+        return secret, old_secrets
+
     def set_config(self, service, data):
         if data:
             md5 = hashlib.md5(data)
@@ -342,8 +379,8 @@ class DockerSwarmRuntime(RuntimeInterface):
         config = None
         old_configs = []
         for c in self.client.configs.list(filters={"label": [
-            f"{self.cloud.namespace_label}={self.cloud.namespace}",
-            f"iams.namespace={self.namespace}",
+            f"{self.label}={self.namespace}",
+            f"iams.namespace={self.iams_namespace}",
             f"iams.agent={service}",
         ]}):
             if c.name == config_name:
@@ -357,8 +394,8 @@ class DockerSwarmRuntime(RuntimeInterface):
                 name=config_name,
                 data=data,
                 labels={
-                    self.cloud.namespace_label: self.cloud.namespace,
-                    'iams.namespace': self.namespace,
+                    self.label: self.namespace,
+                    'iams.namespace': self.iams_namespace,
                     'iams.agent': service,
                 },
             )

@@ -151,12 +151,16 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             #     placement_constraints=request.constraints,
             #     placement_preferences=request.preferences,
             # )
+            logger.debug("update_agent responded with created=%s", created)
 
         except docker_errors.ImageNotFound:
             message = f'Could not find image {request.image}:{request.version}'
+            logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
         except docker_errors.NotFound as e:
-            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
+            message = str(e)
+            logger.debug(message)
+            context.abort(grpc.StatusCode.NOT_FOUND, message)
 
         if created:
             self.set_booting(request.name)

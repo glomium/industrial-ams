@@ -23,7 +23,6 @@ from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
 from .runtime import DockerSwarmRuntime
 from .servicer import FrameworkServicer
-from .utils.cfssl import CFSSL as CFSSL2
 from .utils.plugins import get_plugins
 
 
@@ -84,14 +83,13 @@ def execute_command_line():
     logger.info("IAMS namespace: %s", args.namespace)
 
     if args.hosts:
-        args.hosts = ["127.0.0.1", "localhost"] + args.hosts.split(',')
+        args.hosts = args.hosts.split(',')
     else:
-        args.hosts = ["127.0.0.1", "localhost"]
+        args.host = []
 
-    cfssl = CFSSL2(args.cfssl, args.rsa, args.hosts)
-    ca = CFSSL()
+    ca = CFSSL(args.cfssl, args.hosts, args.rsa)
     df = ArangoDF()
-    runtime = DockerSwarmRuntime(ca, cfssl)
+    runtime = DockerSwarmRuntime(ca)
 
     # dynamically load services from environment
     for cls in get_plugins():
@@ -111,17 +109,10 @@ def execute_command_line():
     server = grpc.server(threadpool)
 
     logger.info("Generating certificates")
-    response = cfssl.get_certificate(runtime.servername, hosts=[runtime.servername], groups=["root"])
-
-    certificate = response["result"]["certificate"].encode()
-    private_key = response["result"]["private_key"].encode()
-
-    # load certificate data (used to shutdown service after certificate became invalid)
-    cert = x509.load_pem_x509_certificate(certificate, default_backend())
-
+    certificate, private_key = ca.get_service_certificate("root", hosts=[runtime.servername])
     credentials = grpc.ssl_server_credentials(
         ((private_key, certificate),),
-        root_certificates=cfssl.ca,
+        root_certificates=ca.root,
         require_client_auth=True,
     )
     # channel_credentials = grpc.ssl_channel_credentials(
@@ -129,6 +120,8 @@ def execute_command_line():
     #     private_key=private_key,
     #     certificate_chain=certificate,
     # )
+    # load certificate data (used to shutdown service after certificate became invalid)
+    cert = x509.load_pem_x509_certificate(certificate, default_backend())
 
     logger.debug("Open server on ports %s and %s", AGENT_PORT, args.insecure_port)
     server.add_insecure_port('[::]:%s' % args.insecure_port)

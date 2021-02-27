@@ -22,12 +22,10 @@ class DockerSwarmRuntime(RuntimeInterface):
 
     RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT)=(.*)$')
 
-    def __init__(self, ca, cfssl) -> None:
+    def __init__(self, ca) -> None:
         super().__init__()
         self.ca = ca
         self.client = docker.DockerClient()
-
-        self.cfssl = cfssl
 
         self.container = self.client.containers.get(gethostname())
         service = self.container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
@@ -269,15 +267,15 @@ class DockerSwarmRuntime(RuntimeInterface):
             networks.add(os.environ.get("IAMS_NETWORK"))
         networks = list(networks)
 
-        # TODO this works but is ugly and hardcoded
         # get private_key and certificate
         secrets["%s_ca.crt" % self.namespace] = "ca.crt"
-        response = self.cfssl.get_certificate(request.name, image=request.image, version=request.version)
-        certificate = response["result"]["certificate"]
-        private_key = response["result"]["private_key"]
-        generated.append(("peer.crt", "peer.crt", certificate.encode()))
-        generated.append(("peer.key", "peer.key", private_key.encode()))
-        # TODO end
+        certificate, private_key = self.ca.get_agent_certificate(
+            request.name,
+            image=request.image,
+            version=request.version,
+        )
+        generated.append(("peer.crt", "peer.crt", certificate))
+        generated.append(("peer.key", "peer.key", private_key))
 
         # update all secrets from agent
         old_secrets = []

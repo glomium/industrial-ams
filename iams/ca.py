@@ -4,10 +4,27 @@
 import logging
 
 from iams.interfaces.ca import CertificateAuthorityInterface
+from iams.utils.cfssl import CFSSL as CFSSL_OLD
 
 
 logger = logging.getLogger(__name__)
 
 
 class CFSSL(CertificateAuthorityInterface):
-    pass
+
+    def __init__(self, service, hosts=[], rsa=2048):
+        hosts = ["127.0.0.1", "localhost"] + hosts
+        self.cfssl = CFSSL_OLD(service, rsa, hosts)
+        self.root = self.cfssl.ca
+
+    def get_agent_certificate(self, name, image, version):
+        response = self.cfssl.get_certificate(name, image=image, version=version)
+        certificate = response["result"]["certificate"].encode()
+        private_key = response["result"]["private_key"].encode()
+        return certificate, private_key
+
+    def get_service_certificate(self, name, hosts):
+        response = self.cfssl.get_certificate(hosts[0], hosts=hosts, groups=[name])
+        certificate = response["result"]["certificate"].encode()
+        private_key = response["result"]["private_key"].encode()
+        return certificate, private_key

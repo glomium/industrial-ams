@@ -16,9 +16,13 @@ class CertificateAuthorityInterface(ABC):
     __hash__ = None
 
     @abstractmethod
-    def get_agent_certificate(self, name, image, version):
+    def __call__(self):  # pragma: no cover
         pass
 
     @abstractmethod
-    def get_service_certificate(self, name, hosts):
+    def get_agent_certificate(self, name, image, version):  # pragma: no cover
+        pass
+
+    @abstractmethod
+    def get_service_certificate(self, name, hosts):  # pragma: no cover
         pass

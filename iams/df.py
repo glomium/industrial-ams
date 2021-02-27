@@ -10,4 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class ArangoDF(DirectoryFacilitatorInterface):
-    pass
+
+    def __call__(self):
+        pass

@@ -50,7 +50,7 @@ stop:
 
 
 grpc:
-	python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/agent.proto proto/framework.proto proto/market.proto proto/simulation.proto
+	python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/agent.proto proto/ca.proto proto/df.proto proto/framework.proto proto/market.proto proto/simulation.proto
 	sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
 
 

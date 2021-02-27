@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package iams.servicer;
+
+// import "google/protobuf/empty.proto";
+
+
+/*
+*/
+service CertificateAuthority {
+    /*
+    this rpc renews the client certificate and sends its data to the client
+    */
+    rpc renew(Request) returns (Response) {}
+}
+
+message Request {
+    string name = 1;
+    bool hard = 2;
+}
+message Response {
+    string private_key = 1;
+    string certificate = 2;
+}

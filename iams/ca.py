@@ -13,9 +13,15 @@ logger = logging.getLogger(__name__)
 class CFSSL(CertificateAuthorityInterface):
 
     def __init__(self, service, hosts=[], rsa=2048):
-        hosts = ["127.0.0.1", "localhost"] + hosts
+        if hosts:
+            hosts = ["127.0.0.1", "localhost"] + hosts
+        else:
+            hosts = ["127.0.0.1", "localhost"]
         self.cfssl = CFSSL_OLD(service, rsa, hosts)
         self.root = self.cfssl.ca
+
+    def __call__(self):
+        pass
 
     def get_agent_certificate(self, name, image, version):
         response = self.cfssl.get_certificate(name, image=image, version=version)

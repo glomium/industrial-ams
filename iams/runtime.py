@@ -25,17 +25,22 @@ class DockerSwarmRuntime(RuntimeInterface):
     def __init__(self, ca) -> None:
         super().__init__()
         self.ca = ca
-        self.client = docker.DockerClient()
+        self.iams_namespace = "prod"
+        self.label = "com.docker.stack.namespace"
+        self.regex = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.iams_namespace[0:4])
 
+        self.client = None
+        self.container = None
+        self.namespace = None
+        self.servername = None
+
+    def __call__(self) -> None:
+        self.client = docker.DockerClient()
         self.container = self.client.containers.get(gethostname())
         service = self.container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
 
-        self.label = "com.docker.stack.namespace"
         self.namespace = self.container.attrs["Config"]["Labels"][self.label]
         self.servername = "tasks." + service[len(self.namespace) + 1:]
-        self.iams_namespace = "prod"
-
-        self.regex = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.iams_namespace[0:4])
 
     def get_valid_agent_name(self, name):
         regex = self.regex.match(name)

@@ -20,8 +20,12 @@ from .constants import AGENT_PORT
 from .df import ArangoDF
 from .exceptions import SkipPlugin
 from .helper import get_logging_config
+from .proto.ca_pb2_grpc import add_CertificateAuthorityServicer_to_server
+from .proto.df_pb2_grpc import add_DirectoryFacilitatorServicer_to_server
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
 from .runtime import DockerSwarmRuntime
+from .servicer import CertificateAuthorityServicer
+from .servicer import DirectoryFacilitatorServicer
 from .servicer import FrameworkServicer
 from .utils.plugins import get_plugins
 
@@ -88,7 +92,9 @@ def execute_command_line():
         args.host = []
 
     ca = CFSSL(args.cfssl, args.hosts, args.rsa)
+    ca()
     df = ArangoDF()
+    df()
     runtime = DockerSwarmRuntime(ca)
 
     # dynamically load services from environment
@@ -127,6 +133,8 @@ def execute_command_line():
     server.add_insecure_port('[::]:%s' % args.insecure_port)
     server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
 
+    add_CertificateAuthorityServicer_to_server(CertificateAuthorityServicer(ca), server)
+    add_DirectoryFacilitatorServicer_to_server(DirectoryFacilitatorServicer(df), server)
     add_FrameworkServicer_to_server(FrameworkServicer(runtime, ca, df, threadpool), server)
 
     server.start()

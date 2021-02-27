@@ -17,6 +17,9 @@ from google.protobuf.empty_pb2 import Empty
 
 from .exceptions import InvalidAgentName
 from .proto import agent_pb2
+# from .proto import df_pb2
+from .proto import ca_pb2_grpc
+from .proto import df_pb2_grpc
 from .proto import framework_pb2
 from .proto import framework_pb2_grpc
 from .proto import simulation_pb2
@@ -287,6 +290,16 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     #     self.arango.create_agent(context._agent, request)
     #     return request
+
+
+class DirectoryFacilitatorServicer(df_pb2_grpc.DirectoryFacilitatorServicer):
+    def __init__(self, df):
+        self.df = df
+
+
+class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):
+    def __init__(self, ca):
+        self.ca = ca
 
 
 class SimulationServicer(simulation_pb2_grpc.SimulationServicer):

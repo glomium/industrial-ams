@@ -1,5 +1,18 @@
-VENV_NAME?=.venv
-UBUNTU=rolling
+VENV_NAME? = .venv
+UBUNTU = rolling
+BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
+HASH := $(shell git rev-parse HEAD)
+TARGET := $(shell git rev-parse --abbrev-ref HEAD)
+
+ifeq ($(BRANCH),"master")
+    TARGET = multiarch
+else
+ifeq ($(BRANCH),"master")
+    TARGET = multiarch
+else
+    TARGET = testing
+endif
+endif
 
 
 build:
@@ -17,7 +30,7 @@ build:
 
 
 buildx:
-	docker buildx build --pull --platform linux/amd64,linux/arm64,linux/arm/v7 --build-arg UBUNTU=$(UBUNTU) -t glomium/industrial-ams:multiarch --push .
+	docker buildx build --pull --platform linux/amd64,linux/arm64,linux/arm/v7 --build-arg UBUNTU=$(UBUNTU) -t glomium/industrial-ams:$(TARGET) --push .
 
 
 test:

@@ -4,6 +4,8 @@
 import logging
 
 from .proto import agent_pb2_grpc
+from .proto import ca_pb2_grpc
+from .proto import df_pb2_grpc
 from .proto import framework_pb2_grpc
 from .proto import simulation_pb2_grpc
 # from .utils.grpc import grpc_retry
@@ -20,6 +22,16 @@ class AgentStub(agent_pb2_grpc.AgentStub):
         # self.ping = grpc_retry(self.ping)
         # self.service_get = grpc_retry(self.service_get)
         # self.simulation_continue = grpc_retry(self.simulation_continue)
+
+
+class CAStub(ca_pb2_grpc.CertificateAuthorityStub):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class DFStub(df_pb2_grpc.DirectoryFacilitatorStub):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class FrameworkStub(framework_pb2_grpc.FrameworkStub):

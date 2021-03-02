@@ -127,15 +127,6 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         # TODO: position update callback on previous position
         return True
 
-    def get_agents(self, labels=[]) -> list:
-        try:
-            with framework_channel(credentials=self.parent._credentials) as channel:
-                stub = FrameworkStub(channel)
-                for response in stub.agents(framework_pb2.AgentRequest(filter=labels), timeout=10):
-                    yield response
-        except grpc.RpcError:
-            raise StopIteration
-
     def call_booted(self) -> bool:
         try:
             with framework_channel(credentials=self.parent._credentials) as channel:

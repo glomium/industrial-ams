@@ -133,7 +133,7 @@ def execute_command_line():
     server.add_insecure_port('[::]:%s' % args.insecure_port)
     server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
 
-    add_CertificateAuthorityServicer_to_server(CertificateAuthorityServicer(ca), server)
+    add_CertificateAuthorityServicer_to_server(CertificateAuthorityServicer(ca, runtime, threadpool), server)
     add_DirectoryFacilitatorServicer_to_server(DirectoryFacilitatorServicer(df), server)
     add_FrameworkServicer_to_server(FrameworkServicer(runtime, ca, df, threadpool), server)
 

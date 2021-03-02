@@ -1,18 +1,19 @@
 #!/usr/bin/python
 # ex:set fileencoding=utf-8:
 
-import base64
-import hashlib
+# import base64
+# import hashlib
 import logging
-import re
-import os
+# import re
+# import os
 
-import docker
+# import docker
 
 
 logger = logging.getLogger(__name__)
 
 
+'''
 class Docker(object):
 
     RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT)=(.*)$')
@@ -294,7 +295,9 @@ class Docker(object):
         # check image labels
         image_object = self.client.images.get(f'{image!s}:{version!s}')
         if 'iams.services.agent' not in image_object.labels:
-            raise docker.errors.ImageNotFound(f'Image {image!s}:{version!s} is missing the iams.service.agent label.')
+            raise docker.errors.ImageNotFound(
+                f'Image {image!s}:{version!s} is missing the iams.service.agent label.',
+            )
 
         labels = {}
         env = {}
@@ -405,8 +408,10 @@ class Docker(object):
             networks=networks,
             placement=docker.types.Placement(
                 constraints=list(placement_constraints),
-                preferences=list([docker.types.PlacementPreference('spread', pref) for pref in placement_preferences]),
-            ),
+                preferences=list([
+                    docker.types.PlacementPreference('spread', pref) for pref in placement_preferences
+                  ]),
+              ),
         )
 
         if create:
@@ -441,3 +446,4 @@ class Docker(object):
             config.remove()
 
         return False
+'''

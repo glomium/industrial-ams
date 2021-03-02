@@ -82,41 +82,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     #         pass
 
     # RPC
-    @permissions(is_optional=True)
-    def renew(self, request, context):
-
-        if context._agent is not None:
-            request.name = context._agent
-        else:
-            # connect to ping-rpc on name and check if connection breaks due to an invalid certificate
-
-            if validate_certificate(request.name):
-                message = "Client-validation failed"
-                context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
-            else:
-                request.hard = True
-
-        if not request.name:
-            message = "Agent name not set"
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-
-        # Use a seperate thread to renew the certificate in docker's secrets
-        if request.hard:
-            self.threadpool.submit(self.runtime.update_agent, framework_pb2.AgentData(name=request.name), update=True)  # noqa
-            # self.threadpool.submit(self.docker.set_service, name=request.name, update=True)
-            return framework_pb2.RenewResponse()
-
-        # mark container as booting
-        # self.set_booting(request.name)
-
-        # generate pk and certificate and send it
-        # the request is authenticated and origins from an agent, i.e it contains image and version
-        response = self.cfssl.get_certificate(request.name, image=context._image, version=context._version)
-        return framework_pb2.RenewResponse(
-            private_key=response["result"]["private_key"],
-            certificate=response["result"]["certificate"],
-        )
-
     # # RPC
     # @permissions(has_agent=True)
     # def booted(self, request, context):
@@ -298,8 +263,50 @@ class DirectoryFacilitatorServicer(df_pb2_grpc.DirectoryFacilitatorServicer):
 
 
 class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):
-    def __init__(self, ca):
+    def __init__(self, ca, runtime, threadpool):
         self.ca = ca
+        self.runtime = runtime
+        self.threadpool = threadpool
+
+    @permissions(is_optional=True)
+    def renew(self, request, context):
+
+        if context._agent is not None:
+            request.name = context._agent
+        else:
+
+            # connect to ping-rpc on name and check if connection breaks due to an invalid certificate
+            if validate_certificate(request.name):
+                message = "Client-validation failed"
+                context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+            else:
+                request.hard = True
+
+        if not request.name:
+            message = "Agent name not set"
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+
+        # Use a seperate thread to renew the certificate in docker's secrets
+        if request.hard:
+            self.threadpool.submit(
+                self.runtime.update_agent,
+                framework_pb2.AgentData(name=request.name),
+                update=True,
+            )
+            return framework_pb2.RenewResponse()
+
+        # generate private key and certificate and send it
+        # the request is authenticated and origins from an agent, i.e it contains image and version
+        certificate, private_key = self.ca.get_agent_certificate(
+            request.name,
+            image=context._image,
+            version=context._version,
+        )
+
+        return framework_pb2.RenewResponse(
+            private_key=private_key,
+            certificate=certificate,
+        )
 
 
 class SimulationServicer(simulation_pb2_grpc.SimulationServicer):

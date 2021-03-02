@@ -18,7 +18,11 @@ import yaml
 from iams.agent import Servicer
 from iams.exceptions import Continue
 from iams.exceptions import EventNotFound
+from iams.proto import ca_pb2
+# from iams.proto import df_pb2
 from iams.scheduler import Scheduler
+from iams.stub import CAStub
+# from iams.stub import DFStub
 from iams.utils.grpc import Grpc
 from iams.utils.grpc import framework_channel
 from iams.utils.grpc import get_channel_credentials
@@ -29,7 +33,23 @@ from iams.utils.ssl import validate_certificate
 logger = logging.getLogger(__name__)
 
 
-class Agent(ABC):
+class AgentCAMixin(object):
+
+    def ca_renew(self, hard=True):
+        try:
+            with framework_channel() as channel:
+                stub = CAStub(channel)
+                response = stub.renew(ca_pb2.RenewRequest(hard=hard), timeout=10)
+            return response.private_key, response.certificate
+        except grpc.RpcError:
+            return None, None
+
+
+class AgentDAMixin(object):
+    pass
+
+
+class Agent(ABC, AgentCAMixin, AgentDAMixin):
     """
     """
     __hash__ = None
@@ -91,7 +111,7 @@ class Agent(ABC):
                 if self._iams.call_booted():
                     break
                 if not validate_certificate():
-                    if self._iams.call_renew():
+                    if self.ca_renew():
                         logger.info("Certificate needs to be renewed")
                         sleep(600)
                     else:

@@ -37,15 +37,17 @@ class DockerSwarmRuntimeTests(unittest.TestCase):
         self.instance()
 
     def test_get_valid_agent_name(self):
-        valid_names = [("iut_test1", "iut_test1"), ("test1", "iut_test1")]
+        valid_names = [("iut_test1", "iut_test1"), ("test-1", "iut_test-1")]
         invalid_names = ["iut_1test", "other_test1"]
         for name, result in valid_names:
-            response = self.instance.get_valid_agent_name(name)
-            self.assertEqual(response, result)
+            with self.subTest("valid", name=name):
+                response = self.instance.get_valid_agent_name(name)
+                self.assertEqual(response, result)
 
         for name in invalid_names:
-            with self.assertRaises(InvalidAgentName):
-                self.instance.get_valid_agent_name(name)
+            with self.subTest("invalid", name=name):
+                with self.assertRaises(InvalidAgentName):
+                    self.instance.get_valid_agent_name(name)
 
     @unittest.expectedFailure
     def test_get_service_and_name(self):

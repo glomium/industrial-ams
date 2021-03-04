@@ -3,6 +3,8 @@
 
 import logging
 
+from types import MethodType
+
 from iams.mixins.event import EventMixin
 
 
@@ -32,7 +34,7 @@ def monkeypatch_call_datachange(self, datachange):
             data = self._monitoreditems_map[item.ClientHandle]
         event_data = DataChangeNotif(data, item)
         changes.append((data.node, item.Value.Value.Value, event_data))
-    self._handler.datachange_notifications(changed)
+    self._handler.datachange_notifications(changes)
 
 
 class Handler(SubHandler):
@@ -48,14 +50,13 @@ class Handler(SubHandler):
 
     def datachange_notifications(self, notifications):
         response = False
-        for node, val, data in data:
-            r = datachange_notification(self, node, val, data)
-            if not response and r in [None, True]
+        for node, val, data in notifications:
+            r = self.datachange_notification(node, val, data)
+            if not response and r in [None, True]:
                 response = True
 
-        if response:
-            if self.parent.opcua_datachanges()
-                self.parent._loop_event.set()
+        if self.parent.opcua_datachanges(response):
+            self.parent._loop_event.set()
 
     def datachange_notification(self, node, val, data):
         """
@@ -137,10 +138,10 @@ class OPCUAMixin(EventMixin):
                 break
             self._stop_event.wait(self.OPCUA_HEARTBEAT)
 
-    def opcua_datachanges(self):
+    def opcua_datachanges(self, run_loop):
         """
         """
-        return True
+        return run_loop
 
     def opcua_datachange(self, node, val, data):
         """
@@ -182,7 +183,7 @@ class OPCUAMixin(EventMixin):
             subscription = self.opcua_subscriptions[interval]
         except KeyError:
             subscription = self.opcua_client.create_subscription(interval, Handler(self))
-            subscription._call_datachange = monkeypatch_call_datachange
+            subscription._call_datachange = MethodType(monkeypatch_call_datachange, subscription)
             self.opcua_subscriptions[interval] = subscription
 
         handle = subscription.subscribe_data_change(nodes)

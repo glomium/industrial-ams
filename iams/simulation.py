@@ -23,8 +23,29 @@ from iams.interfaces.simulation import SimulationInterface
 logger = logging.getLogger(__name__)
 
 
+def load_agent(agents, global_settings):
+    for agent in agents:
+        module_name, class_name = agent["class"].rsplit('.', 1)
+        cls = getattr(import_module(module_name), class_name)
+        settings = agent.get('settings', {})
+        for name in agent.get('use_global', []):
+            settings[name] = global_settings[name]
+
+        permutations = []
+        for key, values in agent.get("permutations", {}).items():
+            data = []
+            for value in values:
+                data.append((key, value))
+            permutations.append(sorted(data))
+
+        for permutation in product(*permutations):
+            settings.update(dict(permutation))
+            logger.info("Create agent: %r with %s", cls, settings)
+            yield cls(**settings)
+
+
 def run_simulation(
-        interface, name, folder, settings, start, stop, seed,
+        interface, name, folder, settings, start, stop, seed, config,
         dryrun, force, loglevel, file_data, file_log, **kwargs):
 
     if loglevel == logging.DEBUG:
@@ -62,6 +83,9 @@ def run_simulation(
             seed=seed,
         )
 
+        for agent in load_agent(config.get('agents', []), settings):
+            simulation.register(agent)
+
         # run simulation
         simulation(dryrun, settings)
 
@@ -71,14 +95,14 @@ def prepare_data(path, config):
     folder = os.path.dirname(path)
     project = os.path.basename(path)[:-5]
 
-    iterations = []
+    permutations = []
     length = 1
-    for key, values in config.get("iterations", {}).items():
+    for key, values in config.get("permutations", {}).items():
         length *= len(values)
         data = []
         for value in values:
             data.append((key, value))
-        iterations.append(data)
+        permutations.append(data)
 
     if length > 1:
         length = int(floor(log10(length)) + 1)
@@ -89,8 +113,8 @@ def prepare_data(path, config):
     else:
         template = project
 
-    for iteration in product(*iterations):
-        yield folder, template, dict(iteration)
+    for permutation in product(*permutations):
+        yield folder, template, dict(permutation)
 
 
 def prepare_run(count, folder, template, run_config, config):
@@ -117,11 +141,12 @@ def prepare_run(count, folder, template, run_config, config):
             )
 
     settings = config.get('settings', {})
+    settings.update(run_config)
 
     for x in [
         "formatter",
         "interface",
-        "iterations",
+        "permutations",
         "seed",
         "settings",
         "start",
@@ -200,7 +225,7 @@ def execute_command_line():
             for folder, template, run_config in prepare_data(fobj.name, config):
                 count += 1
                 try:
-                    kwargs = prepare_run(count, folder, template, run_config, config)
+                    kwargs = prepare_run(count, folder, template, run_config, config.copy())
                 except (AssertionError, AttributeError, ModuleNotFoundError) as e:
                     logger.exception(str(e))
                     continue

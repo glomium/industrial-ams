@@ -38,7 +38,7 @@ class SimulationInterface(ABC):
 
     def __init__(self, name, folder, fobj, seed, start, stop):
         logger.info("=== Initialize %r", self.__class__)
-        self._agents = {}
+        self._agents = []
         self._df = None
         self._fobj = fobj
         self._folder = folder
@@ -53,6 +53,10 @@ class SimulationInterface(ABC):
         logger.info("=== Setup simulation")
         timer = time()
         events = 0
+
+        logger.info("=== Init agents")
+        for agent in self._agents:
+            agent(self, dryrun)
         self.setup(**settings)
 
         if self._queue:
@@ -95,11 +99,9 @@ class SimulationInterface(ABC):
     def __str__(self):
         return '%s(%s)' % (self.__class__.__qualname__, self._name)
 
-    # # TODO unused
-    # def register(self, name, agent):
-    #     self._agents[name] = agent
+    def register(self, agent):
+        self._agents.append(agent)
 
-    # # TODO unused
     # def unregister(self, name):
     #     del self._agents[name]
 

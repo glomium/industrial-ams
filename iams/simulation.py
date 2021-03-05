@@ -5,129 +5,218 @@ import argparse
 import logging
 import yaml
 import sys
+import os
 
-from logging.config import dictConfig
+# from logging.config import dictConfig
+# from dataclasses import asdict
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import wait
+from importlib import import_module
+from itertools import product
+from math import floor
+from math import log10
 
-import grpc
 
-from .helper import get_logging_config
-from .proto import simulation_pb2
-from .proto import framework_pb2
-from .stub import SimulationStub
-from .utils.grpc import framework_channel
+from iams.interfaces.simulation import SimulationInterface
+
+
+logger = logging.getLogger(__name__)
+
+
+def run_simulation(
+        interface, name, folder, settings, start, stop, seed,
+        dryrun, force, loglevel, file_data, file_log, **kwargs):
+
+    if loglevel == logging.DEBUG:
+        formatter = "%(levelname).1s [%(name)s:%(lineno)s] %(message)s"
+    else:
+        formatter = '%(message)s'
+
+    # TODO
+    print("TODO", kwargs)  # noqa
+
+    if dryrun:
+        file_data = os.devnull  # redirect output to null device
+        logging.basicConfig(
+            stream=sys.stdout,
+            level=loglevel,
+            format=formatter,
+        )
+    else:
+        logging.basicConfig(
+            filename=file_log,
+            filemode='w',
+            level=loglevel,
+            force=True,
+            format=formatter,
+        )
+
+    with open(file_data, "w") as fobj:
+        # init simulation
+        simulation = interface(
+            name=name,
+            folder=folder,
+            fobj=fobj,
+            start=start,
+            stop=stop,
+            seed=seed,
+        )
+
+        # run simulation
+        simulation(dryrun, settings)
+
+
+def prepare_data(path, config):
+    path = os.path.abspath(path)
+    folder = os.path.dirname(path)
+    project = os.path.basename(path)[:-5]
+
+    iterations = []
+    length = 1
+    for key, values in config.get("iterations", {}).items():
+        length *= len(values)
+        data = []
+        for value in values:
+            data.append((key, value))
+        iterations.append(data)
+
+    if length > 1:
+        length = int(floor(log10(length)) + 1)
+        try:
+            template = project + '-' + config['formatter']
+        except KeyError:
+            template = project + '-{:0%dd}' % length
+    else:
+        template = project
+
+    for iteration in product(*iterations):
+        yield folder, template, dict(iteration)
+
+
+def prepare_run(count, folder, template, run_config, config):
+    name = template.format(count, **run_config)
+    log_dir = os.path.join(folder, name + '.log')
+    data_dir = os.path.join(folder, name + '.dat')
+
+    seed = config.get('seed', name)
+    start = config.get('start', 0)
+    stop = config.get('stop', None)
+
+    try:
+        module_name, class_name = config["interface"].rsplit('.', 1)
+    except (KeyError, AttributeError):
+        raise ValueError('The configuration-file needs a valid "interface-setting')
+    else:
+        interface = getattr(import_module(module_name), class_name)
+
+        if not issubclass(interface, SimulationInterface):
+            raise AssertionError(
+                "%s needs to be a subclass of %s",
+                interface.__qualname__,
+                SimulationInterface.__qualname__,
+            )
+
+    settings = config.get('settings', {})
+
+    for x in [
+        "formatter",
+        "interface",
+        "iterations",
+        "seed",
+        "settings",
+        "start",
+        "stop",
+    ]:
+        try:
+            del config[x]
+        except KeyError:
+            pass
+
+    return {
+        'file_data': data_dir,
+        'file_log': log_dir,
+        'folder': folder,
+        'interface': interface,
+        'name': name,
+        'seed': seed,
+        'settings': settings,
+        'config': config,
+        'start': start,
+        'stop': stop,
+    }
 
 
 def execute_command_line():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-q', '--quiet',
-        help="Be quiet",
         action="store_const",
-        dest="loglevel",
         const=logging.WARNING,
         default=logging.INFO,
+        dest="loglevel",
+        help="Be quiet",
     )
     parser.add_argument(
         '-d', '--debug',
-        help="Debugging statements",
         action="store_const",
-        dest="loglevel",
         const=logging.DEBUG,
+        dest="loglevel",
+        help="Debugging statements",
     )
     parser.add_argument(
-        '-t', '--time',
-        help="simulation time",
-        type=int,
-        dest="time",
+        '-f', '--force',
+        action='store_true',
+        default=False,
+        dest="force",
+        help="Allow overwriting of existing runs",
     )
     parser.add_argument(
-        '-s', '--seed',
-        help="random seed",
-        dest="seed",
+        '--dry-run',
+        action='store_true',
+        default=False,
+        dest="dryrun",
+        help="Dry-run",
     )
     parser.add_argument(
-        'config',
-        help="Simulation configuration file",
+        'configs',
+        nargs='+',
+        help="Simulation configuration files",
         type=argparse.FileType('r'),
         default=sys.stdin,
     )
-
-    parser.add_argument(
-        'hosts',
-        help="gRPC interfaces for simulation runtimes",
-        default="127.0.0.1:5115",
-        nargs="+",
-    )
-
     args = parser.parse_args()
 
-    dictConfig(get_logging_config(["iams"], args.loglevel))
-    logger = logging.getLogger(__name__)
-
-    # load config
-    simulation_config = yaml.load(args.config, Loader=yaml.SafeLoader)
-
-    # read agent config
-    agents = {}
-    for name, data in simulation_config.get("agents", {}).items():
-        if "config" in data and data["config"]:
-            cfg = yaml.dump(data["config"]).encode()
-        else:
-            cfg = None
-
-        config = simulation_pb2.AgentConfig(
-            container=framework_pb2.AgentData(
-                name=name,
-                image=data["image"]["name"],
-                version=data["image"]["version"],
-                autostart=data["image"].get("autostart", True),
-                config=cfg,
-            ),
-        )
-        agents[name] = config
-
-    request = simulation_pb2.SimulationConfig(agents=[agents[x] for x in sorted(agents)])
-
-    # update simulation environment
-    if args.time:
-        request.until = args.time
-    elif 'until' in simulation_config:
-        request.until = simulation_config["until"]
-
-    if args.seed:
-        request.seed = args.seed.encode()
-    elif 'seed' in simulation_config:
-        if isinstance(simulation_config["seed"], bytes):
-            request.seed = simulation_config["seed"]
-        elif isinstance(simulation_config["seed"], str):
-            request.seed = simulation_config["seed"].encode()
-        else:
-            request.seed = bytes(str(simulation_config["seed"]).encode())
-
-    logger.debug(request)
-
-    for host in args.hosts:
-        server, port = host.split(':')
-        port = int(port)
-        logger.info("connect to runtime at %s:%s", server, port)
-
-        try:
-            with framework_channel(server, port=port, secure=False) as channel:
-                stub = SimulationStub(channel)
-                for response in stub.start(request):
-                    if response.log.ByteSize():
-                        logger.info('[%s] %s: %s', response.time, response.name, response.log.text)
-                    if response.metric.ByteSize():
-                        logger.info('[%s] %s: %s', response.time, response.name, dict(response.metric.metrics))
-
-        except grpc.RpcError as e:
-            if e.code() == grpc.StatusCode.RESOURCE_EXHAUSTED:
-                logger.debug("got error message: %s", e.details())
-                logger.info("simulation running on %s - try next runtime", server)
+    futures = []
+    with ProcessPoolExecutor() as e:
+        for fobj in args.configs:
+            try:
+                assert fobj.name.endswith('.yaml'), "Configfile needs to be '.yaml' file"
+                config = yaml.load(fobj, Loader=yaml.SafeLoader)
+            except Exception:
+                logger.exception('error loading %s', fobj.name)
                 continue
-            raise
 
-        break  # dont start a second simulation on a different host
+            count = 0
+            for folder, template, run_config in prepare_data(fobj.name, config):
+                count += 1
+                try:
+                    kwargs = prepare_run(count, folder, template, run_config, config)
+                except (AssertionError, AttributeError, ModuleNotFoundError) as e:
+                    logger.exception(str(e))
+                    continue
+
+                if not args.dryrun and not args.force and os.path.exists(kwargs['file_data']):
+                    continue
+
+                kwargs.update({'force': args.force, 'dryrun': args.dryrun, 'loglevel': args.loglevel})
+                futures.append(e.submit(
+                    run_simulation,
+                    **kwargs,
+                ))
+
+        wait(futures)
+        for x in futures:
+            x.result()
 
 
 if __name__ == "__main__":

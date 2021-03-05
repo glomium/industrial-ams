@@ -3,6 +3,8 @@
 
 import logging
 
+from types import MethodType
+
 from iams.mixins.event import EventMixin
 
 
@@ -11,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from opcua.client.client import Client
+    from opcua.common.subscription import DataChangeNotif
     from opcua.common.subscription import SubHandler
     from opcua.ua.uatypes import DataValue
     from opcua.ua.uatypes import Variant
@@ -18,6 +21,20 @@ try:
 except ImportError:
     logger.exception("Could not import opcua library")
     OPCUA = False
+
+
+def monkeypatch_call_datachange(self, datachange):
+    changes = []
+    for item in datachange.MonitoredItems:
+        with self._lock:
+            if item.ClientHandle not in self._monitoreditems_map:
+                self.logger.warning("Received a notification for unknown handle: %s", item.ClientHandle)
+                self.has_unknown_handlers = True
+                continue
+            data = self._monitoreditems_map[item.ClientHandle]
+        event_data = DataChangeNotif(data, item)
+        changes.append((data.node, item.Value.Value.Value, event_data))
+    self._handler.datachange_notifications(changes)
 
 
 class Handler(SubHandler):
@@ -31,13 +48,21 @@ class Handler(SubHandler):
     def __init__(self, parent):
         self.parent = parent
 
+    def datachange_notifications(self, notifications):
+        response = False
+        for node, val, data in notifications:
+            r = self.datachange_notification(node, val, data)
+            if not response and r in [None, True]:
+                response = True
+
+        if self.parent.opcua_datachanges(response):
+            self.parent._loop_event.set()
+
     def datachange_notification(self, node, val, data):
         """
         """
         logger.debug("New data change event %s %s", node, val)
-        response = self.parent.opcua_datachange(node, val, data)
-        if response is None or response is True:
-            self.parent._loop_event.set()
+        return self.parent.opcua_datachange(node, val, data)
 
     def event_notification(self, event):
         """
@@ -113,6 +138,11 @@ class OPCUAMixin(EventMixin):
                 break
             self._stop_event.wait(self.OPCUA_HEARTBEAT)
 
+    def opcua_datachanges(self, run_loop):
+        """
+        """
+        return run_loop
+
     def opcua_datachange(self, node, val, data):
         """
         """
@@ -153,6 +183,7 @@ class OPCUAMixin(EventMixin):
             subscription = self.opcua_subscriptions[interval]
         except KeyError:
             subscription = self.opcua_client.create_subscription(interval, Handler(self))
+            subscription._call_datachange = MethodType(monkeypatch_call_datachange, subscription)
             self.opcua_subscriptions[interval] = subscription
 
         handle = subscription.subscribe_data_change(nodes)

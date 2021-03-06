@@ -23,9 +23,7 @@ from .cloud.swarm import Swarm
 from .exceptions import SkipPlugin
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
-from .proto.simulation_pb2_grpc import add_SimulationServicer_to_server
 from .servicer import FrameworkServicer
-from .servicer import SimulationServicer
 from .utils.cfssl import CFSSL
 from .utils.plugins import get_plugins
 
@@ -198,11 +196,6 @@ def execute_command_line():
     )
     add_FrameworkServicer_to_server(servicer, server)
 
-    if args.simulation is True:
-        add_SimulationServicer_to_server(
-            SimulationServicer(servicer, stop, runtests),
-            server,
-        )
     server.start()
 
     # service running

@@ -24,77 +24,77 @@ from iams.interfaces.simulation import SimulationInterface
 logger = logging.getLogger(__name__)
 
 
-def load_agent(agents, global_settings):
-    for agent in agents:
-        module_name, class_name = agent["class"].rsplit('.', 1)
-        cls = getattr(import_module(module_name), class_name)
-        settings = agent.get('settings', {})
-        for name in agent.get('use_global', []):
-            settings[name] = global_settings[name]
+def parse_command_line(argv=None):
 
-        permutations = []
-        for key, values in agent.get("permutations", {}).items():
-            data = []
-            for value in values:
-                data.append((key, value))
-            permutations.append(sorted(data))
-
-        for permutation in product(*permutations):
-            settings.update(dict(permutation))
-            logger.debug("Create agent: %r with %s", cls, settings)
-            instance = cls(**settings)
-            logger.info("Created agent: %s", instance)
-            yield instance
-
-
-def run_simulation(
-        simcls, df, name, folder, settings, start, stop, seed, config,
-        dryrun, force, loglevel, file_data, file_log, **kwargs):
-
-    if loglevel == logging.DEBUG:
-        formatter = "%(levelname).1s [%(name)s:%(lineno)s] %(message)s"
-    else:
-        formatter = '%(message)s'
-
-    # TODO
-    print("TODO", kwargs)  # noqa
-
-    if dryrun:
-        file_data = os.devnull  # redirect output to null device
-        logging.basicConfig(
-            stream=sys.stdout,
-            level=loglevel,
-            format=formatter,
-        )
-    else:
-        logging.basicConfig(
-            filename=file_log,
-            filemode='w',
-            level=loglevel,
-            force=True,
-            format=formatter,
-        )
-
-    with open(file_data, "w") as fobj:
-        # init simulation
-        simulation = simcls(
-            df=df,
-            name=name,
-            folder=folder,
-            fobj=fobj,
-            start=start,
-            stop=stop,
-            seed=seed,
-        )
-
-        for agent in load_agent(config.get('agents', []), settings):
-            simulation.register(agent)
-
-        # run simulation
-        simulation(dryrun, settings)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-q', '--quiet',
+        action="store_const",
+        const=logging.WARNING,
+        default=logging.INFO,
+        dest="loglevel",
+        help="Be quiet",
+    )
+    parser.add_argument(
+        '-d', '--debug',
+        action="store_const",
+        const=logging.DEBUG,
+        dest="loglevel",
+        help="Debugging statements",
+    )
+    parser.add_argument(
+        '-f', '--force',
+        action='store_true',
+        default=False,
+        dest="force",
+        help="Allow overwriting of existing runs",
+    )
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        default=False,
+        dest="dryrun",
+        help="Dry-run",
+    )
+    parser.add_argument(
+        'configs',
+        nargs='+',
+        help="Simulation configuration files",
+        type=argparse.FileType('r'),
+    )
+    return parser.parse_args(argv)
 
 
-def prepare_data(path, config):
+def execute_command_line(args):
+    kwarg_list = []
+    for fobj in args.configs:
+        try:
+            assert fobj.name.endswith('.yaml'), "Config needs to be '.yaml' file"
+            config = yaml.load(fobj, Loader=yaml.SafeLoader)
+            assert isinstance(config, dict), "Config has the wrong format"
+        finally:
+            fobj.close()
+
+        for kwargs in process_config(fobj.name, config, dryrun=args.dryrun, force=args.force, loglevel=args.loglevel):
+            kwarg_list.append(kwargs)
+
+    with ProcessPoolExecutor() as executor:
+        futures = []
+        while True:
+            try:
+                futures.append(executor.submit(
+                    run_simulation,
+                    **kwarg_list.pop(0),
+                ))
+            except IndexError:
+                break
+
+        wait(futures)
+        for future in futures:
+            future.result()
+
+
+def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING):
     path = os.path.abspath(path)
     folder = os.path.dirname(path)
     project = os.path.basename(path)[:-5]
@@ -117,8 +117,19 @@ def prepare_data(path, config):
     else:
         template = project
 
-    for permutation in product(*permutations):
-        yield folder, template, dict(permutation)
+    count = 0
+    for run_config in product(*permutations):
+        run_config = dict(run_config)
+        count += 1
+
+        kwargs = prepare_run(count, folder, template, run_config, config.copy())
+
+        if not dryrun and not force and os.path.exists(kwargs['file_data']):  # pragma: no cover
+            continue
+
+        kwargs.update({'force': force, 'dryrun': dryrun, 'loglevel': loglevel})
+
+        yield kwargs
 
 
 def prepare_run(count, folder, template, run_config, config):
@@ -191,79 +202,71 @@ def prepare_run(count, folder, template, run_config, config):
     }
 
 
-def parse_command_line(argv=None):
+def load_agent(agents, global_settings):
+    for agent in agents:
+        module_name, class_name = agent["class"].rsplit('.', 1)
+        cls = getattr(import_module(module_name), class_name)
+        settings = agent.get('settings', {})
+        for name in agent.get('use_global', []):
+            settings[name] = global_settings[name]
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-q', '--quiet',
-        action="store_const",
-        const=logging.WARNING,
-        default=logging.INFO,
-        dest="loglevel",
-        help="Be quiet",
-    )
-    parser.add_argument(
-        '-d', '--debug',
-        action="store_const",
-        const=logging.DEBUG,
-        dest="loglevel",
-        help="Debugging statements",
-    )
-    parser.add_argument(
-        '-f', '--force',
-        action='store_true',
-        default=False,
-        dest="force",
-        help="Allow overwriting of existing runs",
-    )
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        default=False,
-        dest="dryrun",
-        help="Dry-run",
-    )
-    parser.add_argument(
-        'configs',
-        nargs='+',
-        help="Simulation configuration files",
-        type=argparse.FileType('r'),
-    )
-    return parser.parse_args(argv)
+        permutations = []
+        for key, values in agent.get("permutations", {}).items():
+            data = []
+            for value in values:
+                data.append((key, value))
+            permutations.append(sorted(data))
+
+        for permutation in product(*permutations):
+            settings.update(dict(permutation))
+            logger.debug("Create agent: %r with %s", cls, settings)
+            instance = cls(**settings)
+            logger.info("Created agent: %s", instance)
+            yield instance
 
 
-def execute_command_line(args):
-    futures = []
-    with ProcessPoolExecutor() as e:
-        for fobj in args.configs:
-            try:
-                assert fobj.name.endswith('.yaml'), "Configfile needs to be '.yaml' file"
-                config = yaml.load(fobj, Loader=yaml.SafeLoader)
-            except Exception:
-                logger.exception('error loading %s', fobj.name)
-                continue
+def run_simulation(
+        simcls, df, name, folder, settings, start, stop, seed, config,
+        dryrun, force, loglevel, file_data, file_log):
 
-            count = 0
-            for folder, template, run_config in prepare_data(fobj.name, config):
-                count += 1
-                try:
-                    kwargs = prepare_run(count, folder, template, run_config, config.copy())
-                except (AssertionError, AttributeError, ModuleNotFoundError) as e:
-                    logger.exception(str(e))
-                    continue
+    if loglevel == logging.DEBUG:
+        formatter = "%(levelname).1s [%(name)s:%(lineno)s] %(message)s"
+    else:
+        formatter = '%(message)s'
 
-                if not args.dryrun and not args.force and os.path.exists(kwargs['file_data']):
-                    continue
+    if dryrun:
+        file_data = os.devnull  # redirect output to null device
+        logging.basicConfig(
+            stream=sys.stdout,
+            level=loglevel,
+            format=formatter,
+        )
+    else:
+        logging.basicConfig(
+            filename=file_log,
+            filemode='w',
+            level=loglevel,
+            force=True,
+            format=formatter,
+        )
 
-                kwargs.update({'force': args.force, 'dryrun': args.dryrun, 'loglevel': args.loglevel})
-                futures.append(e.submit(
-                    run_simulation,
-                    **kwargs,
-                ))
+    with open(file_data, "w") as fobj:
+        # init simulation
+        simulation = simcls(
+            df=df,
+            name=name,
+            folder=folder,
+            fobj=fobj,
+            start=start,
+            stop=stop,
+            seed=seed,
+        )
 
-        wait(futures)
-        for x in futures:
-            x.result()
+        for agent in load_agent(config.get('agents', []), settings):
+            simulation.register(agent)
+
+        # run simulation
+        simulation(dryrun, settings)
 
 
 if __name__ == "__main__":  # pragma: no cover

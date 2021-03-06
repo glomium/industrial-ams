@@ -5,7 +5,6 @@ import logging
 
 from .proto import agent_pb2_grpc
 from .proto import framework_pb2_grpc
-from .proto import simulation_pb2_grpc
 # from .utils.grpc import grpc_retry
 
 
@@ -33,10 +32,3 @@ class FrameworkStub(framework_pb2_grpc.FrameworkStub):
         # self.sleep = grpc_retry(self.sleep)
         # self.upgrade = grpc_retry(self.upgrade)
         # self.update = grpc_retry(self.update)
-
-
-class SimulationStub(simulation_pb2_grpc.SimulationStub):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # self.resume = grpc_retry(self.resume)
-        # self.schedule = grpc_retry(self.schedule)

@@ -4,8 +4,6 @@
 import logging
 import os
 
-from queue import Queue
-
 import grpc
 import yaml
 
@@ -34,7 +32,6 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         self.config = os.environ.get('IAMS_CONFIG', None)
         self.port = os.environ.get('IAMS_PORT', None)
         self.service = os.environ.get('IAMS_SERVICE', None)
-        self.simulation = os.environ.get('IAMS_SIMULATION', None) == "true"
         self.cloud = not os.environ.get('IAMS_CLOUDLESS', None) == "true"
 
         if self.cloud:
@@ -86,36 +83,6 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             return Empty()
         message = 'Agent is already at requested position'
         context.abort(grpc.StatusCode.ALREADY_EXISTS, message)
-
-    @permissions(has_groups=["root"])
-    def run_simulation(self, request, context):
-        if not self.simulation:
-            message = 'This function is only availabe when agenttype is set to simulation'
-            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
-
-        logger.debug("run simulation called")
-
-        self.queue = Queue()
-        self.parent._simulation.set_event(request.uuid, request.time, request.finish)
-
-        while True:
-            data = self.queue.get()
-            if isinstance(data, agent_pb2.SimulationLog):
-                logger.debug("Sending SimulationLog")
-                yield agent_pb2.SimulationResponse(log=data)
-            elif isinstance(data, agent_pb2.SimulationMetric):
-                logger.debug("Sending SimulationMetric")
-                yield agent_pb2.SimulationResponse(metric=data)
-            elif isinstance(data, agent_pb2.SimulationSchedule):
-                logger.debug("Sending SimulationSchedule")
-                yield agent_pb2.SimulationResponse(schedule=data)
-            elif isinstance(data, agent_pb2.SimulationResponse):
-                logger.debug("Sending SimulationResponse")
-                yield data
-            else:
-                logger.debug("Stopping current event execution")
-                break
-        self.queue = None
 
     # === calls to iams =======================================================
 

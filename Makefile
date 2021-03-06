@@ -1,8 +1,7 @@
-VENV_NAME? = .venv
-UBUNTU = rolling
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 HASH := $(shell git rev-parse HEAD)
-TARGET := $(shell git rev-parse --abbrev-ref HEAD)
+UBUNTU = rolling
+VENV_NAME? = .venv
 
 ifeq ($(BRANCH),"master")
     TARGET = multiarch
@@ -19,14 +18,6 @@ build:
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --pull --target basestage -t iams-base:local .
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
 	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --cache-from iams-build:local --cache-from iams:local -t iams:local .
-	cd examples/simulation && docker build -f Dockerfile_carrier -t iams_simulation_carrier:local .
-	cd examples/simulation && docker build -f Dockerfile_carrierpool -t iams_simulation_carrierpool:local .
-	cd examples/simulation && docker build -f Dockerfile_machine1 -t iams_simulation_machine1:local .
-	cd examples/simulation && docker build -f Dockerfile_machine2 -t iams_simulation_machine2:local .
-	cd examples/simulation && docker build -f Dockerfile_order -t iams_simulation_order:local .
-	cd examples/simulation && docker build -f Dockerfile_sink -t iams_simulation_sink:local .
-	cd examples/simulation && docker build -f Dockerfile_source -t iams_simulation_source:local .
-	cd examples/simulation && docker build -f Dockerfile_vehicle -t iams_simulation_vehicle:local .
 
 
 buildx:
@@ -63,7 +54,12 @@ stop:
 
 
 grpc:
-	python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/agent.proto proto/ca.proto proto/df.proto proto/framework.proto proto/market.proto proto/simulation.proto
+	python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto \
+		proto/agent.proto \
+		proto/ca.proto \
+		proto/df.proto \
+		proto/framework.proto \
+		proto/market.proto
 	sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
 
 

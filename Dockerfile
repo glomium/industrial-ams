@@ -57,7 +57,6 @@ RUN mkdir -p iams/proto \
     proto/df.proto \
     proto/framework.proto \
     proto/market.proto \
-    proto/simulation.proto \
  && sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
 
 COPY examples ./examples

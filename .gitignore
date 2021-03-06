@@ -11,6 +11,7 @@
 /*\.whl
 /\.coverage
 /\.env
+/\.idea
 /\.venv
 
 /examples/*/*_pb2\.py

@@ -13,17 +13,3 @@ class InvalidAgentName(ValueError):
     """
     """
     pass
-
-
-# Simulation loop
-class EventNotFound(StopIteration):
-    """
-    """
-    pass
-
-
-# Simulation loop
-class Continue(Exception):
-    """
-    """
-    pass

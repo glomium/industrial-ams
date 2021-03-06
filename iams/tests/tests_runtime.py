@@ -17,7 +17,7 @@ try:
         # test if docker-client allowed to call the nodes list
         # and thus is a manager and can create services
         client.nodes.list(filters={'role': 'manager'})
-    except docker.errors.APIError:  # pragma: no cover
+    except Exception:  # pragma: no cover
         SKIP = True
     else:
         SKIP = False

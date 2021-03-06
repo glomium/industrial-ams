@@ -16,11 +16,8 @@ import grpc
 import yaml
 
 from iams.agent import Servicer
-from iams.exceptions import Continue
-from iams.exceptions import EventNotFound
 from iams.proto import ca_pb2
 # from iams.proto import df_pb2
-from iams.scheduler import Scheduler
 from iams.stub import CAStub
 # from iams.stub import DFStub
 from iams.utils.grpc import Grpc
@@ -77,11 +74,6 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
             self._grpc = Grpc(self._iams, self._executor, None)
             self._config = {}
 
-        if self._iams.simulation:
-            self._simulation = Scheduler(self, self._iams)
-        else:
-            self._simulation = None
-
         self._lock = Lock()
         self._loop_event = Event()
         self._stop_event = Event()
@@ -95,10 +87,9 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
 
     def __call__(self):
         # run setup methods for controlling machines
-        if not self._iams.simulation:
-            self._pre_setup()
-            self.setup()
-            self._post_setup()
+        self._pre_setup()
+        self.setup()
+        self._post_setup()
 
         # load and start gRPC service
         self.grpc_setup()  # local module specification
@@ -126,42 +117,7 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
             logger.debug("gRPC request failed in configure - resetting: %s - %s", e.code(), e.details())
             exit()
 
-        if self._iams.simulation:
-            started = False
-            # simulation loop
-            while True:
-                # wait for event loop
-                logger.debug("waiting for wakeup event")
-                self._loop_event.wait()
-                self._loop_event.clear()
-
-                # if agent should be stopped discontinue execution
-                if self._stop_event.is_set():
-                    break
-
-                if not started:
-                    self._start()
-                    self.start()
-                    started = True
-
-                try:
-                    callback, kwargs = next(self._simulation)
-                except EventNotFound:
-                    logger.debug("Skip execution of next step - scheduled event was not found")
-                    self._simulation.resume()
-                    continue
-
-                # execute callbacks (event based simulation)
-                logger.debug("calling %s.%s with %s", self.__class__.__qualname__, callback, kwargs)
-                try:
-                    getattr(self, callback)(**kwargs)
-                except Continue:
-                    pass
-
-                logger.debug("calling resume")
-                self._simulation.resume()
-
-        elif not self._stop_event.is_set():
+        if not self._stop_event.is_set():
             # control loop
             logger.debug("Calling control loop")
             self._start()
@@ -174,11 +130,10 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
         logger.debug("Stopping gRPC service on %s", self._iams.agent)
         self._grpc.stop()
 
-        if not self._iams.simulation:
-            logger.debug("call self.teardown")
-            self.teardown()
-            logger.debug("call self._teardown")
-            self._teardown()
+        logger.debug("call self.teardown")
+        self.teardown()
+        logger.debug("call self._teardown")
+        self._teardown()
 
         logger.info("Exit %s", self._iams.agent)
         exit()
@@ -244,7 +199,7 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
 
     def setup(self):
         """
-        executed directly after the instance is called. user defined. is not executed in simulation.
+        executed directly after the instance is called. user defined.
         idea: setup communication to machine
         """
         pass
@@ -257,7 +212,7 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
 
     def start(self):
         """
-        executed directly before the loop runs - also in simulation.
+        executed directly before the loop runs
         execute functions that require the connection to other agents here.
         """
         pass
@@ -273,18 +228,6 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
         """
         function that might be used to inform other agents or services that this agent is
         about to shutdown
-        """
-        pass
-
-    def simulation_start(self):
-        """
-        the simulation runtime schedules this event at 0.0 when started
-        """
-        pass
-
-    def simulation_finish(self):
-        """
-        the simulation runtime schedules this event for the end of the simulation
         """
         pass
 

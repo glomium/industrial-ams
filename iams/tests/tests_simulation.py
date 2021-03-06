@@ -42,6 +42,13 @@ class SimulationTests(unittest.TestCase):
                 'simulation-class': 'iams.interfaces.simulation.Queue',
             }))
 
+    def test_config_invalid_df_class1(self):
+        with self.assertRaises(NotImplementedError):
+            list(process_config("/does/not/exist.yaml", {
+                'simulation-class': 'iams.tests.tests_interfaces_simulation.Simulation',
+                'directory-facilitator': 'iams.interfaces.simulation.Queue',
+            }))
+
     def test_config_single(self):
         result = list(process_config("/does/not/exist.yaml", {
             'simulation-class': 'iams.tests.tests_interfaces_simulation.Simulation',

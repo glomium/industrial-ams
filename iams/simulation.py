@@ -19,6 +19,7 @@ from math import log10
 
 from iams.tests.df import TestDF
 from iams.interfaces.simulation import SimulationInterface
+# from iams.interfaces.df import DirectoryFacilitatorInterface
 
 
 logger = logging.getLogger(__name__)
@@ -160,14 +161,15 @@ def prepare_run(count, folder, template, run_config, config):
     except (KeyError, AttributeError):
         df = TestDF()
     else:
-        df = getattr(import_module(module_name), class_name)
+        raise NotImplementedError("the directory facilitator cannot be changed")
+        # df = getattr(import_module(module_name), class_name)
 
-        if not issubclass(df, SimulationInterface):
-            raise AssertionError(
-                "%s needs to be a subclass of %s",
-                df.__qualname__,
-                SimulationInterface.__qualname__,
-            )
+        # if not issubclass(df, DierctoryFacilitatorInterface):
+        #     raise AssertionError(
+        #         "%s needs to be a subclass of %s",
+        #         df.__qualname__,
+        #         DirectoryFacilitatorInterface.__qualname__,
+        #     )
 
     settings = config.get('settings', {})
     settings.update(run_config)

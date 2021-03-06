@@ -30,7 +30,7 @@ from .servicer import FrameworkServicer
 from .utils.plugins import get_plugins
 
 
-def execute_command_line():
+def parse_command_line(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-q', '--quiet',
@@ -79,7 +79,10 @@ def execute_command_line():
         default=os.environ.get('IAMS_NAMESPACE', "prod"),
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def execute_command_line(args):
     stop = Event()
     dictConfig(get_logging_config(["iams"], args.loglevel))
     logger = logging.getLogger(__name__)
@@ -160,5 +163,5 @@ def execute_command_line():
         pass
 
 
-if __name__ == "__main__":
-    execute_command_line()
+if __name__ == "__main__":  # pragma: no cover
+    execute_command_line(parse_command_line())

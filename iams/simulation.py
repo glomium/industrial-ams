@@ -134,8 +134,6 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
 
 def prepare_run(count, folder, template, run_config, config):
     name = template.format(count, **run_config)
-    log_dir = os.path.join(folder, name + '.log')
-    data_dir = os.path.join(folder, name + '.dat')
 
     seed = config.get('seed', name)
     start = config.get('start', 0)
@@ -162,7 +160,6 @@ def prepare_run(count, folder, template, run_config, config):
     else:
         raise NotImplementedError("the directory facilitator cannot be changed")
         # df = getattr(import_module(module_name), class_name)
-
         # if not issubclass(df, DierctoryFacilitatorInterface):
         #     raise AssertionError(
         #         "%s needs to be a subclass of %s",
@@ -191,8 +188,8 @@ def prepare_run(count, folder, template, run_config, config):
     return {
         'config': config,
         'df': df,
-        'file_data': data_dir,
-        'file_log': log_dir,
+        'file_data': os.path.join(folder, name + '.dat'),
+        'file_log': os.path.join(folder, name + '.log'),
         'folder': folder,
         'name': name,
         'seed': seed,
@@ -236,7 +233,8 @@ def run_simulation(
         formatter = '%(message)s'
 
     if dryrun:
-        file_data = os.devnull  # redirect output to null device
+        # redirect output to null device
+        file_data = os.devnull
         logging.basicConfig(
             stream=sys.stdout,
             level=loglevel,

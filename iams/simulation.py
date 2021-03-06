@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 def parse_command_line(argv=None):
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-q', '--quiet',

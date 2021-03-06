@@ -4,8 +4,6 @@
 import logging
 import os
 
-from queue import Queue
-
 import grpc
 import yaml
 

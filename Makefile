@@ -1,12 +1,13 @@
+VENV_NAME? = .venv
+UBUNTU = rolling
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 HASH := $(shell git rev-parse HEAD)
-UBUNTU = rolling
-VENV_NAME? = .venv
+TARGET := $(shell git rev-parse --abbrev-ref HEAD)
 
 ifeq ($(BRANCH),"master")
     TARGET = multiarch
 else
-ifeq ($(BRANCH),"develop")
+ifeq ($(BRANCH),"master")
     TARGET = multiarch
 else
     TARGET = testing
@@ -32,7 +33,13 @@ buildx:
 	docker buildx build --pull --platform linux/amd64,linux/arm64,linux/arm/v7 --build-arg UBUNTU=$(UBUNTU) -t glomium/industrial-ams:$(TARGET) --push .
 
 
-test: build
+test:
+	doc8 iams
+	flake8 iams
+	coverage run -m unittest -v
+	coverage report
+
+test2: build
 	docker stack deploy -c docker-test.yaml test
 	docker service scale test_arangodb=1 test_sim=1 test_cfssl=1 test_coverage=1
 	docker exec test_sim.1.`docker service ps test_sim -q --filter="desired-state=running"` /bin/bash run_tests.sh

@@ -17,6 +17,7 @@ from math import floor
 from math import log10
 
 
+from iams.tests.df import TestDF
 from iams.interfaces.simulation import SimulationInterface
 
 
@@ -40,12 +41,14 @@ def load_agent(agents, global_settings):
 
         for permutation in product(*permutations):
             settings.update(dict(permutation))
-            logger.info("Create agent: %r with %s", cls, settings)
-            yield cls(**settings)
+            logger.debug("Create agent: %r with %s", cls, settings)
+            instance = cls(**settings)
+            logger.info("Created agent: %s", instance)
+            yield instance
 
 
 def run_simulation(
-        interface, name, folder, settings, start, stop, seed, config,
+        simcls, df, name, folder, settings, start, stop, seed, config,
         dryrun, force, loglevel, file_data, file_log, **kwargs):
 
     if loglevel == logging.DEBUG:
@@ -74,7 +77,8 @@ def run_simulation(
 
     with open(file_data, "w") as fobj:
         # init simulation
-        simulation = interface(
+        simulation = simcls(
+            df=df,
             name=name,
             folder=folder,
             fobj=fobj,
@@ -127,16 +131,30 @@ def prepare_run(count, folder, template, run_config, config):
     stop = config.get('stop', None)
 
     try:
-        module_name, class_name = config["interface"].rsplit('.', 1)
+        module_name, class_name = config["simulation-class"].rsplit('.', 1)
     except (KeyError, AttributeError):
-        raise ValueError('The configuration-file needs a valid "interface-setting')
+        raise ValueError('The configuration-file needs a valid "simulation-class-setting')
     else:
-        interface = getattr(import_module(module_name), class_name)
+        simcls = getattr(import_module(module_name), class_name)
 
-        if not issubclass(interface, SimulationInterface):
+        if not issubclass(simcls, SimulationInterface):
             raise AssertionError(
                 "%s needs to be a subclass of %s",
-                interface.__qualname__,
+                simcls.__qualname__,
+                SimulationInterface.__qualname__,
+            )
+
+    try:
+        module_name, class_name = config["directory-facilitator"].rsplit('.', 1)
+    except (KeyError, AttributeError):
+        df = TestDF()
+    else:
+        df = getattr(import_module(module_name), class_name)
+
+        if not issubclass(df, SimulationInterface):
+            raise AssertionError(
+                "%s needs to be a subclass of %s",
+                df.__qualname__,
                 SimulationInterface.__qualname__,
             )
 
@@ -145,7 +163,8 @@ def prepare_run(count, folder, template, run_config, config):
 
     for x in [
         "formatter",
-        "interface",
+        "simulation-class",
+        "directory-facilitator",
         "permutations",
         "seed",
         "settings",
@@ -158,20 +177,22 @@ def prepare_run(count, folder, template, run_config, config):
             pass
 
     return {
+        'config': config,
+        'df': df,
         'file_data': data_dir,
         'file_log': log_dir,
         'folder': folder,
-        'interface': interface,
         'name': name,
         'seed': seed,
         'settings': settings,
-        'config': config,
+        'simcls': simcls,
         'start': start,
         'stop': stop,
     }
 
 
-def execute_command_line():
+def parse_command_line(argv=None):
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-q', '--quiet',
@@ -207,10 +228,11 @@ def execute_command_line():
         nargs='+',
         help="Simulation configuration files",
         type=argparse.FileType('r'),
-        default=sys.stdin,
     )
-    args = parser.parse_args()
+    return parser.parse_args(argv)
 
+
+def execute_command_line(args):
     futures = []
     with ProcessPoolExecutor() as e:
         for fobj in args.configs:
@@ -244,5 +266,5 @@ def execute_command_line():
             x.result()
 
 
-if __name__ == "__main__":
-    execute_command_line()
+if __name__ == "__main__":  # pragma: no cover
+    execute_command_line(parse_command_line())

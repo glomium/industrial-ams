@@ -25,7 +25,7 @@ class Queue:
     time: float
     name: str
     obj: Any = field(compare=False, repr=False)
-    callback: str = field(compare=False, repr=False)
+    callback: str = field(compare=False)
     dt: float = field(compare=False, repr=False)
     args: list = field(compare=False, repr=False, default_factory=list)
     kwargs: dict = field(compare=False, repr=False, default_factory=dict)
@@ -36,28 +36,29 @@ class Queue:
 
 class SimulationInterface(ABC):
 
-    def __init__(self, name, folder, fobj, seed, start, stop):
+    def __init__(self, df, name, folder, fobj, seed, start, stop):
         logger.info("=== Initialize %r", self.__class__)
         self._agents = []
-        self._df = None
+        self._df = df
         self._fobj = fobj
         self._folder = folder
         self._limit = stop
         self._name = name
         self._queue = []
-        self._time = start
+        self._time = float(start)
         logger.info("=== Setting random-seed: %s", seed)
         random.seed(seed)
 
     def __call__(self, dryrun, settings):
-        logger.info("=== Setup simulation")
         timer = time()
         events = 0
+
+        logger.info("=== Setup simulation")
+        self.setup(**settings)
 
         logger.info("=== Init agents")
         for agent in self._agents:
             agent(self, dryrun)
-        self.setup(**settings)
 
         if self._queue:
             logger.info("=== Start simulation")
@@ -71,7 +72,7 @@ class SimulationInterface(ABC):
                 break
 
             dt = event.time - self._time
-            if dt > 0:
+            if dt > 0:  # pragma: no branch
                 logger.debug("Update timestamp: %.3f", event.time)
 
             # callback to act interact with event, gather statistics, etc
@@ -88,11 +89,11 @@ class SimulationInterface(ABC):
         self.stop(dryrun)
         timer = time() - timer
         eps = events / timer
-        if timer < 90:
+        if timer < 90:  # pragma: no branch
             timer = "%.3f seconds" % timer
-        elif timer < 7200:
+        elif timer < 7200:  # pragma: no cover
             timer = "%.3f minutes" % (timer / 60)
-        else:
+        else:  # pragma: no cover
             timer = "%.3f hours" % (timer / 3600)
         logger.info("=== Processed %s events in %s (%.2f per second)", events, timer, eps)
 

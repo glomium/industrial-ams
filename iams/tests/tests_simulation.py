@@ -11,14 +11,50 @@ from iams.simulation import parse_command_line
 from iams.simulation import execute_command_line
 
 
-class SimulationTests(unittest.TestCase):
+class Agent(object):
+    def __init__(self, g, h=None):
+        self.g = g
+        self.h = h
 
-    def test_load_agent(self):
+
+class SimulationTests(unittest.TestCase):  # pragma: no cover
+
+    def test_load_agent_empty(self):
         result = list(load_agent(
-            agents={},
+            agents=[],
             global_settings={'g': 1},
         ))
         self.assertEqual(result, [])
+
+    def test_load_agent_single(self):
+        result = list(load_agent(
+            agents=[{
+                'class': 'iams.tests.tests_simulation.Agent',
+                'use_global': ['g'],
+                'settings': {'h': 3},
+            }],
+            global_settings={'g': 1},
+        ))
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].g, 1)
+        self.assertEqual(result[0].h, 3)
+
+    def test_load_agent_multi(self):
+        result = list(load_agent(
+            agents=[{
+                'class': 'iams.tests.tests_simulation.Agent',
+                'use_global': ['g'],
+                'permutations': {
+                    'h': [2, 1],
+                },
+            }],
+            global_settings={'g': 1},
+        ))
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0].g, 1)
+        self.assertEqual(result[1].g, 1)
+        self.assertEqual(result[0].h, 1)
+        self.assertEqual(result[1].h, 2)
 
     def test_wrong_file(self):
         with self.assertRaises(AssertionError):

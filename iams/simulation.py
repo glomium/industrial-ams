@@ -25,75 +25,6 @@ from iams.interfaces.simulation import SimulationInterface
 logger = logging.getLogger(__name__)
 
 
-def parse_command_line(argv=None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-q', '--quiet',
-        action="store_const",
-        const=logging.WARNING,
-        default=logging.INFO,
-        dest="loglevel",
-        help="Be quiet",
-    )
-    parser.add_argument(
-        '-d', '--debug',
-        action="store_const",
-        const=logging.DEBUG,
-        dest="loglevel",
-        help="Debugging statements",
-    )
-    parser.add_argument(
-        '-f', '--force',
-        action='store_true',
-        default=False,
-        dest="force",
-        help="Allow overwriting of existing runs",
-    )
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        default=False,
-        dest="dryrun",
-        help="Dry-run",
-    )
-    parser.add_argument(
-        'configs',
-        nargs='+',
-        help="Simulation configuration files",
-        type=argparse.FileType('r'),
-    )
-    return parser.parse_args(argv)
-
-
-def execute_command_line(args):
-    kwarg_list = []
-    for fobj in args.configs:
-        try:
-            assert fobj.name.endswith('.yaml'), "Config needs to be '.yaml' file"
-            config = yaml.load(fobj, Loader=yaml.SafeLoader)
-            assert isinstance(config, dict), "Config has the wrong format"
-        finally:
-            fobj.close()
-
-        for kwargs in process_config(fobj.name, config, dryrun=args.dryrun, force=args.force, loglevel=args.loglevel):
-            kwarg_list.append(kwargs)
-
-    with ProcessPoolExecutor() as executor:
-        futures = []
-        while True:
-            try:
-                futures.append(executor.submit(
-                    run_simulation,
-                    **kwarg_list.pop(0),
-                ))
-            except IndexError:
-                break
-
-        wait(futures)
-        for future in futures:
-            future.result()
-
-
 def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING):
     path = os.path.abspath(path)
     folder = os.path.dirname(path)
@@ -134,8 +65,6 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
 
 def prepare_run(count, folder, template, run_config, config):
     name = template.format(count, **run_config)
-    log_dir = os.path.join(folder, name + '.log')
-    data_dir = os.path.join(folder, name + '.dat')
 
     seed = config.get('seed', name)
     start = config.get('start', 0)
@@ -162,7 +91,6 @@ def prepare_run(count, folder, template, run_config, config):
     else:
         raise NotImplementedError("the directory facilitator cannot be changed")
         # df = getattr(import_module(module_name), class_name)
-
         # if not issubclass(df, DierctoryFacilitatorInterface):
         #     raise AssertionError(
         #         "%s needs to be a subclass of %s",
@@ -191,8 +119,8 @@ def prepare_run(count, folder, template, run_config, config):
     return {
         'config': config,
         'df': df,
-        'file_data': data_dir,
-        'file_log': log_dir,
+        'file_data': os.path.join(folder, name + '.dat'),
+        'file_log': os.path.join(folder, name + '.log'),
         'folder': folder,
         'name': name,
         'seed': seed,
@@ -236,7 +164,8 @@ def run_simulation(
         formatter = '%(message)s'
 
     if dryrun:
-        file_data = os.devnull  # redirect output to null device
+        # redirect output to null device
+        file_data = os.devnull
         logging.basicConfig(
             stream=sys.stdout,
             level=loglevel,
@@ -268,6 +197,75 @@ def run_simulation(
 
         # run simulation
         simulation(dryrun, settings)
+
+
+def parse_command_line(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-q', '--quiet',
+        action="store_const",
+        const=logging.WARNING,
+        default=logging.INFO,
+        dest="loglevel",
+        help="Be quiet",
+    )
+    parser.add_argument(
+        '-d', '--debug',
+        action="store_const",
+        const=logging.DEBUG,
+        dest="loglevel",
+        help="Debugging statements",
+    )
+    parser.add_argument(
+        '-f', '--force',
+        action='store_true',
+        default=False,
+        dest="force",
+        help="Allow overwriting of existing runs",
+    )
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        default=False,
+        dest="dryrun",
+        help="Dry-run",
+    )
+    parser.add_argument(
+        'configs',
+        nargs='+',
+        help="Simulation configuration files",
+        type=argparse.FileType('r'),
+    )
+    return parser.parse_args(argv)
+
+
+def execute_command_line(args, function=run_simulation):
+    kwarg_list = []
+    for fobj in args.configs:
+        try:
+            assert fobj.name.endswith('.yaml'), "Config needs to be '.yaml' file"
+            config = yaml.load(fobj, Loader=yaml.SafeLoader)
+            assert isinstance(config, dict), "Config has the wrong format"
+        finally:
+            fobj.close()
+
+        for kwargs in process_config(fobj.name, config, dryrun=args.dryrun, force=args.force, loglevel=args.loglevel):
+            kwarg_list.append(kwargs)
+
+    if len(kwarg_list) == 1:
+        function(**kwarg_list.pop(0))
+    elif len(kwarg_list) > 1:
+        with ProcessPoolExecutor() as executor:
+            futures = []
+            while True:
+                try:
+                    futures.append(executor.submit(function, **kwarg_list.pop(0)))
+                except IndexError:
+                    break
+
+            wait(futures)
+            for future in futures:
+                future.result()
 
 
 if __name__ == "__main__":  # pragma: no cover

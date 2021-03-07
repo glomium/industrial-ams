@@ -13,7 +13,7 @@ class TestPlugin(Plugin):
         return "Test"
 
 
-class Tests(unittest.TestCase):
+class Tests(unittest.TestCase):  # pragma: no cover
     def test_all(self):
         plugin = TestPlugin('namespace', False)
         self.assertEqual(plugin.namespace, 'namespace')

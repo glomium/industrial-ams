@@ -13,6 +13,7 @@ from google.protobuf.empty_pb2 import Empty
 # from .proto import agent_pb2
 # from .proto import df_pb2
 from iams.exceptions import InvalidAgentName
+from iams.proto import ca_pb2
 from iams.proto import ca_pb2_grpc
 from iams.proto import df_pb2_grpc
 from iams.proto import framework_pb2
@@ -207,7 +208,12 @@ class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):
             version=context._version,
         )
 
-        return framework_pb2.RenewResponse(
+        return ca_pb2.RenewResponse(
             private_key=private_key,
             certificate=certificate,
         )
+
+
+CertificateAuthorityServicer.__doc__ = ca_pb2_grpc.CertificateAuthorityServicer.__doc__
+DirectoryFacilitatorServicer.__doc__ = df_pb2_grpc.DirectoryFacilitatorServicer.__doc__
+FrameworkServicer.__doc__ = framework_pb2_grpc.FrameworkServicer.__doc__

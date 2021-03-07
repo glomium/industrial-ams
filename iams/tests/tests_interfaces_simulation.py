@@ -30,13 +30,13 @@ class Agent(object):
         self.data += 1
 
 
-class QueueTests(unittest.TestCase):
+class QueueTests(unittest.TestCase):  # pragma: no cover
     def test_str(self):
-        queue = Queue(0.0, 'test', None, 'cb', 0.0, [], {})
-        self.assertEqual(str(queue), '0.0000:test:cb')
+        queue = Queue(time=0.0, number=1, obj=None, callback='c', dt=0.0, args=[], kwargs={})
+        self.assertEqual(str(queue), '0.0000:None:c')
 
 
-class SimulationInterfaceTests(unittest.TestCase):
+class SimulationInterfaceTests(unittest.TestCase):  # pragma: no cover
 
     def setUp(self):
         self.instance = Simulation(

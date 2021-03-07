@@ -56,7 +56,7 @@ class Order(OrderInterface):
             self.instance.steps.append(step)
 
 
-class OrderTests(unittest.TestCase):
+class OrderTests(unittest.TestCase):  # pragma: no cover
 
     def setUp(self):
         random.seed(6992641887470931864)

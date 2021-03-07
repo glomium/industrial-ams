@@ -6,6 +6,6 @@ import unittest
 from iams.interfaces.agent import *  # noqa
 
 
-class ImportTests(unittest.TestCase):
+class ImportTests(unittest.TestCase):  # pragma: no cover
     def test_empty(self):
         pass

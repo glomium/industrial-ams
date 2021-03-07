@@ -17,7 +17,7 @@ class Agent(object):
         self.h = h
 
 
-class SimulationTests(unittest.TestCase):
+class SimulationTests(unittest.TestCase):  # pragma: no cover
 
     def test_load_agent_empty(self):
         result = list(load_agent(

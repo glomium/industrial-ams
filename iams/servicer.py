@@ -288,3 +288,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         self.arango.create_agent(context._agent, request)
         return request
+
+
+FrameworkServicer.__doc__ = framework_pb2_grpc.FrameworkServicer.__doc__

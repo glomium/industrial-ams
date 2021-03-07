@@ -20,18 +20,18 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-@dataclass(order=True)
+@dataclass(order=True, frozen=True)
 class Queue:
-    time: float
-    name: str
-    obj: Any = field(compare=False, repr=False)
-    callback: str = field(compare=False)
-    dt: float = field(compare=False, repr=False)
-    args: list = field(compare=False, repr=False, default_factory=list)
-    kwargs: dict = field(compare=False, repr=False, default_factory=dict)
+    time: float = field(compare=True, repr=True, hash=False)
+    number: int = field(compare=True, repr=False, hash=True)
+    obj: Any = field(compare=False, repr=False, hash=False)
+    callback: str = field(compare=False, repr=True, hash=False)
+    dt: float = field(compare=False, repr=False, hash=False)
+    args: list = field(compare=False, repr=False, default_factory=list, hash=False)
+    kwargs: dict = field(compare=False, repr=False, default_factory=dict, hash=False)
 
     def __str__(self):
-        return "%.4f:%s:%s" % (self.time, self.name, self.callback)
+        return "%.4f:%s:%s" % (self.time, self.obj, self.callback)
 
 
 class SimulationInterface(ABC):
@@ -40,6 +40,7 @@ class SimulationInterface(ABC):
         logger.info("=== Initialize %r", self.__class__)
         self._agents = []
         self._df = df
+        self._events = 0
         self._fobj = fobj
         self._folder = folder
         self._limit = stop
@@ -51,7 +52,6 @@ class SimulationInterface(ABC):
 
     def __call__(self, dryrun, settings):
         timer = time()
-        events = 0
 
         logger.info("=== Setup simulation")
         self.setup(**settings)
@@ -69,6 +69,7 @@ class SimulationInterface(ABC):
             event = heappop(self._queue)
 
             if self._limit is not None and event.time > self._limit:
+                self._events -= 1 + len(self._queue)
                 break
 
             dt = event.time - self._time
@@ -83,19 +84,18 @@ class SimulationInterface(ABC):
 
             # run event-callback metod
             getattr(event.obj, event.callback)(self, *event.args, **event.kwargs)
-            events += 1
 
         logger.info("=== Stop simulation")
         self.stop(dryrun)
         timer = time() - timer
-        eps = events / timer
+        eps = self._events / timer
         if timer < 90:  # pragma: no branch
             timer = "%.3f seconds" % timer
         elif timer < 7200:  # pragma: no cover
             timer = "%.3f minutes" % (timer / 60)
         else:  # pragma: no cover
             timer = "%.3f hours" % (timer / 3600)
-        logger.info("=== Processed %s events in %s (%.2f per second)", events, timer, eps)
+        logger.info("=== Processed %s events in %s (%.2f per second)", self._events, timer, eps)
 
     def __str__(self):
         return '%s(%s)' % (self.__class__.__qualname__, self._name)
@@ -107,9 +107,18 @@ class SimulationInterface(ABC):
     #     del self._agents[name]
 
     def schedule(self, obj, dt, callback, *args, **kwargs):
+        self._events += 1
         time = self._time + dt
         logger.debug("Adding %s.%s at %s to queue", obj, callback, time)
-        heappush(self._queue, Queue(time, str(obj), obj, callback, dt, args, kwargs))
+        heappush(self._queue, Queue(
+            time=time,
+            number=self._events,
+            obj=obj,
+            callback=callback,
+            dt=dt,
+            args=args,
+            kwargs=kwargs,
+        ))
 
     def write(self, data):
         self._fobj.write(data)

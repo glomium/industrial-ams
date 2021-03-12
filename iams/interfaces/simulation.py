@@ -94,6 +94,12 @@ class SimulationInterface(ABC):
             # run event-callback metod
             getattr(event.obj, event.callback)(self, *event.args, **event.kwargs)
 
+        logger.info("=== Calling stop on agents")
+        for agent in sorted(self._agents):
+            try:
+                agent.obj.stop(self, dryrun)
+            except (AttributeError, TypeError, NotImplementedError):
+                logger.debug("%s does not provide a stop method", agent.name)
         logger.info("=== Stop simulation")
         self.stop(dryrun)
         timer = time() - timer

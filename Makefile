@@ -2,12 +2,11 @@ VENV_NAME? = .venv
 UBUNTU = rolling
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 HASH := $(shell git rev-parse HEAD)
-TARGET := $(shell git rev-parse --abbrev-ref HEAD)
 
-ifeq ($(BRANCH),"master")
+ifeq ($(BRANCH), master)
     TARGET = multiarch
 else
-ifeq ($(BRANCH),"master")
+ifeq ($(BRANCH), develop)
     TARGET = multiarch
 else
     TARGET = testing

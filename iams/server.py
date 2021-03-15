@@ -28,6 +28,9 @@ from .utils.cfssl import CFSSL
 from .utils.plugins import get_plugins
 
 
+logger = logging.getLogger(__name__)
+
+
 def parse_command_line(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -87,7 +90,6 @@ def parse_command_line(argv=None):
 def execute_command_line(args):
     stop = Event()
     dictConfig(get_logging_config(["iams"], args.loglevel))
-    logger = logging.getLogger(__name__)
 
     client = docker.DockerClient()
     try:

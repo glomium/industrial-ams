@@ -21,7 +21,7 @@ build:
 
 
 buildx:
-	docker buildx build --pull --platform linux/amd64,linux/arm64,linux/arm/v7 --build-arg UBUNTU=$(UBUNTU) -t glomium/industrial-ams:$(TARGET) --push .
+	docker buildx build --pull --platform linux/amd64,linux/arm64 --build-arg UBUNTU=$(UBUNTU) -t glomium/industrial-ams:$(TARGET) --push .
 
 
 test:

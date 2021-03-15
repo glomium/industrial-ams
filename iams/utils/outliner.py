@@ -4,7 +4,7 @@
 import numpy as np
 
 
-def boxplot(x, whis=1.5):
+def quartiles(x, whiskers=1.5):
     """
     returns array with
     - lower whisker
@@ -15,31 +15,23 @@ def boxplot(x, whis=1.5):
 
     raises index error if x is empty
     """
-    x = np.asarray(x, dtype=np.float)  # convert x to numpy array
+    x = np.asarray(x, dtype=float)  # convert x to numpy array
 
     q1, med, q3 = np.percentile(x, [25, 50, 75])
     iqr = q3 - q1
 
     # get high extreme
-    tmp = x[x <= q3 + whis * iqr]
-    if len(tmp) == 0:
+    extrema = np.max(x[x <= q3 + whiskers * iqr])
+    if extrema < q3:
         whishi = q3
     else:
-        extrema = np.max(tmp)
-        if extrema < q3:
-            whishi = q3
-        else:
-            whishi = extrema
+        whishi = extrema
 
     # get low extreme
-    tmp = x[x >= q1 - whis * iqr]
-    if len(tmp) == 0:
+    extrema = np.min(x[x >= q1 - whiskers * iqr])
+    if extrema > q1:
         whislo = q1
     else:
-        extrema = np.min(tmp)
-        if extrema > q1:
-            whislo = q1
-        else:
-            whislo = extrema
+        whislo = extrema
 
     return whislo, q1, med, q3, whishi

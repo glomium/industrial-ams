@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# vim: set fileencoding=utf-8 :
+# -*- coding: utf-8 -*-
 
 import numpy as np
 

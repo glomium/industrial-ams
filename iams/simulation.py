@@ -1,5 +1,5 @@
-#!/usr/bin/python
-# ex:set fileencoding=utf-8:
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import argparse
 import logging

@@ -1,5 +1,5 @@
-#!/usr/bin/python
-# ex:set fileencoding=utf-8:
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import io
 import unittest
@@ -26,7 +26,9 @@ class Agent(object):
         return "agent"
 
     def __call__(self, simulation, dryrun):
+        event = simulation.schedule(self, 0.0, 'callback')
         simulation.schedule(self, 0.5, 'callback')
+        event.cancel()
 
     def callback(self, simulation):
         simulation.schedule(self, 0.5, 'callback')

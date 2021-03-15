@@ -3,10 +3,10 @@ HASH := $(shell git rev-parse HEAD)
 UBUNTU = rolling
 VENV_NAME? = .venv
 
-ifeq ($(BRANCH),"master")
+ifeq ($(BRANCH), master)
     TARGET = multiarch
 else
-ifeq ($(BRANCH),"master")
+ifeq ($(BRANCH), develop)
     TARGET = multiarch
 else
     TARGET = testing
@@ -21,12 +21,12 @@ build:
 
 
 buildx:
-	docker buildx build --pull --platform linux/amd64,linux/arm64,linux/arm/v7 --build-arg UBUNTU=$(UBUNTU) -t glomium/industrial-ams:$(TARGET) --push .
+	docker buildx build --pull --platform linux/amd64,linux/arm64 --build-arg UBUNTU=$(UBUNTU) -t glomium/industrial-ams:$(TARGET) --push .
 
 
 test:
-	doc8 iams
-	flake8 iams
+	doc8 iams papers
+	flake8 iams papers
 	coverage run -m unittest -v
 	coverage report
 

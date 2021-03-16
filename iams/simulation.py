@@ -239,7 +239,7 @@ def parse_command_line(argv=None):
     return parser.parse_args(argv)
 
 
-def execute_command_line(args, function=run_simulation):
+def main(args, function=run_simulation):
     kwarg_list = []
     for fobj in args.configs:
         try:
@@ -266,6 +266,10 @@ def execute_command_line(args, function=run_simulation):
             wait(futures)
             for future in futures:
                 future.result()
+
+
+def execute_command_line():  # pragma: no cover
+    main(parse_command_line())
 
 
 if __name__ == "__main__":  # pragma: no cover

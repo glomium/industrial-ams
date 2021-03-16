@@ -8,7 +8,7 @@ from iams.simulation import load_agent
 # from iams.simulation import prepare_data
 from iams.simulation import process_config
 from iams.simulation import parse_command_line
-from iams.simulation import execute_command_line
+from iams.simulation import main
 
 
 class Agent(object):
@@ -59,7 +59,7 @@ class SimulationTests(unittest.TestCase):  # pragma: no cover
     def test_wrong_file(self):
         with self.assertRaises(AssertionError):
             args = parse_command_line(['--dry-run', '-q', 'iams/tests/tests_simulation.py'])
-            execute_command_line(args)
+            main(args)
 
     def test_config_no_simulation_class(self):
         with self.assertRaises(ValueError):

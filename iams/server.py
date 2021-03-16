@@ -87,7 +87,7 @@ def parse_command_line(argv=None):
     return parser.parse_args()
 
 
-def execute_command_line(args):
+def main(args):
     stop = Event()
     dictConfig(get_logging_config(["iams"], args.loglevel))
 
@@ -227,5 +227,9 @@ def execute_command_line(args):
         pass
 
 
+def execute_command_line():  # pragma: no cover
+    main(parse_command_line())
+
+
 if __name__ == "__main__":  # pragma: no cover
-    execute_command_line(parse_command_line())
+    execute_command_line()

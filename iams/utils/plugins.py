@@ -33,7 +33,7 @@ def get_plugins():
         sys.path.append(directory)
     logger.debug("Scanning %s for plugins", directory)
     for obj in os.scandir(directory):
-        if not obj.is_dir():
+        if not obj.is_dir() or obj.name[0] == ".":
             continue
 
         try:

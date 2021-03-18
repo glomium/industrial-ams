@@ -8,7 +8,8 @@ import os
 
 from concurrent.futures import ThreadPoolExecutor
 from logging.config import dictConfig
-from threading import Event
+from socket import gethostname
+from time import sleep
 
 import grpc
 
@@ -28,6 +29,9 @@ from .servicer import CertificateAuthorityServicer
 from .servicer import DirectoryFacilitatorServicer
 from .servicer import FrameworkServicer
 from .utils.plugins import get_plugins
+
+
+logger = logging.getLogger(__name__)
 
 
 def parse_command_line(argv=None):
@@ -82,10 +86,8 @@ def parse_command_line(argv=None):
     return parser.parse_args()
 
 
-def execute_command_line(args):
-    stop = Event()
+def main(args):
     dictConfig(get_logging_config(["iams"], args.loglevel))
-    logger = logging.getLogger(__name__)
 
     logger.info("IAMS namespace: %s", args.namespace)
 
@@ -145,23 +147,25 @@ def execute_command_line(args):
     # service running
     logger.info("container manager running")
     try:
-        while not stop.is_set():
+        while True:
             eta = cert.not_valid_after - datetime.datetime.now()
             logger.debug("certificate valid for %s days", eta.days)
 
             if eta.days > 1:
-                stop.wait(86400)
-            else:
-                if runtime.container:
-                    logger.debug("restart container")
-                    runtime.container.reload()
-                    runtime.container.restart()
-                else:
-                    break
-                stop.wait(3600)
+                sleep(86400)
+                continue
+            if runtime.container:
+                logger.debug("restart container")
+                runtime.container.reload()
+                runtime.container.restart()
+            break
     except KeyboardInterrupt:
         pass
 
 
+def execute_command_line():  # pragma: no cover
+    main(parse_command_line())
+
+
 if __name__ == "__main__":  # pragma: no cover
-    execute_command_line(parse_command_line())
+    main(parse_command_line())

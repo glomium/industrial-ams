@@ -3,9 +3,16 @@
 
 import unittest
 
-from iams.utils.outliner import quartiles  # noqa
+
+try:
+    from iams.utils.outliner import quartiles
+except ImportError as e:  # pragma: no cover
+    SKIP = str(e)
+else:
+    SKIP = None
 
 
+@unittest.skipIf(SKIP is not None, SKIP)
 class QuartilesTests(unittest.TestCase):  # pragma: no cover
 
     def test_dataset1(self):

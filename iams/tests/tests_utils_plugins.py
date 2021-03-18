@@ -3,9 +3,10 @@
 
 import unittest
 
-from iams.utils.plugins import *  # noqa
+from iams.utils.plugins import get_plugins
 
 
-class ImportTests(unittest.TestCase):  # pragma: no cover
-    def test_empty(self):
-        pass
+class PluginsTests(unittest.TestCase):  # pragma: no cover
+    def test_iams_plugins(self):
+        data = list(get_plugins())
+        self.assertEqual(len(data), 6)

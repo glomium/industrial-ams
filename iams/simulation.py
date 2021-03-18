@@ -273,4 +273,4 @@ def execute_command_line():  # pragma: no cover
 
 
 if __name__ == "__main__":  # pragma: no cover
-    execute_command_line(parse_command_line())
+    main(parse_command_line())

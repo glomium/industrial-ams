@@ -1,89 +1,24 @@
 version: '3.7'
 
 
-x-defaults: &defaults
-  logging:
-    driver: json-file
-    options:
-      max-size: 2m
-      max-file: 5
-# environment:
-#   GRPC_VERBOSITY: debug
-#   GRPC_TRACE: tcp,http,secure_endpoint,transport_security
-
-
 services:
 
-    # Simulation
-    sim:
-        <<: *defaults
-        image: iams-test:local
-        entrypoint: sleep 86400
-        env_file: .env
-        environment:
-            IAMS_ARANGO_PASSWORD_FILE: /run/secrets/arango
-            IAMS_NETWORK: test_test
-            IAMS_RUNTESTS: tasks.coverage
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-        deploy:
-            mode: replicated
-            replicas: 1
-            update_config:
-                order: start-first
-            placement:
-                constraints: [node.role == manager]
-        secrets:
-            - arango
-        networks:
-            - arango
-            - cfssl
-            - test
-
     cfssl:
-        <<: *defaults
         image: glomium/cfssl:latest
-        deploy:
-            mode: replicated
-            replicas: 1
-            update_config:
-                order: start-first
+        ports:
+            - "8888:8888"
         secrets:
             - ca.crt
             - ca.key
-        networks:
-            - cfssl
-
-    coverage:
-        <<: *defaults
-        image: glomium/coverage-service:latest
-        deploy:
-            mode: replicated
-            replicas: 1
-            update_config:
-                order: start-first
-        networks:
-            - test
 
     arangodb:
-        <<: *defaults
         image: arangodb:3.6.5
         environment:
             ARANGO_ROOT_PASSWORD_FILE: /run/secrets/arango
-        deploy:
-            mode: replicated
-            replicas: 1
-        # ports:
-        #     - "8530:8529"
+        ports:
+            - "8529:8529"
         secrets:
             - arango
-        networks:
-            - arango
-
-networks:
-    arango:
-    cfssl:
-    test:
 
 secrets:
     arango:

@@ -8,7 +8,6 @@ import os
 
 from concurrent.futures import ThreadPoolExecutor
 from logging.config import dictConfig
-from socket import gethostname
 from time import sleep
 
 import grpc
@@ -123,7 +122,7 @@ def main(args):
     certificate, private_key = ca.get_service_certificate("root", hosts=[runtime.servername])
     credentials = grpc.ssl_server_credentials(
         ((private_key, certificate),),
-        root_certificates=ca.root,
+        root_certificates=ca.get_root_ca(),
         require_client_auth=True,
     )
     # channel_credentials = grpc.ssl_channel_credentials(

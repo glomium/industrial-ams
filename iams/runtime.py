@@ -432,9 +432,3 @@ class DockerSwarmRuntime(RuntimeInterface):
             )
             config.reload()  # workarround for https://github.com/docker/docker-py/issues/2025
         return config, old_configs
-
-
-'''
-class SimulationRuntime(RuntimeInterface):
-    pass
-'''

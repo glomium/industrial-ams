@@ -30,6 +30,11 @@ test:
 	coverage run -m unittest -v
 	coverage report
 
+
+run_test_services:
+	docker-compose -f docker-test.yaml up --abort-on-container-exit
+
+
 test2: build
 	docker stack deploy -c docker-test.yaml test
 	docker service scale test_arangodb=1 test_sim=1 test_cfssl=1 test_coverage=1

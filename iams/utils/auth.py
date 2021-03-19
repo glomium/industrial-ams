@@ -10,15 +10,6 @@ from functools import wraps
 logger = logging.getLogger(__name__)
 
 
-def set_credentials(agent=None, image=None, version=None, username=None, groups=None):
-    if groups is None:
-        groups = []
-    if agent is not None:
-        return json.dumps([agent, image, version, groups])
-    else:
-        return json.dumps([username, groups])
-
-
 def get_credentials(credentials):
     data = json.loads(credentials)
     if len(data) == 2:

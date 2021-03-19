@@ -44,6 +44,7 @@ test2: build
 
 certs:
 	mkdir -p secrets
+	# openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -nodes -days 36525 -out secrets/ec_ca.crt -keyout secrets/ec_ca.key
 	openssl genrsa -out secrets/ca.key 8192
 	openssl req -x509 -new -SHA384 -key secrets/ca.key -out secrets/ca.crt -days 36525
 

@@ -39,6 +39,8 @@ class CFSSL(CertificateAuthorityInterface):
             hosts += self.hosts
         else:
             cn = self.set_credentials(name, image, version, None, groups)
+            # algo = "ecdsa"
+            # size = 256
             profile = "peer"
             hosts = [name] + self.hosts
 

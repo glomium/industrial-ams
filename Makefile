@@ -1,4 +1,3 @@
-VENV_NAME? = .venv
 UBUNTU = rolling
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 HASH := $(shell git rev-parse HEAD)
@@ -59,4 +58,4 @@ grpc:
 
 
 pip:
-	${VENV_NAME}/bin/pip-upgrade requirements/dev.txt requirements/docs.txt requirements/test.txt --skip-package-installation
+	.venv/bin/pip-upgrade requirements/dev.txt requirements/docs.txt requirements/test.txt --skip-package-installation

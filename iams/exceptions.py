@@ -6,3 +6,9 @@ class SkipPlugin(AssertionError):
     """
     """
     pass
+
+
+class CanNotSchedule(AssertionError):
+    """
+    """
+    pass

@@ -12,3 +12,9 @@ class InvalidAgentName(ValueError):
     """
     """
     pass
+
+
+class CanNotSchedule(AssertionError):
+    """
+    """
+    pass

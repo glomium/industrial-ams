@@ -67,15 +67,14 @@ services:
 
     arangodb:
         <<: *defaults
-        image: arangodb:3.6.1
-        volumes:
-            - arango-apps:/var/lib/arangodb3-apps
-            - arango-data:/var/lib/arangodb3
+        image: arangodb:3.6.5
         environment:
             ARANGO_ROOT_PASSWORD_FILE: /run/secrets/arango
         deploy:
             mode: replicated
             replicas: 1
+        # ports:
+        #     - "8530:8529"
         secrets:
             - arango
         networks:
@@ -85,10 +84,6 @@ networks:
     arango:
     cfssl:
     test:
-
-volumes:
-    arango-apps:
-    arango-data:
 
 secrets:
     arango:

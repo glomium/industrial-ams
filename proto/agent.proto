@@ -11,22 +11,52 @@ service Agent {
     /*
     Receive scheduled events in simulation run
     */
-    rpc run_simulation(SimulationRequest) returns (stream SimulationResponse) {}
+    rpc ping(PingRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc update(UpdateRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc upgrade(UpgradeRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    */
+    rpc reset(ResetRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    Updates the current position to the agent called this function
+    */
+    rpc position(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+    /*
+    Updates the current position to the agent called this function
+    */
+    // rpc transfer(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 
     /*
     Receive scheduled events in simulation run
     */
-    rpc ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    rpc run_simulation(SimulationRequest) returns (stream SimulationResponse) {}
+}
 
-    /*
-    Receive the node's topology
-    */
-    rpc topology(google.protobuf.Empty) returns (Topology) {}
+message PingRequest {
+}
+
+message UpdateRequest {
+}
+
+message UpgradeRequest {
+}
+
+message ResetRequest {
 }
 
 message SimulationRequest {
     bytes uuid = 1;
-    float time = 2;
+    double time = 2;
+    bool finish = 3;
 }
 
 message SimulationLog {
@@ -34,12 +64,12 @@ message SimulationLog {
 }
 
 message SimulationMetric {
-    map<string, float> metrics = 1;
+    map<string, double> metrics = 1;
 }
 
 message SimulationSchedule {
     bytes uuid = 1;
-    float delay = 2;
+    double delay = 2;
 }
 
 message SimulationResponse {
@@ -47,37 +77,4 @@ message SimulationResponse {
     SimulationLog log = 2;
     SimulationMetric metric = 3;
     SimulationSchedule schedule = 4;
-}
-
-message Node {
-    string name = 1;
-}
-
-message Edge {
-    // Name of starting node
-    Node start = 1;
-
-    // Name of the target node (either a node or a different agent)
-    oneof target {
-        Node node = 2;
-        string agent = 3;
-    }
-
-    // boolean if the edge is symmetric (only when node is set)
-    bool is_symmetric = 4;
-
-    // if there is a non physical bridge between nodes, we can add this as a virtual edge (only when agent is set)
-    bool is_virtual = 5;
-
-    // if this agent is a child
-    bool is_child = 6;
-
-    // weight (i.e. time) this edge costs
-    float weight = 7;
-}
-
-message Topology {
-    string name = 1;
-    repeated Node nodes = 2;
-    repeated Edge edges = 3;
 }

@@ -2,7 +2,9 @@ syntax = "proto3";
 
 package iams.servicer;
 
+// import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
+
 
 /*
 */
@@ -57,18 +59,13 @@ service Framework {
     */
     rpc upgrade(AgentData) returns (google.protobuf.Empty) {}
 
+    // TODO
+    rpc topology(Node) returns (Node) {}
+
     /*
     agent sends this command to start another agent (service is scaled to 1)
     */
     rpc wake(AgentData) returns (google.protobuf.Empty) {}
-
-    /*
-    */
-    rpc set_topology(AgentTopology) returns (google.protobuf.Empty) {}
-
-    /*
-    */
-    rpc get_topology(google.protobuf.Empty) returns (AgentTopology) {}
 }
 
 message AgentRequest {
@@ -92,17 +89,23 @@ message AgentData {
     string version = 5;
     bytes config = 6;
     bool autostart = 7;
+    repeated string constraints = 8;
+    repeated string preferences = 9;
 }
 
+
+// TODO use edge definitions accordingly
 message Edge {
-    string start = 1;
-    string end = 2;
-    float weight = 3;
-    bool directed = 4;
+    string node_from = 1;
+    string node_to = 2;
+    string agent = 3;
+    double weight = 4;
+    bool symmetric = 5;
 }
-
-message AgentTopology {
-    repeated Edge edges = 1;
-    repeated string abilities = 2;
-    string pool = 3;
+message Node {
+    // string name = 1;
+    string default = 1;
+    repeated string pools = 2;
+    repeated Edge edges = 3;
+    repeated string abilities = 4;
 }

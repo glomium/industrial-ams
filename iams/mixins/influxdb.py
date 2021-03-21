@@ -1,5 +1,5 @@
-#!/usr/bin/python3
-# vim: set fileencoding=utf-8 :
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import datetime
 import logging
@@ -20,7 +20,7 @@ try:
     from influxdb import InfluxDBClient
     INFLUXDB = True
 except ImportError:
-    logger.info("Could not import influxdb")
+    logger.info("Could not import influxdb library")
     INFLUXDB = False
 
 
@@ -33,7 +33,7 @@ class InfluxDBMixin(object):
 
         if INFLUXDB:
             self._influxdb = InfluxDBClient(host=HOST, database=DATABASE, timeout=0.5)
-            logger.info("Infludb initialized with host %s", HOST)
+            logger.info("Influxdb initialized with host %s", HOST)
 
     def influxdb_write(self, data, time=None):
         """
@@ -43,7 +43,7 @@ class InfluxDBMixin(object):
         if not INFLUXDB:
             return None
 
-        if time is None:
+        if time is not None:
             now = datetime.datetime.utcnow()
             for i in range(len(data)):
                 if "time" not in data[i]:

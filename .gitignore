@@ -1,6 +1,6 @@
 *~
-*.swp
-*.pyc
+*\.swp
+*\.pyc
 *-journal
 
 /build
@@ -11,6 +11,11 @@
 /*\.whl
 /\.coverage
 /\.env
+/\.idea
 /\.venv
+
+/examples/*/*_pb2\.py
+/examples/*/*_pb2_grpc\.py
+/examples/*/iams
 
 /iams/proto

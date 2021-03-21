@@ -1,1 +1,3 @@
-pip-upgrader==1.4.15
+pip-upgrader
+grpcio
+grpcio-tools

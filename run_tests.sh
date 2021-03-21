@@ -10,7 +10,7 @@ echo "run unit tests"
 COVERAGE_FILE=coverage/unit coverage run setup.py test
 
 echo "start server"
-COVERAGE_FILE=coverage/server coverage run -m iams.server --simulation --namespace test cfssl:8888 &
+COVERAGE_FILE=coverage/server coverage run -m iams.server -d --simulation --namespace test cfssl:8888 &
 
 echo "wait 5s for server to bootup"
 sleep 5

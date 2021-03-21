@@ -9,7 +9,7 @@ omit =
 
 [report]
 
-precision = 2
-fail_under = 15
+precision = 1
+fail_under = 30
 skip_covered = True
 show_missing = True

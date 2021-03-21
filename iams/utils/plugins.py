@@ -1,5 +1,5 @@
-#!/usr/bin/python
-# ex:set fileencoding=utf-8:
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import logging
 import os
@@ -9,7 +9,7 @@ from importlib.util import find_spec
 from inspect import getmembers, isclass
 
 
-from ..interface import Plugin
+from iams.interfaces.plugin import Plugin
 
 
 plugin_name = "plugin"
@@ -33,7 +33,7 @@ def get_plugins():
         sys.path.append(directory)
     logger.debug("Scanning %s for plugins", directory)
     for obj in os.scandir(directory):
-        if not obj.is_dir():
+        if not obj.is_dir() or obj.name[0] == ".":
             continue
 
         try:
@@ -58,7 +58,7 @@ def get_plugins():
                 yield cls
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     print("Plugins:")  # noqa
     for plugin in get_plugins():
         print(plugin)  # noqa

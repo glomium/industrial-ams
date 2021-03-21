@@ -1,5 +1,5 @@
-#!/usr/bin/python
-# ex:set fileencoding=utf-8:
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import argparse
 import datetime
@@ -9,7 +9,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from logging.config import dictConfig
 from socket import gethostname
-from threading import Event
+from time import sleep
 
 import docker
 import grpc
@@ -23,14 +23,15 @@ from .cloud.swarm import Swarm
 from .exceptions import SkipPlugin
 from .helper import get_logging_config
 from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
-from .proto.simulation_pb2_grpc import add_SimulationServicer_to_server
 from .servicer import FrameworkServicer
-from .servicer import SimulationServicer
 from .utils.cfssl import CFSSL
 from .utils.plugins import get_plugins
 
 
-def execute_command_line():
+logger = logging.getLogger(__name__)
+
+
+def parse_command_line(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-q', '--quiet',
@@ -83,10 +84,11 @@ def execute_command_line():
         dest='namespace',
     )
 
-    args = parser.parse_args()
-    stop = Event()
+    return parser.parse_args()
+
+
+def main(args):
     dictConfig(get_logging_config(["iams"], args.loglevel))
-    logger = logging.getLogger(__name__)
 
     client = docker.DockerClient()
     try:
@@ -198,17 +200,12 @@ def execute_command_line():
     )
     add_FrameworkServicer_to_server(servicer, server)
 
-    if args.simulation is True:
-        add_SimulationServicer_to_server(
-            SimulationServicer(servicer, stop, runtests),
-            server,
-        )
     server.start()
 
     # service running
     logger.info("container manager running")
     try:
-        while not stop.is_set():
+        while True:
             eta = cert.not_valid_after - datetime.datetime.now()
             logger.debug("certificate valid for %s days", eta.days)
 
@@ -216,7 +213,7 @@ def execute_command_line():
                 # The following block can be used for maintenance tasks
                 if container is not None and not args.simulation:
                     pass
-                stop.wait(86400)
+                sleep(86400)
             else:
                 if container:
                     logger.debug("restart container")
@@ -224,10 +221,14 @@ def execute_command_line():
                     container.restart()
                 else:
                     break
-                stop.wait(3600)
+                sleep(3600)
     except KeyboardInterrupt:
         pass
 
 
-if __name__ == "__main__":
-    execute_command_line()
+def execute_command_line():  # pragma: no cover
+    main(parse_command_line())
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main(parse_command_line())

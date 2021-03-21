@@ -1,9 +1,9 @@
-#!/usr/bin/python
-# ex:set fileencoding=utf-8:
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 from functools import lru_cache
 
-VERSION = ((0, 5, 1), ('b', 0))
+VERSION = ((0, 6, 0), ('final', 0))
 
 
 @lru_cache(maxsize=8)

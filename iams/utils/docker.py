@@ -1,5 +1,5 @@
-#!/usr/bin/python
-# ex:set fileencoding=utf-8:
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import base64
 import hashlib
@@ -221,6 +221,8 @@ class Docker(object):
     def set_service(
         self, name, image=None, version=None, address=None, port=None, config=None,
         autostart=True, create=False, update=False, seed=None,
+        placement_constraints=[],
+        placement_preferences=[],
     ):
 
         try:
@@ -386,29 +388,49 @@ class Docker(object):
             secret = self.client.secrets.get(key)
             new_secrets.append(docker.types.SecretReference(secret.id, secret.name, filename=filename))
 
-        kwargs = {
-            "image": f'{image!s}:{version!s}',
-            "name": name,
-            "labels": labels,
-            "env": env,
-            "networks": networks,
-            "configs": configs,
-            "secrets": new_secrets,
-            "log_driver": "json-file",
-            "log_driver_options": {
-                "max-file": "10",
-                "max-size": "1m",
-            },
-            "mode": docker.types.ServiceMode("replicated", scale),
-            "preferences": [docker.types.Placement(preferences=[("spread", "node.labels.worker")])],
-        }
-        logger.debug("create agent %s", kwargs)
+        if not placement_preferences:
+            if self.simulation:
+                placement_preferences = ["node.labels.simulation"]
+            else:
+                placement_preferences = ["node.labels.worker"]
+
+        task_template = docker.types.TaskTemplate(
+            container_spec=docker.types.ContainerSpec(
+                f'{image!s}:{version!s}',
+                env=env,
+                configs=configs,
+                secrets=new_secrets,
+            ),
+            log_driver=docker.types.DriverConfig("json-file", {"max-file": "10", "max-size": "1m"}),
+            networks=networks,
+            placement=docker.types.Placement(
+                constraints=list(placement_constraints),
+                preferences=list([docker.types.PlacementPreference('spread', pref) for pref in placement_preferences]),
+            ),
+        )
 
         if create:
-            self.client.services.create(**kwargs)
+            logger.debug("create task %s", task_template)
+            self.client.api.create_service(
+                task_template=task_template,
+                name=name,
+                labels=labels,
+                mode=docker.types.ServiceMode("replicated", scale),
+                networks=networks,
+            )
             return True
+
         elif update:
-            service.update(**kwargs)
+            logger.debug("update task %s", task_template)
+            self.client.api.update_service(
+                service.id,
+                service.version,
+                task_template=task_template,
+                name=name,
+                labels=labels,
+                mode=docker.types.ServiceMode("replicated", scale),
+                networks=networks,
+            )
 
         # delete old screts
         for secret in old_secrets:

@@ -1,11 +1,11 @@
-#!/usr/bin/python3
-# vim: set fileencoding=utf-8 :
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import logging
 import os
 
-from ...exceptions import SkipPlugin
-from ...interface import Plugin
+from iams.exceptions import SkipPlugin
+from iams.interfaces.plugin import Plugin
 
 
 logger = logging.getLogger(__name__)

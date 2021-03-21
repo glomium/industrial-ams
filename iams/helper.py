@@ -1,5 +1,5 @@
-#!/usr/bin/python3
-# vim: set fileencoding=utf-8 :
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import logging
 import os
@@ -21,8 +21,8 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
 
     if isinstance(config, (list, tuple)):
         loggers = {}
-        for l in config:
-            loggers[l] = {}
+        for ln in config:
+            loggers[ln] = {}
     elif isinstance(config, dict):
         loggers = config
 
@@ -49,7 +49,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
             'console': {
                 'class': "logging.StreamHandler",
                 'level': level,
-                'formatter': 'debug' if level == logging.DEBUG else "default",
+                'formatter': 'debug' if level <= logging.INFO else "default",
             },
         },
         'loggers': loggers,
@@ -75,7 +75,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
             'host': os.environ.get('FLUENTD_HOST'),
             'port': int(os.environ.get('FLUENTD_PORT', 24224)),
             'tag': os.environ.get('FLUENTD_TAG'),
-            'level': 'DEBUG',
+            'level': os.environ.get('FLUENTD_LEVEL', 'INFO'),
             'formatter': 'fluentd',
             'nanosecond_precision': True,
         }

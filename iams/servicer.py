@@ -1,40 +1,26 @@
-#!/usr/bin/python3
-# vim: set fileencoding=utf-8 :
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import logging
 import os
-import random
 import re
-import time
 
-from heapq import heappush
-from heapq import heappop
 from threading import Event
-from uuid import UUID
 
 import grpc
 
 from docker import errors as docker_errors
 from google.protobuf.empty_pb2 import Empty
 
-from .proto import agent_pb2
-from .proto import simulation_pb2
-from .proto import simulation_pb2_grpc
 from .proto import framework_pb2
 from .proto import framework_pb2_grpc
-from .stub import AgentStub
 from .utils.arangodb import Arango
 from .utils.auth import permissions
 from .utils.docker import Docker
-from .utils.grpc import framework_channel
 from .utils.ssl import validate_certificate
 
 
 logger = logging.getLogger(__name__)
-
-
-def generate_seed():
-    return bytearray(random.getrandbits(8) for x in range(12)).hex()
 
 
 class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
@@ -145,6 +131,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 port=request.port,
                 config=request.config,
                 autostart=request.autostart,
+                placement_constraints=request.constraints,
+                placement_preferences=request.preferences,
             )
 
         except docker_errors.ImageNotFound:
@@ -156,7 +144,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         if created:
             self.set_booting(name)
 
-        return framework_pb2.AgentData()
+        return framework_pb2.AgentData(name=name)
 
     # RPC
     @permissions(has_agent=True, has_groups=["root", "web"])
@@ -167,16 +155,19 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         if regex:
             name = self.args.namespace[0:4] + '_' + regex.group(2)
         else:
-            message = 'A name with starting with a letter, ending with an alphanumerical chars and' \
+            message = 'A name with starting with a letter, ending with an alphanumerical chars and ' \
                       'only containing alphanumerical values and hyphens is required to define agents'
+            logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         if not request.image:
             message = 'An image is required to define agents'
+            logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         if not request.version:
             message = 'A version is required to define agents'
+            logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         try:
@@ -190,23 +181,38 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
                 autostart=request.autostart,
                 create=True,
                 seed=getattr(context, '_seed', None),
+                placement_constraints=request.constraints,
+                placement_preferences=request.preferences,
             )
 
         except docker_errors.ImageNotFound:
             message = f'Could not find image {request.image}:{request.version}'
+            logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
         except docker_errors.NotFound as e:
-            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
+            message = f'{e!s}'
+            logger.debug(message)
+            context.abort(grpc.StatusCode.NOT_FOUND, message)
 
         except ValueError as e:
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, e)
+            message = f'{e!s}'
+            logger.debug(message)
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         self.set_booting(name)
-        return framework_pb2.AgentData()
+        self.create_callback(name)
+        return framework_pb2.AgentData(name=name)
+
+    def create_callback(self, name):
+        """
+        the create_callback is overwritten by the simulation runtime.
+        it creates two events (start and stop of service), after a service is created
+        """
+        pass
 
     def get_agent_name(self, context, name):
         if context._agent is None and name is None:
-            message = f'Need to give agent name in request'
+            message = 'Need to give agent name in request'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
         if context._agent:
@@ -230,6 +236,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         except docker_errors.NotFound as e:
             context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
+        # TODO: remove agent from arango db
         return Empty()
 
     # RPC
@@ -254,32 +261,6 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     # RPC
     @permissions(has_agent=True)
-    def set_topology(self, request, context):
-        logger.debug('set_topology called from %s', context._agent)
-
-        edges = []
-        for edge in request.edges:
-            edges.append({
-                "from": request.start,
-                "to": request.end,
-                "weight": request.weight,
-                "symmetric": not request.directed,
-            })
-        self.arango.update_agent(request._agent, edges, pool=request.pool or None)
-        return Empty()
-
-    # RPC
-    @permissions(has_agent=True)
-    def get_topology(self, request, context):
-        logger.debug('get_topology called from %s', context._agent)
-        self.docker.set_service(
-            context._agent,
-            update=True,
-        )
-        return Empty()
-
-    # RPC
-    @permissions(has_agent=True)
     def wake(self, request, context):
         logger.debug('wake called from %s', context._agent)
         service = self.get_service(context, context._agent)
@@ -288,155 +269,25 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             service.scale(1)
         return Empty()
 
-
-class SimulationServicer(simulation_pb2_grpc.SimulationServicer):
-
-    def __init__(self, agent_servicer, event, runtests):
-        self.event = event
-        self.runtests = runtests
-        self.servicer = agent_servicer
-
-        self.heap = []
-        self.simulation = False
-        self.time = 0.0
-
-    def add_event(self, delay, agent, uuid):
-        scheduled_time = self.time + delay
-        if self.until and scheduled_time > self.until:
-            return None
-
-        logger.debug("Adding event at %s for agent %s (delay=%s)", scheduled_time, agent, delay)
-        # If we have two events at the same time, we use the negative delay
-        # to decide which event was added first. this reduces the
-        # possibility to run into infinite loops if one agents decides to wait
-        # for an event on another agent
-        heappush(self.heap, (scheduled_time, -delay, agent, uuid))
-
-    def reset(self, callback=True):
-        if callback:
-            logger.info("Resetting simulation runtime")
-        else:
-            logger.error("Simulation canceled - resetting")
-
-        self.heap = []
-        self.simulation = False
-
-        # kill all agents
-        for service in self.servicer.docker.get_service():
-            self.servicer.docker.del_service(service)
-
+    # RPC
     @permissions(has_agent=True)
-    def schedule(self, request, context):
-        self.add_event(request.delay, context._agent, request.uuid)
-        return Empty()
+    def topology(self, request, context):
+        logger.debug('topology called from %s', context._agent)
 
-    @permissions(is_optional=True)
-    def start(self, request, context):
-        if self.simulation:
-            message = 'A simulation is currently running'
-            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, message)
-        self.simulation = True
-        self.time = 0.0
-        self.until = request.until or None
+        # iterate over node.edges and change name with regex
+        for edge in request.edges:
+            if edge.agent is not None:
+                regex = self.RE_NAME.match(edge.agent)
+                if regex:
+                    edge.agent = self.args.namespace[0:4] + '_' + regex.group(2)
+                else:
+                    message = 'A name with starting with a letter, ending with an alphanumerical chars and ' \
+                              'only containing alphanumerical values and hyphens is required to define agents'
+                    logger.debug(message)
+                    context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        self.heap = []
-        self.time = 0.0
-        agent = None
+        self.arango.create_agent(context._agent, request)
+        return request
 
-        # generate a seed for pseudo-random function (make simulations repeatable)
-        if request.seed:
-            seed = request.seed
-        else:
-            seed = generate_seed()
-        random.seed(seed)
-        logger.info("setting seed for random values to %s", seed)
 
-        # create agents
-        logger.info("Creating agents from config")
-        for agent in request.agents:
-            try:
-                context._seed = generate_seed()
-                self.servicer.create(agent.container, context)
-            except Exception:
-                self.reset(False)
-                raise
-
-        # create callback if connection breaks
-        context.add_callback(self.reset)
-
-        # create startevent for all agents
-        for service in self.servicer.docker.get_service():
-            heappush(self.heap, (0.0, 0.0, service.name, None))
-            if self.until:
-                heappush(self.heap, (self.until, 0.0, service.name, None))
-
-        logger.info("Starting simulation")
-        agent = None
-
-        yield simulation_pb2.SimulationData(log=agent_pb2.SimulationLog(text="simulation started"))
-        count = 0
-        dt = time.time()
-
-        while True:
-
-            # waiting for containers to boot
-            if not self.servicer.event.is_set():
-                logger.debug("Waiting for containers to boot")
-                self.servicer.event.wait()
-
-            try:
-                self.time, delay, agent, uuid = heappop(self.heap)
-            except IndexError:
-                logger.info("Simulation finished - no more events in queue")
-                break
-
-            # Stop simulation if time is reached
-            if self.time > request.until:
-                logger.info("Simulation finished - time limit reached")
-                break
-
-            if uuid:
-                logger.info(
-                    "continue execution of simulation on %s at %s (%s)",
-                    agent,
-                    self.time,
-                    UUID(bytes=uuid),
-                )
-            else:
-                logger.info(
-                    "start execution of simulation on %s",
-                    agent,
-                )
-
-            with framework_channel(hostname=agent, credentials=self.servicer.credentials) as channel:
-                stub = AgentStub(channel)
-                for r in stub.run_simulation(agent_pb2.SimulationRequest(uuid=uuid, time=self.time), timeout=10):
-                    if r.schedule.ByteSize():
-                        self.add_event(r.schedule.delay, agent, r.schedule.uuid)
-
-                    elif r.metric.ByteSize() or r.log.ByteSize():
-                        logger.debug("got metric or log - %s %s", r.metric, r.log)
-                        yield simulation_pb2.SimulationData(
-                            name=self.servicer.RE_NAME.match(agent).group(2),
-                            time=self.time,
-                            log=r.log,
-                            metric=r.metric,
-                        )
-            logger.info("Connection to %s closed", agent)
-
-            count += 1
-            logger.debug("Execute next simulation step")
-
-        dt = time.time() - dt
-        yield simulation_pb2.SimulationData(
-            time=self.time,
-            log=agent_pb2.SimulationLog(text="simulation ended - simulated %s steps (%.1f/s)" % (count, count / dt)),
-        )
-
-    @permissions(is_optional=True)
-    def shutdown(self, request, context):
-        if self.simulation:
-            message = 'A simulation is currently running'
-            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, message)
-        self.event.set()
-        return Empty()
+FrameworkServicer.__doc__ = framework_pb2_grpc.FrameworkServicer.__doc__

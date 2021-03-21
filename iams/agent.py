@@ -1,12 +1,11 @@
-#!/usr/bin/python3
-# vim: set fileencoding=utf-8 :
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import logging
 import os
 
-from queue import Queue
-
 import grpc
+import yaml
 
 from google.protobuf.empty_pb2 import Empty
 
@@ -33,7 +32,6 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         self.config = os.environ.get('IAMS_CONFIG', None)
         self.port = os.environ.get('IAMS_PORT', None)
         self.service = os.environ.get('IAMS_SERVICE', None)
-        self.simulation = os.environ.get('IAMS_SIMULATION', None) == "true"
         self.cloud = not os.environ.get('IAMS_CLOUDLESS', None) == "true"
 
         if self.cloud:
@@ -44,45 +42,57 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             self.prefix = ""
 
         self.parent = parent
+        self.position = None
         self.queue = None
         self.threadpool = threadpool
 
-    @permissions(has_groups=["root"])
-    def run_simulation(self, request, context):
-        if not self.simulation:
-            message = 'This function is only availabe when agenttype is set to simulation'
-            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        # caches
+        self._topology = None
 
-        logger.debug("run simulation called")
-
-        self.queue = Queue()
-        self.parent._simulation.set_event(request.uuid, request.time)
-
-        while True:
-            data = self.queue.get()
-            logger.debug("found %s in queue", type(data))
-            if isinstance(data, agent_pb2.SimulationLog):
-                yield agent_pb2.SimulationResponse(log=data)
-            elif isinstance(data, agent_pb2.SimulationMetric):
-                yield agent_pb2.SimulationResponse(metric=data)
-            elif isinstance(data, agent_pb2.SimulationSchedule):
-                yield agent_pb2.SimulationResponse(schedule=data)
-            elif isinstance(data, agent_pb2.SimulationResponse):
-                yield data
-            else:
-                break
-        self.queue = None
-
-    @permissions(has_agent=True)
-    def topology(self, request, context):
-        nodes, edges = self.parent.topology()
-        return agent_pb2.Topology(name=self.agent, nodes=nodes, edges=edges)
-
-    @permissions(has_agent=True, has_groups=["root"])
+    @permissions(has_agent=True, has_groups=["root", "web"])
     def ping(self, request, context):
         return Empty()
 
+    @permissions(has_agent=True, has_groups=["root", "web"])
+    def upgrade(self, request, context):
+        if self.parent.callback_agent_upgrade():
+            return Empty()
+        else:
+            message = 'Upgrade is not allowed'
+            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+
+    @permissions(has_agent=True, has_groups=["root", "web"])
+    def update(self, request, context):
+        if self.parent.callback_agent_update():
+            return Empty()
+        else:
+            message = 'Update is not allowed'
+            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+
+    @permissions(has_agent=True, has_groups=["root", "web"])
+    def reset(self, request, context):
+        if self.parent.callback_agent_reset():
+            return Empty()
+        else:
+            message = 'Reset is not allowed'
+            context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+
+    @permissions(has_agent=True)
+    def position(self, request, context):
+        if self.update_position(context._agent):
+            return Empty()
+        message = 'Agent is already at requested position'
+        context.abort(grpc.StatusCode.ALREADY_EXISTS, message)
+
     # === calls to iams =======================================================
+
+    def update_position(self, position) -> bool:
+        if self.position == position:
+            return False
+
+        self.position = position
+        # TODO: position update callback on previous position
+        return True
 
     def get_agents(self, labels=[]) -> list:
         try:
@@ -101,6 +111,22 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             return True
         except grpc.RpcError:
             return False
+
+    def call_create(self, name, image, version="latest", config={}) -> (bool, object):
+        try:
+            with framework_channel(credentials=self.parent._credentials) as channel:
+                stub = FrameworkStub(channel)
+                response = stub.create(AgentData(
+                    name=name,
+                    image=image,
+                    version=version,
+                    config=yaml.dump(config).encode('utf-8'),
+                    autostart=True,
+                ), timeout=10)
+            return True, response
+        except grpc.RpcError as e:
+            logger.debug(e, exc_info=True)
+            return False, e.code()
 
     def call_destroy(self) -> bool:
         try:
@@ -151,11 +177,42 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         try:
             with framework_channel(agent) as channel:
                 stub = AgentStub(channel)
-                stub.ping(Empty(), timeout=10)
+                stub.ping(agent_pb2.PingRequest(), timeout=10)
             logger.debug("Ping response (%s)", agent)
             return True
         except grpc.RpcError as e:
             logger.debug("Ping response %s: %s from %s", e.code(), e.details(), agent)
+            return False
+
+    def call_update(self, agent):
+        try:
+            with framework_channel(agent) as channel:
+                stub = AgentStub(channel)
+                stub.update(agent_pb2.UpdateRequest(), timeout=10)
+            logger.debug("Update response (%s)", agent)
+            return True
+        except grpc.RpcError as e:
+            logger.debug("Update response %s: %s from %s", e.code(), e.details(), agent)
+            return False
+
+    def call_reset(self, agent):
+        try:
+            with framework_channel(agent) as channel:
+                stub = AgentStub(channel)
+                stub.reset(agent_pb2.ResetRequest(), timeout=10)
+            logger.debug("Reset response (%s)", agent)
+            return True
+        except grpc.RpcError as e:
+            logger.debug("Reset response %s: %s from %s", e.code(), e.details(), agent)
+            return False
+
+    def update_topology(self, node) -> bool:
+        try:
+            with framework_channel(credentials=self.parent._credentials) as channel:
+                stub = FrameworkStub(channel)
+                self._topology = stub.topology(node, timeout=10)
+            return True
+        except grpc.RpcError:
             return False
 
 

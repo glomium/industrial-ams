@@ -197,7 +197,8 @@ class UR(object):
             }
 
 
-@unittest.skipIf(SKIP is not None, SKIP)
+# @unittest.skipIf(SKIP is not None, SKIP)
+@unittest.skip
 class ImportTests(unittest.TestCase):  # pragma: no cover
     def test_empty(self):
         agents = [

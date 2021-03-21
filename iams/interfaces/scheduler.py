@@ -9,12 +9,24 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
 from datetime import timedelta
+from enum import Enum
+from enum import auto
 from typing import Union
 
 from iams.exceptions import CanNotSchedule
 
 
 logger = logging.getLogger(__name__)
+
+
+class States(Enum):
+    NEW = auto()
+    SCHEDULED = auto()
+    ARRIVED = auto()
+    STARTED = auto()
+    FINISHED = auto()
+    DEPARTED = auto()
+    CANCELED = auto()
 
 
 @dataclass
@@ -24,8 +36,9 @@ class Event:
     args: Union[list, tuple] = field(default_factory=list, repr=False, init=True, compare=True)
     kwargs: dict = field(default_factory=dict, repr=False, init=True, compare=True)
 
-    start: Union[float, datetime] = field(default=None, repr=True, init=False, compare=False)
-    finish: Union[float, datetime] = field(default=None, repr=True, init=False, compare=False)
+    state: States = field(default=States.NEW, repr=True, init=True, compare=False)
+    schedule_start: Union[float, datetime] = field(default=None, repr=True, init=False, compare=False)
+    schedule_finish: Union[float, datetime] = field(default=None, repr=True, init=False, compare=False)
     eta: Union[float, datetime] = field(default=None, repr=True, init=True, compare=True)
     eta_min: Union[float, datetime] = field(default=None, repr=True, init=True, compare=False)
     eta_max: Union[float, datetime] = field(default=None, repr=True, init=True, compare=False)
@@ -53,11 +66,32 @@ class Event:
         else:
             setattr(self, name, seconds)
 
+    def arrive(self):
+        self.state = States.ARRIVED
+
+    def cancel(self):
+        self.state = States.CANCELED
+
+    def depart(self):
+        self.state = States.DEPARTED
+
+    def finish(self):
+        self.state = States.FINISHED
+
+    def schedule(self):
+        self.state = States.SCHEDULED
+
+    def start(self):
+        self.state = States.STARTED
+
+    def get_duration(self):
+        return self.duration
+
     def get_start(self, now=None):
-        return self._get_time("start", now)
+        return self._get_time("schedule_start", now)
 
     def get_finish(self, now=None):
-        return self._get_time("finish", now)
+        return self._get_time("schedule_finish", now)
 
     def get_eta(self, now=None):
         return self._get_time("eta", now)
@@ -78,10 +112,10 @@ class Event:
         return self._get_time("etd_min", now)
 
     def set_start(self, seconds, now=None):
-        return self._set_time("start", seconds, now)
+        return self._set_time("schedule_start", seconds, now)
 
     def set_finish(self, seconds, now=None):
-        return self._set_time("finish", seconds, now)
+        return self._set_time("schedule_finish", seconds, now)
 
     def set_eta(self, seconds, now=None):
         return self._set_time("eta", seconds, now)
@@ -100,9 +134,6 @@ class Event:
 
     def set_etd_min(self, seconds, now=None):
         return self._set_time("etd_min", seconds, now)
-
-    def get_duration(self):
-        return self.duration
 
 
 class SchedulerInterface(ABC):

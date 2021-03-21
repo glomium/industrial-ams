@@ -56,7 +56,7 @@ class SimulationInterface(ABC):
         self._limit = stop
         self._name = name
         self._queue = []
-        self._time = float(start)
+        self._time = start
         logger.info("=== Setting random-seed: %s", seed)
         random.seed(seed)
 

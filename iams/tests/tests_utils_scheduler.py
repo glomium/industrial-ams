@@ -9,24 +9,28 @@ from iams.utils.scheduler import BufferScheduler
 
 class ImportTests(unittest.TestCase):  # pragma: no cover
 
+    def test_repr(self):
+        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        self.assertEqual(repr(scheduler), "<BufferScheduler(buffer_input=[1], buffer_output=[1], ceiling=5, production_lines=1, resolution=1.0)>")  # noqa
+
     def test_event_okay(self):
-        scheduler = BufferScheduler(agent="simulation")
-        event = scheduler(eta=0, etd=1, duration=1, instance="event", callback=None)
+        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        event = scheduler(eta=0, etd=1, duration=1, callback=None)
         result = scheduler.can_schedule(event)
-        self.assertFalse(result)
+        self.assertTrue(result)
 
     def test_event_to_long(self):
-        scheduler = BufferScheduler(agent="simulation")
-        event = scheduler(eta=0, etd=1, duration=2, instance="event", callback=None)
+        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        event = scheduler(eta=0, etd=1, duration=2, callback=None)
         with self.assertRaises(CanNotSchedule):
             scheduler.can_schedule(event)
 
     def test_two_events(self):
-        scheduler = BufferScheduler(agent="simulation")
-        event1 = scheduler(eta=0, etd=1, duration=1, instance="event1", callback=None)
-        event2 = scheduler(eta=0, etd=1, duration=1, instance="event2", callback=None)
-        event3 = scheduler(eta=0, etd=2, duration=1, instance="event3", callback=None)
-        event4 = scheduler(eta=0, etd=2, duration=1, instance="event3", callback=None)
+        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        event1 = scheduler(eta=0, etd=1, duration=1, callback=None)
+        event2 = scheduler(eta=0, etd=1, duration=1, callback=None)
+        event3 = scheduler(eta=0, etd=2, duration=1, callback=None)
+        event4 = scheduler(eta=0, etd=2, duration=1, callback=None)
         scheduler.schedule(event1)
         with self.assertRaises(CanNotSchedule):
             scheduler.can_schedule(event2)
@@ -40,3 +44,8 @@ class ImportTests(unittest.TestCase):  # pragma: no cover
         self.assertFalse(scheduler.cancel(event1))
         self.assertEqual(len(scheduler.events), 1)
         self.assertEqual(scheduler.events[0], event3)
+
+    def test_event_no_etd(self):
+        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        event = scheduler(eta=0, etd=None, duration=1, callback=None)
+        scheduler.schedule(event)

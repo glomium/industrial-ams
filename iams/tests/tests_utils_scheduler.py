@@ -4,10 +4,17 @@
 import unittest
 
 from iams.exceptions import CanNotSchedule
-from iams.utils.scheduler import BufferScheduler
+
+try:
+    from iams.utils.scheduler import BufferScheduler
+except ImportError as e:  # pragma: no cover
+    SKIP = str(e)
+else:
+    SKIP = None
 
 
-class ImportTests(unittest.TestCase):  # pragma: no cover
+@unittest.skipIf(SKIP is not None, SKIP)
+class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
 
     def test_repr(self):
         scheduler = BufferScheduler(agent="simulation", ceiling=5)

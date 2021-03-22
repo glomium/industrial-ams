@@ -65,8 +65,7 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
 
 def prepare_run(count, folder, template, run_config, config):
     name = template.format(count, **run_config)
-
-    seed = config.get('seed', name)
+    seed = config.get('seed', name).format(count, **run_config)
     start = config.get('start', 0)
     stop = config.get('stop', None)
 

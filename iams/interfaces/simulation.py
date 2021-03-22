@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import csv
 import json
 import logging
 import random
 
-# from logging.config import dictConfig
-# from dataclasses import asdict
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import datetime
 from heapq import heappop
 from heapq import heappush
 from time import time
@@ -47,8 +47,10 @@ class Queue:
 class SimulationInterface(ABC):
 
     def __init__(self, df, name, folder, fobj, seed, start, stop):
-        logger.info("=== Initialize %r", self.__class__)
+        logger.info("=== Start: %s", datetime.now())
+        logger.info("=== Initialize %s", self.__class__.__qualname__)
         self._agents = set()
+        self._csv_writer = None
         self._df = df
         self._events = 0
         self._fobj = fobj
@@ -110,6 +112,7 @@ class SimulationInterface(ABC):
             timer = "%.3f minutes" % (timer / 60)
         else:  # pragma: no cover
             timer = "%.3f hours" % (timer / 3600)
+        logger.info("=== End: %s", datetime.now())
         logger.info("=== Processed %s events in %s (%.2f per second)", self._events, timer, eps)
 
     def __str__(self):
@@ -151,6 +154,14 @@ class SimulationInterface(ABC):
     def write_json(self, data):
         json.dump(data, self._fobj)
         self._fobj.write('\n')
+
+    def write_csv(self, data):
+        try:
+            self._csv_writer.writerow(data)
+        except AttributeError:
+            self._csv_writer = csv.DictWriter(self._fobj, fieldnames=sorted(data.keys()))
+            self._csv_writer.writeheader()
+            self._csv_writer.writerow(data)
 
     def get_time(self):
         return self._time

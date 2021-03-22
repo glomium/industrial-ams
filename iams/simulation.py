@@ -27,8 +27,11 @@ logger = logging.getLogger(__name__)
 
 def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING):
     path = os.path.abspath(path)
-    folder = os.path.dirname(path)
+    folder = os.path.join(os.path.dirname(path), config.get("foldername", "results"))
     project = os.path.basename(path)[:-5]
+
+    if not dryrun and not os.path.exists(folder):
+        os.mkdir(folder)
 
     permutations = []
     length = 1

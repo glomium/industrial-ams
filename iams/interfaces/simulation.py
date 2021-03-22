@@ -113,7 +113,7 @@ class SimulationInterface(ABC):
         logger.info("=== Processed %s events in %s (%.2f per second)", self._events, timer, eps)
 
     def __str__(self):
-        return '%s(%s)' % (self.__class__.__qualname__, self._name)
+        return f'{self.__class__.__qualname__}({self._name})'
 
     def register(self, agent):
         obj = Agent(str(agent), agent)

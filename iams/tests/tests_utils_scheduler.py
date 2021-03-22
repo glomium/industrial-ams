@@ -4,10 +4,17 @@
 import unittest
 
 from iams.exceptions import CanNotSchedule
-from iams.utils.scheduler import BufferScheduler
+
+try:
+    from iams.utils.scheduler import BufferScheduler
+except ImportError as e:  # pragma: no cover
+    SKIP = str(e)
+else:
+    SKIP = None
 
 
-class ImportTests(unittest.TestCase):  # pragma: no cover
+@unittest.skipIf(SKIP is not None, SKIP)
+class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
 
     def test_repr(self):
         scheduler = BufferScheduler(agent="simulation", ceiling=5)
@@ -45,7 +52,42 @@ class ImportTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(len(scheduler.events), 1)
         self.assertEqual(scheduler.events[0], event3)
 
+    @unittest.expectedFailure
     def test_event_no_etd(self):
         scheduler = BufferScheduler(agent="simulation", ceiling=5)
-        event = scheduler(eta=0, etd=None, duration=1, callback=None)
+        event = scheduler(eta=0, duration=1, callback=None)
         scheduler.schedule(event)
+        self.assertEqual(event.get_eta(), 0)
+        self.assertEqual(event.get_etd(), 1)
+        self.assertEqual(event.get_min_eta(), 0)
+        self.assertEqual(event.get_max_eta(), 4)
+        self.assertEqual(event.get_min_etd(), 1)
+        self.assertEqual(event.get_max_etd(), 5)
+
+    @unittest.expectedFailure
+    def test_event_schedule_before(self):
+        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        event1 = scheduler(eta=2, etd=3, duration=1, callback=None)
+        event1.schedule()
+        scheduler.schedule(event1)
+        event2 = scheduler(eta=0, duration=1, callback=None)
+        self.assertEqual(event2.get_eta(), 0)
+        self.assertEqual(event2.get_etd(), 1)
+        self.assertEqual(event2.get_min_eta(), 0)
+        self.assertEqual(event2.get_max_eta(), 2)
+        self.assertEqual(event2.get_min_etd(), 1)
+        self.assertEqual(event2.get_max_etd(), 3)
+
+    @unittest.expectedFailure
+    def test_event_schedule_after(self):
+        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        event1 = scheduler(eta=0, etd=3, duration=1, callback=None)
+        event1.schedule()
+        scheduler.schedule(event1)
+        event2 = scheduler(eta=0, duration=1, callback=None)
+        self.assertEqual(event2.get_eta(), 0)
+        self.assertEqual(event2.get_etd(), 2)
+        self.assertEqual(event2.get_min_eta(), 0)
+        self.assertEqual(event2.get_max_eta(), 4)
+        self.assertEqual(event2.get_min_etd(), 2)
+        self.assertEqual(event2.get_max_etd(), 5)

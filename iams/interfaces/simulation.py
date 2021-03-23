@@ -20,8 +20,25 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+class Agent(object):
+
+    def __call__(self, simulation, dryrun):
+        pass
+
+    def __str__(self):
+        return self.name
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def asdict(self):
+        return {
+            'name': self.name,
+        }
+
+
 @dataclass(order=True, frozen=True)
-class Agent:
+class AgentContainer:
     name: str = field(compare=True, repr=True, hash=True)
     obj: Any = field(compare=False, repr=False, hash=False)
 
@@ -119,7 +136,7 @@ class SimulationInterface(ABC):
         return f'{self.__class__.__qualname__}({self._name})'
 
     def register(self, agent):
-        obj = Agent(str(agent), agent)
+        obj = AgentContainer(str(agent), agent)
         if obj in self._agents:
             raise KeyError('%s already registered', agent)
         self._agents.add(obj)
@@ -129,7 +146,7 @@ class SimulationInterface(ABC):
             yield agent.obj
 
     def unregister(self, agent):
-        obj = Agent(str(agent), agent)
+        obj = AgentContainer(str(agent), agent)
         self._agents.remove(obj)
 
     def schedule(self, obj, dt, callback, *args, **kwargs):

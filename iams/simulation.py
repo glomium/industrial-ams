@@ -11,6 +11,7 @@ import os
 # from dataclasses import asdict
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import wait
+from copy import deepcopy
 from importlib import import_module
 from itertools import product
 from math import floor
@@ -252,19 +253,16 @@ def main(args, function=run_simulation):
             fobj.close()
 
         for kwargs in process_config(fobj.name, config, dryrun=args.dryrun, force=args.force, loglevel=args.loglevel):
-            kwarg_list.append(kwargs)
+            kwarg_list.append(deepcopy(kwargs))
 
     if len(kwarg_list) == 1:
         function(**kwarg_list.pop(0))
     elif len(kwarg_list) > 1:
         with ProcessPoolExecutor() as executor:
             futures = []
-            while True:
-                try:
-                    futures.append(executor.submit(function, **kwarg_list.pop(0)))
-                except IndexError:
-                    break
-
+            for kwargs in kwarg_list:
+                futures.append(executor.submit(function, **kwargs))
+            del kwarg_list
             wait(futures)
             for future in futures:
                 future.result()

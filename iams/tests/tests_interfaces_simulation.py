@@ -4,6 +4,7 @@
 import io
 import unittest
 
+from iams.interfaces.simulation import Agent
 from iams.interfaces.simulation import Queue
 from iams.interfaces.simulation import SimulationInterface
 
@@ -17,7 +18,7 @@ class Simulation(SimulationInterface):
         pass
 
 
-class Agent(object):
+class SimulationAgent(Agent):
 
     def __init__(self):
         self.data = 0
@@ -33,6 +34,28 @@ class Agent(object):
     def callback(self, simulation):
         simulation.schedule(self, 0.5, 'callback')
         self.data += 1
+
+
+class AgentTests(unittest.TestCase):  # pragma: no cover
+    def test_str(self):
+        agent = Agent()
+        agent.name = "test"
+        self.assertEqual(str(agent), 'test')
+
+    def test_hash(self):
+        agent = Agent()
+        agent.name = "test"
+        self.assertEqual(hash(agent), hash('test'))
+
+    def test_call(self):
+        agent = Agent()
+        agent.name = "test"
+        self.assertEqual(agent(None, False), None)
+
+    def test_asdict(self):
+        agent = Agent()
+        agent.name = "test"
+        self.assertEqual(agent.asdict(), {'name': 'test'})
 
 
 class QueueTests(unittest.TestCase):  # pragma: no cover
@@ -65,7 +88,7 @@ class SimulationInterfaceTests(unittest.TestCase):  # pragma: no cover
             dryrun=True,
             settings={},
         )
-        agent = Agent()
+        agent = SimulationAgent()
         self.instance.register(agent)
         with self.assertRaises(KeyError):
             self.instance.register(agent)
@@ -101,6 +124,13 @@ class SimulationInterfaceTests(unittest.TestCase):  # pragma: no cover
         self.instance._fobj.seek(0)
         written = self.instance._fobj.read()
         self.assertEqual(written, '"test"\n')
+
+    def test_write_csv(self):
+        self.instance.write_csv({'test': 1})
+        self.instance.write_csv({'test': 2})
+        self.instance._fobj.seek(0)
+        written = self.instance._fobj.read()
+        self.assertEqual(written, 'test\r\n1\r\n2\r\n')
 
     def test_get_time(self):
         self.assertEqual(self.instance.get_time(), 0.0)

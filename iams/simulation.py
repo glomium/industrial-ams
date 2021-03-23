@@ -11,6 +11,7 @@ import os
 # from dataclasses import asdict
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import wait
+from copy import deepcopy
 from importlib import import_module
 from itertools import product
 from math import floor
@@ -27,8 +28,11 @@ logger = logging.getLogger(__name__)
 
 def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING):
     path = os.path.abspath(path)
-    folder = os.path.dirname(path)
+    folder = os.path.join(os.path.dirname(path), config.get("foldername", "results"))
     project = os.path.basename(path)[:-5]
+
+    if not dryrun and not os.path.exists(folder):
+        os.mkdir(folder)
 
     permutations = []
     length = 1
@@ -65,8 +69,7 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
 
 def prepare_run(count, folder, template, run_config, config):
     name = template.format(count, **run_config)
-
-    seed = config.get('seed', name)
+    seed = config.get('seed', name).format(count, **run_config)
     start = config.get('start', 0)
     stop = config.get('stop', None)
 
@@ -250,19 +253,16 @@ def main(args, function=run_simulation):
             fobj.close()
 
         for kwargs in process_config(fobj.name, config, dryrun=args.dryrun, force=args.force, loglevel=args.loglevel):
-            kwarg_list.append(kwargs)
+            kwarg_list.append(deepcopy(kwargs))
 
     if len(kwarg_list) == 1:
         function(**kwarg_list.pop(0))
     elif len(kwarg_list) > 1:
         with ProcessPoolExecutor() as executor:
             futures = []
-            while True:
-                try:
-                    futures.append(executor.submit(function, **kwarg_list.pop(0)))
-                except IndexError:
-                    break
-
+            for kwargs in kwarg_list:
+                futures.append(executor.submit(function, **kwargs))
+            del kwarg_list
             wait(futures)
             for future in futures:
                 future.result()

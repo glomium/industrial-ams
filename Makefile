@@ -25,8 +25,8 @@ buildx:
 
 
 test:
-	doc8 iams papers
-	flake8 iams papers
+	doc8 iams benchmark publication
+	flake8 iams benchmark publication
 	coverage run -m unittest -v
 	coverage report
 

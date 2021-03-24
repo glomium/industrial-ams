@@ -13,11 +13,14 @@ logger = logging.getLogger(__name__)
 
 class CFSSL(CertificateAuthorityInterface):
 
-    def __init__(self, service, hosts=[], rsa=2048):
+    def __init__(self, service, hosts=None, rsa=2048):
         self.service = service
         self.rsa_size = rsa
-        self.hosts = ["127.0.0.1", "localhost"] + hosts
+        self.hosts = ["127.0.0.1", "localhost"]
+        if hosts:
+            self.hosts += hosts
         self.root_ca = None
+        logger.debug("CFSSL(%s, %s)", service, self.hosts)
 
     def __call__(self):
         response = requests.post(f'http://{self.service}/api/v1/cfssl/info', json={}).json()
@@ -36,13 +39,19 @@ class CFSSL(CertificateAuthorityInterface):
         if image is None and version is None:
             cn = self.set_credentials(None, None, None, name, groups)
             profile = "peer"
-            hosts += self.hosts
+            if hosts:
+                hosts += self.hosts
+            else:
+                hosts = self.hosts
         else:
             cn = self.set_credentials(name, image, version, None, groups)
             # algo = "ecdsa"
             # size = 256
             profile = "peer"
-            hosts = [name] + self.hosts
+            if name:
+                hosts = [name] + self.hosts
+            else:
+                hosts = self.hosts
 
         return self._get_certificate(cn, hosts, profile, algo, size)
 

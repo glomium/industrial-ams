@@ -95,11 +95,15 @@ def main(args):
     else:
         args.host = []
 
+    # init and configure certificate authority
     ca = CFSSL(args.cfssl, args.hosts, args.rsa)
     ca()
+    # init and configure directory facilitator
     df = ArangoDF()
     df()
+    # init and configure runtime
     runtime = DockerSwarmRuntime(ca)
+    runtime()
 
     # dynamically load services from environment
     for cls in get_plugins():
@@ -118,7 +122,7 @@ def main(args):
     threadpool = ThreadPoolExecutor()
     server = grpc.server(threadpool)
 
-    logger.info("Generating certificates")
+    logger.info("Generating certificates for root:%s", runtime.servername)
     certificate, private_key = ca.get_service_certificate("root", hosts=[runtime.servername])
     credentials = grpc.ssl_server_credentials(
         ((private_key, certificate),),

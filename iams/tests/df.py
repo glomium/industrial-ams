@@ -9,7 +9,7 @@ import networkx as nx
 logger = logging.getLogger(__name__)
 
 
-class TestDF(object):
+class DF(object):
 
     def __call__(self):
         self.topology = nx.DiGraph()

@@ -15,19 +15,19 @@ import grpc
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 
-from .ca import CFSSL
-from .constants import AGENT_PORT
-from .df import ArangoDF
-from .exceptions import SkipPlugin
-from .helper import get_logging_config
-from .proto.ca_pb2_grpc import add_CertificateAuthorityServicer_to_server
-from .proto.df_pb2_grpc import add_DirectoryFacilitatorServicer_to_server
-from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
-from .runtime import DockerSwarmRuntime
-from .servicer import CertificateAuthorityServicer
-from .servicer import DirectoryFacilitatorServicer
-from .servicer import FrameworkServicer
-from .utils.plugins import get_plugins
+from iams.ca import CFSSL
+from iams.constants import AGENT_PORT
+from iams.df import ArangoDF
+from iams.exceptions import SkipPlugin
+from iams.helper import get_logging_config
+from iams.proto.ca_pb2_grpc import add_CertificateAuthorityServicer_to_server
+from iams.proto.df_pb2_grpc import add_DirectoryFacilitatorServicer_to_server
+from iams.proto.framework_pb2_grpc import add_FrameworkServicer_to_server
+from iams.runtime import DockerSwarmRuntime
+from iams.servicer import CertificateAuthorityServicer
+from iams.servicer import DirectoryFacilitatorServicer
+from iams.servicer import FrameworkServicer
+from iams.utils.plugins import get_plugins
 
 
 logger = logging.getLogger(__name__)

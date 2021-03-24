@@ -41,7 +41,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         self.event.set()
 
     # RPC
-    @permissions(has_agent=True, has_groups=["root", "web"])
+    @permissions()
     def update(self, request, context):
         logger.debug('Update called from %s', context._username)
         request.name = self.get_agent_name(context, request.name)
@@ -61,8 +61,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         return framework_pb2.AgentData(name=request.name)
 
-    # RPC
-    @permissions(has_agent=True, has_groups=["root", "web"])
+    @permissions
     def create(self, request, context):
         logger.debug('create called from %s', context._username)
 
@@ -104,8 +103,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
         return framework_pb2.AgentData(name=request.name)
 
-    # RPC
-    @permissions(has_agent=True)
+    @permissions
     def upgrade(self, request, context):
         logger.debug('upgrade called from %s', context._agent)
         self.runtime.update_agent(framework_pb2.AgentData(name=request.name), update=True)  # noqa
@@ -125,8 +123,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             message = 'Given an invalid agent name (%s) in request' % name
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-    # RPC
-    @permissions(has_agent=True, has_groups=["root", "web"])
+    @permissions
     def destroy(self, request, context):
         logger.debug('Destroy called from %s', context._username)
         try:
@@ -137,8 +134,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         except docker_errors.NotFound as e:
             context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
-    # RPC
-    @permissions(has_agent=True)
+    @permissions
     def sleep(self, request, context):
         logger.debug('sleep called from %s', context._agent)
         try:
@@ -149,8 +145,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
         except docker_errors.NotFound as e:
             context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
 
-    # RPC
-    @permissions(has_agent=True)
+    @permissions
     def wake(self, request, context):
         logger.debug('wake called from %s', context._agent)
         try:
@@ -202,11 +197,7 @@ class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):
 
         # generate private key and certificate and send it
         # the request is authenticated and origins from an agent, i.e it contains image and version
-        certificate, private_key = self.ca.get_agent_certificate(
-            request.name,
-            image=context._image,
-            version=context._version,
-        )
+        certificate, private_key = self.ca.get_agent_certificate(request.name)
 
         return ca_pb2.RenewResponse(
             private_key=private_key,

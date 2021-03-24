@@ -49,11 +49,11 @@ class Servicer(agent_pb2_grpc.AgentServicer):
         # caches
         self._topology = None
 
-    @permissions(has_agent=True, has_groups=["root", "web"])
+    @permissions()
     def ping(self, request, context):
         return Empty()
 
-    @permissions(has_agent=True, has_groups=["root", "web"])
+    @permissions()
     def upgrade(self, request, context):
         if self.parent.callback_agent_upgrade():
             return Empty()
@@ -61,7 +61,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             message = 'Upgrade is not allowed'
             context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
-    @permissions(has_agent=True, has_groups=["root", "web"])
+    @permissions()
     def update(self, request, context):
         if self.parent.callback_agent_update():
             return Empty()
@@ -69,7 +69,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             message = 'Update is not allowed'
             context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
-    @permissions(has_agent=True, has_groups=["root", "web"])
+    @permissions()
     def reset(self, request, context):
         if self.parent.callback_agent_reset():
             return Empty()
@@ -77,7 +77,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):
             message = 'Reset is not allowed'
             context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
-    @permissions(has_agent=True)
+    @permissions()
     def position(self, request, context):
         if self.update_position(context._agent):
             return Empty()

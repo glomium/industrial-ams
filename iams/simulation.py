@@ -18,7 +18,7 @@ from math import floor
 from math import log10
 
 
-from iams.tests.df import TestDF
+from iams.tests.df import DF
 from iams.interfaces.simulation import SimulationInterface
 # from iams.interfaces.df import DirectoryFacilitatorInterface
 
@@ -90,7 +90,7 @@ def prepare_run(count, folder, template, run_config, config):
     try:
         module_name, class_name = config["directory-facilitator"].rsplit('.', 1)
     except (KeyError, AttributeError):
-        df = TestDF()
+        df = DF()
     else:
         raise NotImplementedError("the directory facilitator cannot be changed")
         # df = getattr(import_module(module_name), class_name)

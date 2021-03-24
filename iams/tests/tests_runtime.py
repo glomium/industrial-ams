@@ -5,6 +5,7 @@ import unittest
 
 from iams.tests.ca import CA
 from iams.exceptions import InvalidAgentName
+from iams.proto import framework_pb2
 
 try:
     import docker
@@ -91,7 +92,26 @@ class DockerSwarmRuntimeTests(unittest.TestCase):
 
     @unittest.expectedFailure
     def test_update_agent(self):
-        raise NotImplementedError
+        request = framework_pb2.AgentData(
+            name="doesnotexist",
+            image="busybox",
+            version="latest",
+            address="localhost",
+            port=5555,
+            autostart=False,
+        )
+        self.instance.update_agent(request, create=True)
+
+    def test_update_and_create_agent(self):
+        request = framework_pb2.AgentData(name="doesnotexist")
+        with self.assertRaises(ValueError):
+            self.instance.update_agent(request, create=True, update=True)
+
+    @unittest.expectedFailure
+    def test_agent_no_image_or_version(self):
+        request = framework_pb2.AgentData(name="doesnotexist")
+        with self.assertRaises(ValueError):
+            self.instance.update_agent(request)
 
     @unittest.expectedFailure
     def test_set_secret(self):

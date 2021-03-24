@@ -17,6 +17,7 @@ try:
     db = client.db("_system", username="root", password="root", verify=True)
     if db.has_database("iams_test"):
         db.delete_database("iams_test")
+
 except Exception as e:  # pragma: no cover
     SKIP = str(e)
 else:
@@ -197,9 +198,10 @@ class UR(object):
             }
 
 
-# @unittest.skipIf(SKIP is not None, SKIP)
-@unittest.skip
+@unittest.skipIf(SKIP is not None, SKIP)
+# @unittest.skip
 class ImportTests(unittest.TestCase):  # pragma: no cover
+
     def test_empty(self):
         agents = [
             IMS("IMS11", "IMS17:B2", "IMS13A:B1"),
@@ -227,8 +229,8 @@ class ImportTests(unittest.TestCase):  # pragma: no cover
         ]
         shuffle(agents)
 
-        instance = Arango("test", hosts="http://localhost:8529", password="root")
+        instance = Arango("test", hosts="http://localhost:8529", database="iams_test", password="root")
 
         for agent in agents:
             instance.create_agent(agent.name, agent.node)
-            instance.update_agent(agent.name, agent.node)
+            # instance.update_agent(agent.name, agent.node)

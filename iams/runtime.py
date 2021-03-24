@@ -36,10 +36,10 @@ class DockerSwarmRuntime(RuntimeInterface):
 
     def __call__(self) -> None:
         self.regex = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.iams_namespace[0:4])
-        if self.client is None:
+        if self.client is None:  # pragma: no cover (during testing we've already established the client)
             self.client = docker.DockerClient()
 
-        if self.namespace is None:
+        if self.namespace is None:  # pragma: no cover (we dont run the tests as docker services)
             self.container = self.client.containers.get(gethostname())
             service = self.container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
             self.namespace = self.container.attrs["Config"]["Labels"][self.label]
@@ -142,7 +142,7 @@ class DockerSwarmRuntime(RuntimeInterface):
     def get_image_version(self, service):
         return service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].rsplit(':', 1)
 
-    def update_agent(self, request, create=False, update=False, seed=None):
+    def update_agent(self, request, create=False, update=False):
         try:
             service = self.get_service(request.name)
             scale = service.attrs['Spec']['Mode']['Replicated']['Replicas'] or int(request.autostart)
@@ -242,11 +242,6 @@ class DockerSwarmRuntime(RuntimeInterface):
                 'IAMS_PORT': request.port,
             })
 
-        if seed:
-            env.update({
-                'IAMS_SEED': seed,
-            })
-
         env.update({
             'IAMS_AGENT': request.name,
             'IAMS_SERVICE': self.servername,
@@ -277,11 +272,7 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         # get private_key and certificate
         secrets["%s_ca.crt" % self.namespace] = "ca.crt"
-        certificate, private_key = self.ca.get_agent_certificate(
-            request.name,
-            image=request.image,
-            version=request.version,
-        )
+        certificate, private_key = self.ca.get_agent_certificate(request.name)
         generated.append(("peer.crt", "peer.crt", certificate))
         generated.append(("peer.key", "peer.key", private_key))
 

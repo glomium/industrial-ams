@@ -18,6 +18,11 @@ try:
         # test if docker-client allowed to call the nodes list
         # and thus is a manager and can create services
         client.nodes.list(filters={'role': 'manager'})
+        try:
+            client.images.get("busybox:latest")
+        except docker.errors.ImageNotFound:
+            client.images.pull("busybox:latest")
+
     except Exception:  # pragma: no cover
         SKIP = True
     else:

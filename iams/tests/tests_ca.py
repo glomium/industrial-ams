@@ -20,6 +20,10 @@ class CFSSLTests(unittest.TestCase):  # pragma: no cover
     def test_init(self):
         CFSSL("localhost:8888", hosts=["*.domain"])
 
+    def test_get_ca_secret(self):
+        ca = cfssl.get_ca_secret({}, "test")
+        self.assertEqual(ca, {'test_ca.crt': "ca.crt"})
+
     def test_get_root_certificate1(self):
         ca = cfssl.get_root_ca()
         self.assertEqual(ca[:27], b'-----BEGIN CERTIFICATE-----')

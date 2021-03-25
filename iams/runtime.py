@@ -142,7 +142,7 @@ class DockerSwarmRuntime(RuntimeInterface):
     def get_image_version(self, service):
         return service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].rsplit(':', 1)
 
-    def update_agent(self, request, create=False, update=False):
+    def update_agent(self, request, create=False, update=False, skip_label_test=False):
         try:
             service = self.get_service(request.name)
             scale = service.attrs['Spec']['Mode']['Replicated']['Replicas'] or int(request.autostart)
@@ -154,7 +154,7 @@ class DockerSwarmRuntime(RuntimeInterface):
                 env_name, value = self.RE_ENV.match(env).groups()
                 if env_name == "ADDRESS":
                     address = value
-                if env_name == "PORT":
+                elif env_name == "PORT":
                     port = value
             config = self.get_agent_config(service)
 
@@ -192,7 +192,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         if create and update:
             raise ValueError("service already exists")
 
-        if request.image is None or request.version is None:
+        if not request.image or not request.version:
             raise ValueError("image and version must be set")
 
         # no changes occur
@@ -207,7 +207,7 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         # check image labels
         image_object = self.client.images.get(f'{request.image!s}:{request.version!s}')
-        if 'iams.services.agent' not in image_object.labels:
+        if not skip_label_test and 'iams.services.agent' not in image_object.labels:
             raise docker.errors.ImageNotFound(
                 f'Image {request.image!s}:{request.version!s} is missing the iams.service.agent label.',
             )
@@ -245,14 +245,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         env.update({
             'IAMS_AGENT': request.name,
             'IAMS_SERVICE': self.servername,
-            # 'IAMS_SIMULATION': str(self.simulation).lower(),
         })
-
-        # TODO check if needed
-        if "IAMS_RUNTESTS" in os.environ:
-            env.update({
-                'IAMS_RUNTESTS': os.environ["IAMS_RUNTESTS"],
-            })
 
         # for label in image_object.labels:
         #     if self.RE_ABILITY.match(label):
@@ -271,7 +264,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         networks = list(networks)
 
         # get private_key and certificate
-        secrets["%s_ca.crt" % self.namespace] = "ca.crt"
+        secrets = self.ca.get_ca_secret(secrets, self.namespace)
         certificate, private_key = self.ca.get_agent_certificate(request.name)
         generated.append(("peer.crt", "peer.crt", certificate))
         generated.append(("peer.key", "peer.key", private_key))

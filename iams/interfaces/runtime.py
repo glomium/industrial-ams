@@ -59,6 +59,10 @@ class RuntimeInterface(ABC):
     def wake_agent(self, name):  # pragma: no cover
         pass
 
+    def delete_agent_plugins(self, name):
+        for plugin, args in self.get_agent_plugins(name):
+            plugin.remove(name, args)
+
     def register_plugin(self, plugin):
         assert isinstance(plugin, Plugin)
         logger.debug('register plugin %s', repr(plugin))

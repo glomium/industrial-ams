@@ -24,6 +24,10 @@ class CFSSL(CertificateAuthorityInterface):
         response = requests.post(f'http://{self.service}/api/v1/cfssl/info', json={}).json()
         self.root_ca = response["result"]["certificate"].encode()
 
+    def get_ca_secret(self, data, namespace):
+        data["%s_ca.crt" % namespace] = "ca.crt"
+        return data
+
     def get_root_ca(self):
         return self.root_ca
 

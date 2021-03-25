@@ -20,6 +20,10 @@ class CertificateAuthorityInterface(ABC):
         pass
 
     @abstractmethod
+    def get_ca_secret(self, data, namespace):  # pragma: no cover
+        pass
+
+    @abstractmethod
     def get_agent_certificate(self, name, hosts=None):  # pragma: no cover
         pass
 

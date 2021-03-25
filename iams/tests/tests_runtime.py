@@ -90,8 +90,14 @@ class DockerSwarmRuntimeTests(unittest.TestCase):
     def test_get_image_version(self):
         raise NotImplementedError
 
-    @unittest.expectedFailure
-    def test_update_agent(self):
+    def test_agent_create_update_delete(self):
+        # delete (in case an error ocured earlier)
+        try:
+            self.instance.delete_agent("doesnotexist")
+        except docker.errors.NotFound:
+            pass
+
+        # create
         request = framework_pb2.AgentData(
             name="doesnotexist",
             image="busybox",
@@ -100,14 +106,34 @@ class DockerSwarmRuntimeTests(unittest.TestCase):
             port=5555,
             autostart=False,
         )
-        self.instance.update_agent(request, create=True)
+        self.instance.update_agent(request, create=True, skip_label_test=True)
 
-    def test_update_and_create_agent(self):
+        # update
+        request = framework_pb2.AgentData(
+            name="doesnotexist",
+            image="busybox",
+            version="latest",
+            autostart=False,
+        )
+        self.instance.update_agent(request, skip_label_test=True)
+
+        # delete
+        self.instance.delete_agent("doesnotexist")
+
+    def test_image_has_no_label(self):
+        request = framework_pb2.AgentData(
+            name="doesnotexist",
+            image="busybox",
+            version="latest",
+        )
+        with self.assertRaises(docker.errors.ImageNotFound):
+            self.instance.update_agent(request, create=True)
+
+    def test_update_and_create_set(self):
         request = framework_pb2.AgentData(name="doesnotexist")
         with self.assertRaises(ValueError):
             self.instance.update_agent(request, create=True, update=True)
 
-    @unittest.expectedFailure
     def test_agent_no_image_or_version(self):
         request = framework_pb2.AgentData(name="doesnotexist")
         with self.assertRaises(ValueError):

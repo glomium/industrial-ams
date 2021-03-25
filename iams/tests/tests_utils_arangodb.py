@@ -17,7 +17,6 @@ try:
     db = client.db("_system", username="root", password="root", verify=True)
     if db.has_database("iams_test"):
         db.delete_database("iams_test")
-
 except Exception as e:  # pragma: no cover
     SKIP = str(e)
 else:
@@ -199,10 +198,10 @@ class UR(object):
 
 
 @unittest.skipIf(SKIP is not None, SKIP)
-# @unittest.skip
 class ImportTests(unittest.TestCase):  # pragma: no cover
 
-    def test_empty(self):
+    @unittest.skip
+    def test_empty2(self):
         agents = [
             IMS("IMS11", "IMS17:B2", "IMS13A:B1"),
             IMS("IMS13A", "IMS11:B2", "IMS13B:B1"),

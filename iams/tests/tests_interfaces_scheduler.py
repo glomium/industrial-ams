@@ -28,6 +28,50 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(event.get_eta(), 10)
         self.assertTrue(isinstance(event.eta, int))
 
+    def test_eta_tuple1(self):
+        event = Event(eta=[1], duration=0, callback="callback")
+        self.assertEqual(event.get_eta(), 1)
+        self.assertEqual(event.get_eta_min(), None)
+        self.assertEqual(event.get_eta_max(), None)
+
+    def test_eta_tuple2(self):
+        event = Event(eta=[1, 2], duration=0, callback="callback")
+        self.assertEqual(event.get_eta(), None)
+        self.assertEqual(event.get_eta_min(), 1)
+        self.assertEqual(event.get_eta_max(), 2)
+
+    def test_eta_tuple3(self):
+        event = Event(eta=[1, 2, 3], duration=0, callback="callback")
+        self.assertEqual(event.get_eta(), 2)
+        self.assertEqual(event.get_eta_min(), 1)
+        self.assertEqual(event.get_eta_max(), 3)
+
+    def test_eta_tuple4(self):
+        with self.assertRaises(ValueError):
+            Event(eta=[1, 2, 3, 4], duration=0, callback="callback")
+
+    def test_etd_tuple1(self):
+        event = Event(eta=0, etd=[1], duration=0, callback="callback")
+        self.assertEqual(event.get_etd(), 1)
+        self.assertEqual(event.get_etd_min(), None)
+        self.assertEqual(event.get_etd_max(), None)
+
+    def test_etd_tuple2(self):
+        event = Event(eta=0, etd=[1, 2], duration=0, callback="callback")
+        self.assertEqual(event.get_etd(), None)
+        self.assertEqual(event.get_etd_min(), 1)
+        self.assertEqual(event.get_etd_max(), 2)
+
+    def test_etd_tuple3(self):
+        event = Event(eta=0, etd=[1, 2, 3], duration=0, callback="callback")
+        self.assertEqual(event.get_etd(), 2)
+        self.assertEqual(event.get_etd_min(), 1)
+        self.assertEqual(event.get_etd_max(), 3)
+
+    def test_etd_tuple4(self):
+        with self.assertRaises(ValueError):
+            Event(eta=0, etd=[1, 2, 3, 4], duration=0, callback="callback")
+
     def test_duration(self):
         event = Event(eta=0, duration=1, callback="callback")
         self.assertEqual(event.get_duration(), 1)
@@ -35,8 +79,14 @@ class EventTests(unittest.TestCase):  # pragma: no cover
     def test_event_schedule(self):
         event = Event(eta=0, duration=0, callback="callback")
         self.assertEqual(event.state, States.NEW)
-        event.schedule()
+        event.schedule(0, 10)
         self.assertEqual(event.state, States.SCHEDULED)
+
+    def test_event_schedule_error(self):
+        event = Event(eta=0, duration=0, callback="callback")
+        self.assertEqual(event.state, States.NEW)
+        with self.assertRaises(AssertionError):
+            event.schedule(10, 0)
 
     def test_event_arrive(self):
         event = Event(eta=0, duration=0, callback="callback")

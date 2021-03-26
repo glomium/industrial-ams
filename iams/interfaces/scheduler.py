@@ -37,19 +37,63 @@ class Event:
     kwargs: dict = field(default_factory=dict, repr=False, init=True, compare=True)
 
     state: States = field(default=States.NEW, repr=True, init=True, compare=False)
-    schedule_start: Union[float, datetime] = field(default=None, repr=True, init=False, compare=False)
-    schedule_finish: Union[float, datetime] = field(default=None, repr=True, init=False, compare=False)
-    eta: Union[float, datetime] = field(default=None, repr=True, init=True, compare=True)
-    eta_min: Union[float, datetime] = field(default=None, repr=True, init=True, compare=False)
-    eta_max: Union[float, datetime] = field(default=None, repr=True, init=True, compare=False)
-    etd: Union[float, datetime] = field(default=None, repr=True, init=True, compare=True)
-    etd_min: Union[float, datetime] = field(default=None, repr=True, init=True, compare=False)
-    etd_max: Union[float, datetime] = field(default=None, repr=True, init=True, compare=False)
+    schedule_start: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
+    schedule_finish: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
+    eta: Union[list, tuple, int, float, datetime] = field(default=None, repr=True, init=True, compare=True)
+    eta_min: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
+    eta_max: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
+    etd: Union[list, tuple, int, float, datetime, None] = field(default=None, repr=True, init=True, compare=True)
+    etd_min: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
+    etd_max: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     use_datetime: bool = field(default=False, repr=False, init=False, compare=False)
 
     def __post_init__(self):
         if isinstance(self.eta, datetime):
             self.use_datetime = True
+
+        if isinstance(self.eta, (tuple, list)):
+            if len(self.eta) == 1:
+                self.eta = self.eta[0]
+            elif len(self.eta) == 2:
+                self.eta_min, self.eta_max = self.eta
+                self.eta = None
+            elif len(self.eta) == 3:
+                self.eta_min, self.eta, self.eta_max = self.eta
+            else:
+                raise ValueError("ETA list or tuple is to long")
+
+        if isinstance(self.etd, (tuple, list)):
+            if len(self.etd) == 1:
+                self.etd = self.etd[0]
+            elif len(self.etd) == 2:
+                self.etd_min, self.etd_max = self.etd
+                self.etd = None
+            elif len(self.etd) == 3:
+                self.etd_min, self.etd, self.etd_max = self.etd
+            else:
+                raise ValueError("ETD list or tuple is to long")
+
+        if isinstance(self.eta, datetime) \
+                or isinstance(self.eta_min, datetime) \
+                or isinstance(self.eta_max, datetime):
+            self.use_datetime = True
+
+        if self.use_datetime:
+            for x in ["eta", "eta_min", "eta_max", "etd", "etd_min", "etd_max"]:
+                attr = getattr(self, x)
+                assert attr is None \
+                    or isinstance(attr, datetime), "self.%s has the wrong type (%s)" % (x, type(attr))
+        else:
+            for x in ["eta", "eta_min", "eta_max", "etd", "etd_min", "etd_max"]:
+                attr = getattr(self, x)
+                assert attr is None \
+                    or isinstance(attr, (int, float)), "self.%s has the wrong type (%s)" % (x, type(attr))
+
+    def _get_seconds(self, seconds, now):
+        if self.use_datetime:
+            assert isinstance(now, datetime), "When using datetime, the current time needs to be provided"
+            return now + timedelta(seconds=seconds)
+        return seconds
 
     def _get_time(self, name, now):
         value = getattr(self, name)
@@ -60,29 +104,37 @@ class Event:
         return value
 
     def _set_time(self, name, seconds, now):
-        if self.use_datetime:
-            assert isinstance(now, datetime), "When using datetime, the current time needs to be provided"
-            setattr(self, name, now + timedelta(seconds=seconds))
-        else:
-            setattr(self, name, seconds)
+        seconds = self._get_seconds(seconds, now)
+        setattr(self, name, seconds)
 
-    def arrive(self):
+    def arrive(self, now=None):
         self.state = States.ARRIVED
+        self.eta_max = None
+        self.eta_min = None
+        self.set_eta(0, now)
 
-    def cancel(self):
+    def cancel(self, now=None):
         self.state = States.CANCELED
 
-    def depart(self):
+    def depart(self, now=None):
         self.state = States.DEPARTED
+        self.etd_max = None
+        self.etd_min = None
+        self.set_etd(0, now)
 
-    def finish(self):
+    def finish(self, now=None):
         self.state = States.FINISHED
+        self.set_finish(0, now)
 
-    def schedule(self):
+    def schedule(self, start, finish, now=None):
+        assert finish >= start, "Finishing before starting is not allowed"
         self.state = States.SCHEDULED
+        self.set_start(start, now)
+        self.set_finish(finish, now)
 
-    def start(self):
+    def start(self, now=None):
         self.state = States.STARTED
+        self.set_start(0, now)
 
     def get_duration(self):
         return self.duration

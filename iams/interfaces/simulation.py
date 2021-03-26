@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+simulation interface
+"""
+
 import csv
 import json
 import logging
@@ -20,10 +24,15 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-class Agent(object):
+class Agent:  # pylint: disable=no-member
+    """
+    basic agent class for simulations
+    """
 
     def __call__(self, simulation, dryrun):
-        pass
+        """
+        init agent in simulation
+        """
 
     def __str__(self):
         return self.name
@@ -32,6 +41,9 @@ class Agent(object):
         return hash(self.name)
 
     def asdict(self):
+        """
+        returns the agent object's data as a dictionary
+        """
         return {
             'name': self.name,
         }
@@ -39,17 +51,23 @@ class Agent(object):
 
 @dataclass(order=True, frozen=True)
 class AgentContainer:
+    """
+    Storage of agent instances in simulation
+    """
     name: str = field(compare=True, repr=True, hash=True)
     obj: Any = field(compare=False, repr=False, hash=False)
 
 
 @dataclass(order=True, frozen=True)
-class Queue:
+class Queue:  # pylint: disable=too-many-instance-attributes
+    """
+    Storage of simulation events
+    """
     time: float = field(compare=True, repr=True, hash=False)
     number: int = field(compare=True, repr=False, hash=True)
     obj: Any = field(compare=False, repr=False, hash=False)
     callback: str = field(compare=False, repr=True, hash=False)
-    dt: float = field(compare=False, repr=False, hash=False)
+    dt: float = field(compare=False, repr=False, hash=False)  # pylint: disable=invalid-name
     args: list = field(compare=False, repr=False, default_factory=list, hash=False)
     kwargs: dict = field(compare=False, repr=False, default_factory=dict, hash=False)
     deleted: bool = field(compare=False, repr=False, hash=False, default=False)
@@ -58,12 +76,18 @@ class Queue:
         return "%.4f:%s:%s" % (self.time, self.obj, self.callback)
 
     def cancel(self):
+        """
+        cancel event from queue
+        """
         object.__setattr__(self, 'deleted', True)
 
 
-class SimulationInterface(ABC):
+class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
+    """
+    simulation interface
+    """
 
-    def __init__(self, df, name, folder, fobj, seed, start, stop):
+    def __init__(self, df, name, folder, fobj, seed, start, stop):  # pylint: disable=too-many-arguments
         logger.info("=== Start: %s", datetime.now())
         logger.info("=== Initialize %s", self.__class__.__qualname__)
         self._agents = set()
@@ -100,7 +124,7 @@ class SimulationInterface(ABC):
                 self._events -= 1 + len(self._queue)
                 break
 
-            dt = event.time - self._time
+            dt = event.time - self._time  # pylint: disable=invalid-name
             if dt > 0:  # pragma: no branch
                 logger.debug("Update timestamp: %.3f", event.time)
 
@@ -136,25 +160,37 @@ class SimulationInterface(ABC):
         return f'{self.__class__.__qualname__}({self._name})'
 
     def register(self, agent):
+        """
+        register agent
+        """
         obj = AgentContainer(str(agent), agent)
         if obj in self._agents:
-            raise KeyError('%s already registered', agent)
+            raise KeyError(f'{agent} already registered')
         self._agents.add(obj)
 
     def agents(self):
+        """
+        iterator over all agents
+        """
         for agent in self._agents:
             yield agent.obj
 
     def unregister(self, agent):
+        """
+        unregister agent
+        """
         obj = AgentContainer(str(agent), agent)
         self._agents.remove(obj)
 
-    def schedule(self, obj, dt, callback, *args, **kwargs):
+    def schedule(self, obj, dt, callback, *args, **kwargs):  # pylint: disable=invalid-name
+        """
+        schedules a new event
+        """
         self._events += 1
-        time = self._time + dt
-        logger.debug("Adding %s.%s at %s to queue", obj, callback, time)
+        event_time = self._time + dt
+        logger.debug("Adding %s.%s at %s to queue", obj, callback, event_time)
         queue = Queue(
-            time=time,
+            time=event_time,
             number=self._events,
             obj=obj,
             callback=callback,
@@ -166,13 +202,22 @@ class SimulationInterface(ABC):
         return queue
 
     def write(self, data):
+        """
+        writes the data to the simulations fileobject
+        """
         self._fobj.write(data)
 
     def write_json(self, data):
+        """
+        dumps the data as json with a newline
+        """
         json.dump(data, self._fobj)
         self._fobj.write('\n')
 
     def write_csv(self, data):
+        """
+        writes a data dictionary to CSV
+        """
         try:
             self._csv_writer.writerow(data)
         except AttributeError:
@@ -181,15 +226,24 @@ class SimulationInterface(ABC):
             self._csv_writer.writerow(data)
 
     def get_time(self):
+        """
+        returns the current simulation timeframe
+        """
         return self._time
 
     @abstractmethod
-    def setup(self, **kwargs):  # pragma: no cover
-        pass
+    def setup(self, **kwargs):
+        """
+        called to setup the simulation
+        """
 
     @abstractmethod
-    def stop(self, dryrun):  # pragma: no cover
-        pass
+    def stop(self, dryrun):
+        """
+        called when the simulation is stopped
+        """
 
-    def event_callback(self, event, dt, dryrun):
-        pass
+    def event_callback(self, event, dt, dryrun):  # pylint: disable=invalid-name
+        """
+        overwrite to process event callbacks
+        """

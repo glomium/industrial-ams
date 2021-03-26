@@ -1,3 +1,4 @@
-pip-upgrader
 grpcio
 grpcio-tools
+pip-upgrader
+wheel==0.36.2

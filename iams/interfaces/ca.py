@@ -1,6 +1,10 @@
 #!/usr/bin/python3
 # vim: set fileencoding=utf-8 :
 
+"""
+Handles the communication with certificate authorities
+"""
+
 import logging
 
 from abc import ABC
@@ -12,21 +16,30 @@ logger = logging.getLogger(__name__)
 
 class CertificateAuthorityInterface(ABC):
     """
+    Handles the communication with certificate authorities
     """
     __hash__ = None
 
     @abstractmethod
-    def __call__(self):  # pragma: no cover
-        pass
+    def __call__(self):
+        """
+        Init CA
+        """
 
     @abstractmethod
-    def get_ca_secret(self, data, namespace):  # pragma: no cover
-        pass
+    def get_ca_secret(self, data, namespace):
+        """
+        Init CA
+        """
 
     @abstractmethod
-    def get_agent_certificate(self, name, hosts=None):  # pragma: no cover
-        pass
+    def get_agent_certificate(self, name, hosts=None):
+        """
+        Get certificate for an agent
+        """
 
     @abstractmethod
-    def get_service_certificate(self, name, hosts=None):  # pragma: no cover
-        pass
+    def get_service_certificate(self, name, hosts=None):
+        """
+        Get certificate for a service
+        """

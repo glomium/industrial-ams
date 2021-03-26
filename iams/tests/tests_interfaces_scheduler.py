@@ -72,10 +72,6 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         with self.assertRaises(ValueError):
             Event(eta=0, etd=[1, 2, 3, 4], duration=0, callback="callback")
 
-    def test_duration(self):
-        event = Event(eta=0, duration=1, callback="callback")
-        self.assertEqual(event.get_duration(), 1)
-
     def test_event_schedule(self):
         event = Event(eta=0, duration=0, callback="callback")
         self.assertEqual(event.state, States.NEW)

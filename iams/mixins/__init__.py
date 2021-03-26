@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+iams default mixins
+"""
+
 __all__ = [
     'ArangoDBMixin',
     'EventMixin',

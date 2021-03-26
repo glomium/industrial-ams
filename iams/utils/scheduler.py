@@ -46,9 +46,15 @@ class BufferScheduler(SchedulerInterface):
         return self.solve_model(event, now, save=False)
 
     def convert(self, value):
+        """
+        returns an integer for every seconds with the defined resolution
+        """
         return round(value * self.resolution)
 
     def solve_model(self, new_event, now=None, save=False):
+        """
+        solve model with linear optimization
+        """
         events = self.events + [new_event]
         events = sorted(events, key=attrgetter('eta', 'etd'))
 
@@ -68,7 +74,7 @@ class BufferScheduler(SchedulerInterface):
         previous = None
         for i, event in enumerate(events):
             eta = self.convert(event.get_eta(now))
-            duration = self.convert(event.get_duration())
+            duration = self.convert(event.duration)
 
             etd = event.get_etd(now)
             if etd is None:
@@ -133,9 +139,9 @@ class BufferScheduler(SchedulerInterface):
         solver = cp_model.CpSolver()
         try:
             solver.Solve(model)
-        except Exception:  # pragma: no cover
+        except Exception as exception:  # pragma: no cover
             logger.exception("Solver failed")
-            raise CanNotSchedule('Solver failed')
+            raise CanNotSchedule('Solver failed') from exception
 
         # solver needs to be optimal to result in a match
         if solver.StatusName() not in ["OPTIMAL"]:

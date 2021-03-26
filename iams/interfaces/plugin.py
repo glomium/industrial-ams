@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+iams server plugins
+"""
+
 import logging
 
 from abc import ABC
@@ -10,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 class Plugin(ABC):
+    """
+    iams server plugins
+    """
 
     __hash__ = None
 
@@ -34,45 +41,46 @@ class Plugin(ABC):
     @classmethod
     @abstractmethod
     def label(cls):  # pragma: no cover
-        pass
+        """
+        returns the label with is matched with the runtime
+        """
 
     def remove(self, name, config):
         """
         called when agent is removed
         """
-        pass
 
-    def get_kwargs(self, name, image, version, config):
+    def get_kwargs(self, name, image, version, config):  # pylint: disable=unused-argument,no-self-use
         """
         generate keyword arguements
         """
         return {}
 
-    def get_labels(self, **kwargs):
+    def get_labels(self, **kwargs):  # pylint: disable=unused-argument,no-self-use
         """
         set labels for agent
         """
         return {}
 
-    def get_env(self, **kwargs):
+    def get_env(self, **kwargs):  # pylint: disable=unused-argument,no-self-use
         """
         set enviromment variables for agent
         """
         return {}
 
-    def get_networks(self, **kwargs):
+    def get_networks(self, **kwargs):  # pylint: disable=unused-argument,no-self-use
         """
         add agent to networks
         """
         return []
 
-    def get_configured_secrets(self, **kwargs):
+    def get_configured_secrets(self, **kwargs):  # pylint: disable=unused-argument,no-self-use
         """
         add preconfigured secret to agent
         """
         return {}
 
-    def get_generated_secrets(self, **kwargs):
+    def get_generated_secrets(self, **kwargs):  # pylint: disable=unused-argument,no-self-use
         """
         add automatically generated secret to agent
         """

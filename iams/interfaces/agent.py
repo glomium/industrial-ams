@@ -3,6 +3,7 @@
 
 import logging
 import signal
+import sys
 
 from abc import ABC
 from abc import abstractmethod
@@ -30,9 +31,16 @@ from iams.utils.ssl import validate_certificate
 logger = logging.getLogger(__name__)
 
 
-class AgentCAMixin(object):
+class AgentCAMixin:
+    """
+    Adds functionality to the agent to interact with certificate authorities
+    """
 
-    def ca_renew(self, hard=True):
+    @staticmethod
+    def ca_renew(hard=True):
+        """
+        Ask CA for a new certificate
+        """
         try:
             with framework_channel() as channel:
                 stub = CAStub(channel)
@@ -42,12 +50,15 @@ class AgentCAMixin(object):
             return None, None
 
 
-class AgentDAMixin(object):
-    pass
-
-
-class Agent(ABC, AgentCAMixin, AgentDAMixin):
+class AgentDFMixin:
     """
+    Adds functionality to the agent to interact with directory facilitators
+    """
+
+
+class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instance-attributes
+    """
+    iams agents
     """
     __hash__ = None
     MAX_WORKERS = None
@@ -113,9 +124,13 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
         try:
             self.configure()  # local module specification
             self._configure()  # definitions on mixins
-        except grpc.RpcError as e:  # pragma: no cover
-            logger.debug("gRPC request failed in configure - resetting: %s - %s", e.code(), e.details())
-            exit()
+        except grpc.RpcError as exception:  # pragma: no cover
+            logger.debug(
+                "gRPC request failed in configure - resetting: %s - %s",
+                exception.code(),
+                exception.details(),
+            )
+            sys.exit()
 
         if not self._stop_event.is_set():
             # control loop
@@ -124,8 +139,8 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
             self.start()
             try:
                 self._loop()
-            except Exception as e:
-                logger.exception(e)
+            except Exception as exception:  # pragma: no cover
+                logger.exception(str(exception))
 
         logger.debug("Stopping gRPC service on %s", self._iams.agent)
         self._grpc.stop()
@@ -136,10 +151,10 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
         self._teardown()
 
         logger.info("Exit %s", self._iams.agent)
-        exit()
+        sys.exit()
 
     def __stop(self, signum, frame):
-        logger.info("Exit requested with code %s", signum)
+        logger.info("Exit requested with code %s (%s)", signum, frame)
         self.stop()
 
     @contextmanager
@@ -151,71 +166,60 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
         """
         this method can be overwritten by mixins
         """
-        pass
 
     def _pre_setup(self):
         """
         this method can be overwritten by mixins
         """
-        pass
 
     def _post_setup(self):
         """
         this method can be overwritten by mixins
         """
-        pass
 
     def _start(self):
         """
         this method can be overwritten by mixins
         """
-        pass
 
     def _teardown(self):
         """
         this method can be overwritten by mixins
         """
-        pass
 
     @abstractmethod
-    def _loop(self):  # pragma: no cover
+    def _loop(self):
         """
         this method can be overwritten by mixins
         """
-        pass
 
     def _configure(self):
         """
         this method can be overwritten by mixins
         """
-        pass
 
     def configure(self):
         """
         configure is called after the agent informed the AMS that its booted. this step can be used to load
         additional information into the agent
         """
-        pass
 
     def setup(self):
         """
         executed directly after the instance is called. user defined.
         idea: setup communication to machine
         """
-        pass
 
     def grpc_setup(self):
         """
         add user-defined servicers to the grpc server
         """
-        pass
 
     def start(self):
         """
         executed directly before the loop runs
         execute functions that require the connection to other agents here.
         """
-        pass
 
     def stop(self):
         """
@@ -229,25 +233,21 @@ class Agent(ABC, AgentCAMixin, AgentDAMixin):
         function that might be used to inform other agents or services that this agent is
         about to shutdown
         """
-        pass
 
     def callback_agent_upgrade(self):
         """
         This function can be called from the agents and services to suggest
         hat the agent should upgrate it's software (i.e. docker image)
         """
-        pass
 
     def callback_agent_update(self):
         """
         This function can be called from the agents and services to suggest
         that the agent should update its configuration or state
         """
-        pass
 
     def callback_agent_reset(self):
         """
         This function can be called from the agents and services to suggest
         that the agent should reset its connected device
         """
-        pass

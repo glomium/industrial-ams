@@ -1,16 +1,15 @@
+coverage==5.5
 doc8==0.8.1
-flake8==3.9.0
 flake8-coding==1.3.2
 flake8-commas==2.0.0
 flake8-print==4.0.0
 flake8-todo==0.7
+flake8==3.9.0
 pep8-naming==0.11.1
+pylint==2.7.2
 
-coverage==5.5
-wheel==0.36.2
-
-ortools==8.2.8710
 networkx==2.5
 numpy==1.20.1
 opcua==0.98.13
+ortools==8.2.8710
 paho-mqtt==1.5.1

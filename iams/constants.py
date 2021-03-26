@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Constants used by the iams library
+"""
+
 AGENT_PORT = 443
-AGENT_CLOUDLESS = 8008

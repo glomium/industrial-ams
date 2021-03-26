@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Plugin validation
+"""
+Exceptions raised by iams library
+"""
+
+
 class SkipPlugin(AssertionError):
     """
+    Raised when an available plugin is not supported by the server
     """
-    pass
 
 
 class InvalidAgentName(ValueError):
     """
+    Raised if the agent name is not compatible with the runtime
     """
-    pass
 
 
 class CanNotSchedule(AssertionError):
     """
+    Raised if the scheduler does not find a solution
     """
-    pass

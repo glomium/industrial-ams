@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+opc ua mixin for agents
+"""
+
 import logging
 
 from types import MethodType
@@ -17,10 +21,11 @@ try:
     from opcua.common.subscription import SubHandler
     from opcua.ua.uatypes import DataValue
     from opcua.ua.uatypes import Variant
-    OPCUA = True
-except ImportError:
+except ImportError:  # pragma: no branch
     logger.exception("Could not import opcua library")
     OPCUA = False
+else:
+    OPCUA = True
 
 
 def monkeypatch_call_datachange(self, datachange):
@@ -49,28 +54,33 @@ class Handler(SubHandler):
         self.parent = parent
 
     def datachange_notifications(self, notifications):
+        """
+        packet datachange notifications
+        """
         response = False
         for node, val, data in notifications:
-            r = self.datachange_notification(node, val, data)
-            if not response and r in [None, True]:
+            result = self.datachange_notification(node, val, data)
+            if not response and result in [None, True]:
                 response = True
 
         if self.parent.opcua_datachanges(response):
-            self.parent._loop_event.set()
+            self.parent._loop_event.set()  # pylint: disable=protected-access
 
     def datachange_notification(self, node, val, data):
         """
+        single datachange notification
         """
         logger.debug("New data change event %s %s", node, val)
         return self.parent.opcua_datachange(node, val, data)
 
     def event_notification(self, event):
         """
+        opcua event notifications
         """
         logger.debug("New event %s", event)
         response = self.parent.opcua_event(event)
         if response is None or response is True:
-            self.parent._loop_event.set()
+            self.parent._loop_event.set()  # pylint: disable=protected-access
 
     def status_change_notification(self, status):
         """
@@ -79,10 +89,13 @@ class Handler(SubHandler):
         logger.debug("Status changed to %s", status)
         response = self.parent.opcua_status_change(status)
         if response is True:
-            self.parent._loop_event.set()
+            self.parent._loop_event.set()  # pylint: disable=protected-access
 
 
-class OPCUAMixin(EventMixin):
+class OPCUAMixin(EventMixin):  # pylint: disable=abstract-method
+    """
+    opc ua mixin for agents
+    """
     OPCUA_PORT = 4840
     OPCUA_TIMEOUT = 15
     OPCUA_HEARTBEAT = 12.5
@@ -173,9 +186,11 @@ class OPCUAMixin(EventMixin):
             nodes.append(node)
             values.append(DataValue(Variant(value, datatype)))
         self.opcua_client.set_values(nodes, values)
+        return None
 
     def opcua_subscribe(self, nodes, interval):
         """
+        unsubscribe to topic
         """
         if not OPCUA:
             return None
@@ -192,9 +207,11 @@ class OPCUAMixin(EventMixin):
                 self.opcua_handles[node] = (subscription, handle)
         except TypeError:
             self.opcua_handles[nodes] = (subscription, handle)
+        return None
 
     def opcua_unsubscribe(self, node):
         """
+        unsubscribe from topic
         """
         if not OPCUA:
             return None
@@ -203,6 +220,7 @@ class OPCUAMixin(EventMixin):
         except KeyError:
             return None
         subscription.unsubscribe(handle)
+        return None
 
     def _teardown(self):
         super()._teardown()

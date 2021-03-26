@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Industrial agent management system
+"""
+
 from functools import lru_cache
 
 VERSION = ((0, 6, 1), ('b', 0))
@@ -23,9 +27,9 @@ def get_version(dev=True, short=False):
     version += VERSION[1][0] + str(VERSION[1][1])
 
     if VERSION[1][1] == 0 and (dev or short):  # pragma: no cover
-        import os
-        import subprocess
-        import datetime
+        import os  # pylint: disable=import-outside-toplevel
+        import subprocess  # pylint: disable=import-outside-toplevel
+        import datetime  # pylint: disable=import-outside-toplevel
 
         # get version information from git
         repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

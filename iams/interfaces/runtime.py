@@ -1,6 +1,10 @@
 #!/usr/bin/python3
 # vim: set fileencoding=utf-8 :
 
+"""
+runtime interface
+"""
+
 import logging
 
 from abc import ABC
@@ -14,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class RuntimeInterface(ABC):
     """
+    runtime interface
     """
     __hash__ = None
 
@@ -21,49 +26,70 @@ class RuntimeInterface(ABC):
         self.plugins = []
 
     @abstractmethod
-    def get_valid_agent_name(self, name):  # pragma: no cover
+    def get_valid_agent_name(self, name):
         """
         returns the validated agent name, or raises an InvalidAgentName
         """
-        pass
 
     @abstractmethod
-    def get_agent_plugins(self, name):  # pragma: no cover
-        pass
+    def get_agent_plugins(self, name):
+        """
+        get agent plugins
+        """
 
     @abstractmethod
-    def get_agent_config(self, name):  # pragma: no cover
-        pass
+    def get_agent_config(self, name):
+        """
+        get agent config
+        """
 
     @abstractmethod
-    def delete_agent(self, service):  # pragma: no cover
-        pass
+    def delete_agent(self, service):
+        """
+        delete agent
+        """
 
     @abstractmethod
-    def delete_agent_secrets(self, name):  # pragma: no cover
-        pass
+    def delete_agent_secrets(self, name):
+        """
+        delete agent secrets
+        """
 
     @abstractmethod
-    def delete_agent_configs(self, name):  # pragma: no cover
-        pass
+    def delete_agent_configs(self, name):
+        """
+        delete agent configs
+        """
 
     @abstractmethod
-    def update_agent(self, request, create=False, update=False):  # pragma: no cover
-        pass
+    def update_agent(self, request, create=False, update=False):
+        """
+        update_agent
+        """
 
     @abstractmethod
-    def sleep_agent(self, name):  # pragma: no cover
-        pass
+    def sleep_agent(self, name):
+        """
+        sleep_agent
+        """
 
     @abstractmethod
-    def wake_agent(self, name):  # pragma: no cover
-        pass
+    def wake_agent(self, name):
+        """
+        wake_agent
+        """
 
     def delete_agent_plugins(self, name):
+        """
+        delete agent plugins
+        """
         for plugin, args in self.get_agent_plugins(name):
             plugin.remove(name, args)
 
     def register_plugin(self, plugin):
+        """
+        register plugins
+        """
         assert isinstance(plugin, Plugin)
         logger.debug('register plugin %s', repr(plugin))
         self.plugins.append(plugin)

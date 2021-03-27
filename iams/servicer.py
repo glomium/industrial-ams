@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+servicer
+"""
+
 import logging
 
 from threading import Event
@@ -27,12 +31,12 @@ from iams.utils.ssl import validate_certificate
 logger = logging.getLogger(__name__)
 
 
-class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
+class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disable=empty-docstring
 
     def __init__(self, runtime, ca, df, threadpool):
         self.runtime = runtime
-        self.ca = ca
-        self.df = df
+        self.ca = ca  # pylint: disable=invalid-name
+        self.df = df  # pylint: disable=invalid-name
 
         self.threadpool = threadpool
 
@@ -43,6 +47,10 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
     # RPC
     @permissions()
     def update(self, request, context):
+        """
+        update
+        """
+        # pylint: disable=protected-access
         logger.debug('Update called from %s', context._username)
         request.name = self.get_agent_name(context, request.name)
 
@@ -54,8 +62,8 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             message = f'Could not find image {request.image}:{request.version}'
             logger.debug(message)
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-        except docker_errors.NotFound as e:
-            message = str(e)
+        except docker_errors.NotFound as exception:
+            message = str(exception)
             logger.debug(message)
             context.abort(grpc.StatusCode.NOT_FOUND, message)
 
@@ -63,53 +71,65 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
 
     @permissions
     def create(self, request, context):
+        """
+        create
+        """
+        # pylint: disable=protected-access
         logger.debug('create called from %s', context._username)
+        raise NotImplementedError()
 
-        regex = self.RE_NAME.match(request.name)
-        if regex:
-            request.name = self.args.namespace[0:4] + '_' + regex.group(2)
-        else:
-            message = 'A name with starting with a letter, ending with an alphanumerical chars and ' \
-                      'only containing alphanumerical values and hyphens is required to define agents'
-            logger.debug(message)
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+        # regex = self.RE_NAME.match(request.name)
+        # if regex:
+        #     request.name = self.args.namespace[0:4] + '_' + regex.group(2)
+        # else:
+        #     message = 'A name with starting with a letter, ending with an alphanumerical chars and ' \
+        #               'only containing alphanumerical values and hyphens is required to define agents'
+        #     logger.debug(message)
+        #     context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        if not request.image:
-            message = 'An image is required to define agents'
-            logger.debug(message)
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+        # if not request.image:
+        #     message = 'An image is required to define agents'
+        #     logger.debug(message)
+        #     context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        if not request.version:
-            message = 'A version is required to define agents'
-            logger.debug(message)
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+        # if not request.version:
+        #     message = 'A version is required to define agents'
+        #     logger.debug(message)
+        #     context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        try:
-            self.runtime.update_agent(request)
+        # try:
+        #     self.runtime.update_agent(request)
 
-        except docker_errors.ImageNotFound:
-            message = f'Could not find image {request.image}:{request.version}'
-            logger.debug(message)
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-        except docker_errors.NotFound as e:
-            message = f'{e!s}'
-            logger.debug(message)
-            context.abort(grpc.StatusCode.NOT_FOUND, message)
+        # except docker_errors.ImageNotFound:
+        #     message = f'Could not find image {request.image}:{request.version}'
+        #     logger.debug(message)
+        #     context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+        # except docker_errors.NotFound as exception:
+        #     message = f'{exception!s}'
+        #     logger.debug(message)
+        #     context.abort(grpc.StatusCode.NOT_FOUND, message)
+        # except ValueError as exception:
+        #     message = f'{exception!s}'
+        #     logger.debug(message)
+        #     context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        except ValueError as e:
-            message = f'{e!s}'
-            logger.debug(message)
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
-
-        return framework_pb2.AgentData(name=request.name)
+        # return framework_pb2.AgentData(name=request.name)
 
     @permissions
     def upgrade(self, request, context):
+        """
+        upgrade
+        """
+        # pylint: disable=protected-access
         logger.debug('upgrade called from %s', context._agent)
         self.runtime.update_agent(framework_pb2.AgentData(name=request.name), update=True)  # noqa
         return Empty()
 
     def get_agent_name(self, context, name):
+        """
+        get agent name
+        """
+        # pylint: disable=protected-access
         if context._agent is None and name is None:
             message = 'Need to give agent name in request'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
@@ -121,58 +141,73 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):
             return self.runtime.get_valid_agent_name(name)
         except InvalidAgentName:
             message = 'Given an invalid agent name (%s) in request' % name
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+            return context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
     @permissions
     def destroy(self, request, context):
+        """
+        destroy
+        """
+        # pylint: disable=protected-access
         logger.debug('Destroy called from %s', context._username)
         try:
             request.name = self.get_agent_name(context, request.name)
+        except docker_errors.NotFound as exception:
+            return context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
+        else:
             if self.runtime.delete_agent(request.name):
                 return Empty()
-
-        except docker_errors.NotFound as e:
-            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
+            return Empty()
 
     @permissions
     def sleep(self, request, context):
+        """
+        sleep
+        """
+        # pylint: disable=protected-access
         logger.debug('sleep called from %s', context._agent)
         try:
             request.name = self.get_agent_name(context, request.name)
+        except docker_errors.NotFound as exception:
+            raise context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
+        else:
             if self.runtime.sleep_agent(request.name):
                 return Empty()
-
-        except docker_errors.NotFound as e:
-            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
+            return Empty()
 
     @permissions
     def wake(self, request, context):
+        """
+        wake agent
+        """
+        # pylint: disable=protected-access
         logger.debug('wake called from %s', context._agent)
         try:
             request.name = self.get_agent_name(context, request.name)
+        except docker_errors.NotFound as exception:
+            raise context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
+        else:
             if self.runtime.wake_agent(request.name):
                 return Empty()
-
-        except docker_errors.NotFound as e:
-            context.abort(grpc.StatusCode.NOT_FOUND, f'{e!s}')
+            return Empty()
 
 
-class DirectoryFacilitatorServicer(df_pb2_grpc.DirectoryFacilitatorServicer):
+class DirectoryFacilitatorServicer(df_pb2_grpc.DirectoryFacilitatorServicer):  # pylint: disable=empty-docstring
     def __init__(self, df):
-        self.df = df
+        self.df = df  # pylint: disable=invalid-name
 
 
-class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):
+class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):  # pylint: disable=empty-docstring
     def __init__(self, ca, runtime, threadpool):
-        self.ca = ca
+        self.ca = ca  # pylint: disable=invalid-name
         self.runtime = runtime
         self.threadpool = threadpool
 
     @permissions(is_optional=True)
     def renew(self, request, context):
 
-        if context._agent is not None:
-            request.name = context._agent
+        if context._agent is not None:  # pylint: disable=protected-access
+            request.name = context._agent  # pylint: disable=protected-access
         else:
 
             # connect to ping-rpc on name and check if connection breaks due to an invalid certificate
@@ -199,7 +234,7 @@ class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):
         # the request is authenticated and origins from an agent, i.e it contains image and version
         certificate, private_key = self.ca.get_agent_certificate(request.name)
 
-        return ca_pb2.RenewResponse(
+        return ca_pb2.RenewResponse(  # pylint: disable=no-member
             private_key=private_key,
             certificate=certificate,
         )

@@ -3,7 +3,7 @@
 """
 unittests for iams.interfaces.scheduler
 """
-# pylint: disable=missing-function-docstring,missing-class-docstring,protected-access
+# pylint: disable=missing-function-docstring,missing-class-docstring,protected-access,too-many-public-methods  # noqa
 
 import unittest
 import datetime
@@ -88,28 +88,52 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         with self.assertRaises(AssertionError):
             event.schedule(10, 0)
 
-    def test_event_arrive(self):
+    def test_event_arrive_nodatetime(self):
         event = Event(eta=0, duration=0, callback="callback")
         self.assertEqual(event.state, States.NEW)
-        event.arrive()
+        event.arrive(0)
+        self.assertEqual(event.state, States.ARRIVED)
+
+    def test_event_arrive_datetime(self):
+        event = Event(eta=self.now, duration=0, callback="callback")
+        self.assertEqual(event.state, States.NEW)
+        event.arrive(self.now)
         self.assertEqual(event.state, States.ARRIVED)
 
     def test_event_start(self):
         event = Event(eta=0, duration=0, callback="callback")
         self.assertEqual(event.state, States.NEW)
-        event.start()
+        event.start(0)
+        self.assertEqual(event.state, States.STARTED)
+
+    def test_event_start_datetime(self):
+        event = Event(eta=self.now, duration=0, callback="callback")
+        self.assertEqual(event.state, States.NEW)
+        event.start(self.now)
         self.assertEqual(event.state, States.STARTED)
 
     def test_event_finish(self):
         event = Event(eta=0, duration=0, callback="callback")
         self.assertEqual(event.state, States.NEW)
-        event.finish()
+        event.finish(0)
+        self.assertEqual(event.state, States.FINISHED)
+
+    def test_event_finish_datetime(self):
+        event = Event(eta=self.now, duration=0, callback="callback")
+        self.assertEqual(event.state, States.NEW)
+        event.finish(self.now)
         self.assertEqual(event.state, States.FINISHED)
 
     def test_event_depart(self):
         event = Event(eta=0, duration=0, callback="callback")
         self.assertEqual(event.state, States.NEW)
-        event.depart()
+        event.depart(0)
+        self.assertEqual(event.state, States.DEPARTED)
+
+    def test_event_depart_datetime(self):
+        event = Event(eta=self.now, duration=0, callback="callback")
+        self.assertEqual(event.state, States.NEW)
+        event.depart(self.now)
         self.assertEqual(event.state, States.DEPARTED)
 
     def test_event_cancel(self):

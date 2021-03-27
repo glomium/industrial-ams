@@ -98,3 +98,199 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(event2.get_max_eta(), 4)
         self.assertEqual(event2.get_min_etd(), 2)
         self.assertEqual(event2.get_max_etd(), 5)
+
+
+@unittest.skipIf(SKIP is not None, SKIP)
+class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
+
+    def setUp(self):
+        self.scheduler = BufferScheduler(agent="simulation", ceiling=50)
+
+    def test_event_none(self):
+        event = self.scheduler(duration=1, callback=None)
+        result = {
+            ('eta', 0): None,
+            ('etd', 0): None,
+            ('il', 0): None,
+            ('iq', 0): (None, None),
+            ('ol', 0): None,
+            ('oq', 0): (None, None),
+            ('p', 0): (None, 1),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 0, "offset")
+        self.assertEqual(horizon, 50, "horizon")
+
+    def test_event_eta1(self):
+        event = self.scheduler(eta=2, duration=1, callback=None)
+        result = {
+            ('eta', 0): 2,
+            ('etd', 0): None,
+            ('il', 0): None,
+            ('iq', 0): (None, None),
+            ('ol', 0): None,
+            ('oq', 0): (None, None),
+            ('p', 0): (None, 1),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 2, "offset")
+        self.assertEqual(horizon, 52, "horizon")
+
+    def test_event_eta2(self):
+        event = self.scheduler(eta=(1, 3), duration=1, callback=None)
+        result = {
+            ('eta', 0): None,
+            ('etd', 0): None,
+            ('il', 0): None,
+            ('iq', 0): (1, 3),
+            ('ol', 0): None,
+            ('oq', 0): (None, None),
+            ('p', 0): (None, 1),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 1, "offset")
+        self.assertEqual(horizon, 51, "horizon")
+
+    def test_event_eta3(self):
+        event = self.scheduler(eta=(1, 2, 3), duration=1, callback=None)
+        result = {
+            ('eta', 0): 2,
+            ('etd', 0): None,
+            ('il', 0): None,
+            ('iq', 0): (1, 3),
+            ('ol', 0): None,
+            ('oq', 0): (None, None),
+            ('p', 0): (None, 1),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 1, "offset")
+        self.assertEqual(horizon, 51, "horizon")
+
+    def test_event_etd1(self):
+        event = self.scheduler(etd=3, duration=1, callback=None)
+        result = {
+            ('eta', 0): None,
+            ('etd', 0): 3,
+            ('il', 0): None,
+            ('iq', 0): (None, None),
+            ('ol', 0): None,
+            ('oq', 0): (None, None),
+            ('p', 0): (None, 1),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 0, "offset")
+        self.assertEqual(horizon, 3, "horizon")
+
+    def test_event_etd2(self):
+        event = self.scheduler(etd=(2, 4), duration=1, callback=None)
+        result = {
+            ('eta', 0): None,
+            ('etd', 0): None,
+            ('il', 0): None,
+            ('iq', 0): (None, None),
+            ('ol', 0): None,
+            ('oq', 0): (2, 4),
+            ('p', 0): (None, 1),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 0, "offset")
+        self.assertEqual(horizon, 4, "horizon")
+
+    def test_event_etd3(self):
+        event = self.scheduler(etd=(2, 3, 4), duration=1, callback=None)
+        result = {
+            ('eta', 0): None,
+            ('etd', 0): 3,
+            ('il', 0): None,
+            ('iq', 0): (None, None),
+            ('ol', 0): None,
+            ('oq', 0): (2, 4),
+            ('p', 0): (None, 1),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 0, "offset")
+        self.assertEqual(horizon, 4, "horizon")
+
+    def test_event_arrived(self):
+        event = self.scheduler(etd=4, duration=1, callback=None)
+        event.arrive(1)
+        result = {
+            ('eta', 0): 1,
+            ('etd', 0): 4,
+            ('il', 0): None,
+            ('ol', 0): None,
+            ('oq', 0): (None, None),
+            ('p', 0): (None, 1),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 1, "offset")
+        self.assertEqual(horizon, 4, "horizon")
+
+    def test_event_arrived_canceled(self):
+        event = self.scheduler(etd=4, duration=1, callback=None)
+        event.arrive(1)
+        event.cancel()
+        result = {
+            ('eta', 0): 1,
+            ('etd', 0): 4,
+            ('il', 0): None,
+            ('ol', 0): None,
+            ('oq', 0): (None, None),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 1, "offset")
+        self.assertEqual(horizon, 4, "horizon")
+
+    def test_event_started(self):
+        event = self.scheduler(etd=4, duration=1, callback=None)
+        event.arrive(1)
+        event.start(2)
+        result = {
+            ('etd', 0): 4,
+            ('ol', 0): None,
+            ('oq', 0): (None, None),
+            ('p', 0): (2, 1),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 0, "offset")
+        self.assertEqual(horizon, 4, "horizon")
+
+    def test_event_finished(self):
+        event = self.scheduler(etd=4, duration=1, callback=None)
+        event.arrive(1)
+        event.start(2)
+        event.finish(3)
+        result = {
+            ('etd', 0): 4,
+            ('ol', 0): None,
+            ('oq', 0): (3, None),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 0, "offset")
+        self.assertEqual(horizon, 53, "horizon")
+
+    def test_event_finished_max(self):
+        event = self.scheduler(etd=(2, 5), duration=1, callback=None)
+        event.arrive(1)
+        event.start(2)
+        event.finish(3)
+        result = {
+            ('etd', 0): None,
+            ('ol', 0): None,
+            ('oq', 0): (3, 5),
+        }
+        data, offset, horizon = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, 0, "offset")
+        self.assertEqual(horizon, 5, "horizon")

@@ -100,35 +100,39 @@ class BufferScheduler(SchedulerInterface):
                 else:
                     mins.append(0)
             elif event.state in [SchedulerState.ARRIVED]:
-                eta_max = event.get_eta_max(now)
                 eta = self.convert(event.get_eta(now))
-                if eta_max is None:
-                    data[('iq', i)] = (eta, None)
-                else:
-                    data[('iq', i)] = (eta, self.convert(eta_max))
                 data[('il', i)] = event.eta_lane
                 data[('eta', i)] = eta
                 mins.append(eta)
 
             # set production variables
             if event.state in [SchedulerState.NEW, SchedulerState.SCHEDULED, SchedulerState.ARRIVED]:
-                if event.canceled:
-                    data[('p', i)] = None
-                else:
-                    data[('p', i)] = self.convert(event.duration)
+                if not event.canceled:
+                    data[('p', i)] = (None, self.convert(event.duration))
             elif event.state in [SchedulerState.STARTED]:
-                data[('p', i)] = (self.convert(event.get_start(now)), self.convert(event.get_finish(now)))
+                data[('p', i)] = (self.convert(event.get_start(now)), event.duration)
 
             # set etd variables
             if event.state in [SchedulerState.FINISHED]:
+                finish = event.get_finish(now)
                 etd_max = event.get_etd_max(now)
-                etd = self.convert(event.get_etd(now))
+                etd = event.get_etd(now)
+
                 if etd_max is None:
-                    data[('oq', i)] = (etd, None)
+                    data[('oq', i)] = (finish, None)
+                    maxs.append(finish + self.ceiling)
                 else:
-                    data[('oq', i)] = (etd, self.convert(etd_max))
+                    etd_max = self.convert(etd_max)
+                    maxs.append(etd_max)
+                    data[('oq', i)] = (finish, etd_max)
+
+                if etd is None:
+                    data[('etd', i)] = None
+                else:
+                    etd = self.convert(etd)
+                    data[('etd', i)] = etd
+
                 data[('ol', i)] = event.etd_lane
-                data[('etd', i)] = etd
             else:
                 etd_min = event.get_etd_min(now)
                 etd_max = event.get_etd_max(now)
@@ -154,12 +158,18 @@ class BufferScheduler(SchedulerInterface):
                     maxs.append(None)
 
             events[event] = data
-        offset = min(mins)
+
+        try:
+            offset = min(mins)
+        except ValueError:
+            offset = 0
+
         if offset > 0:
             ceiling = self.ceiling + offset
+            horizon = max(value or ceiling for value in maxs)
         else:
             ceiling = self.ceiling
-        horizon = max(value or ceiling for value in maxs) - offset
+            horizon = max(value or ceiling for value in maxs) - offset
         return events, offset, horizon
 
     def solve_model(self, new_event, now=None, save=False):

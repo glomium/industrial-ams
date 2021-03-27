@@ -26,10 +26,10 @@ buildx:
 
 test:
 	flake8 iams benchmark publication
-	# pylint iams
 	doc8 iams benchmark publication
 	coverage run -m unittest -v
 	coverage report
+	pylint iams
 
 
 run_test_services:

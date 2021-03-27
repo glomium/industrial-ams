@@ -1,5 +1,9 @@
 #!/usr/bin/python3
 # vim: set fileencoding=utf-8 :
+"""
+iams runtime
+"""
+# pylint: disable=too-many-instance-attributes
 
 import base64
 import hashlib
@@ -9,22 +13,25 @@ import re
 
 from socket import gethostname
 
+import docker
+
 from iams.exceptions import InvalidAgentName
 from iams.interfaces.runtime import RuntimeInterface
-
-import docker
 
 
 logger = logging.getLogger(__name__)
 
 
 class DockerSwarmRuntime(RuntimeInterface):
+    """
+    docker swarm runtime
+    """
 
     RE_ENV = re.compile(r'^IAMS_(ADDRESS|PORT)=(.*)$')
 
     def __init__(self, ca) -> None:
         super().__init__()
-        self.ca = ca
+        self.ca = ca  # pylint: disable=invalid-name
         self.iams_namespace = "prod"
         self.label = "com.docker.stack.namespace"
 
@@ -46,13 +53,18 @@ class DockerSwarmRuntime(RuntimeInterface):
             self.servername = "tasks." + service[len(self.namespace) + 1:]
 
     def get_valid_agent_name(self, name):
+        """
+        get valid agent name
+        """
         regex = self.regex.match(name)
         if regex:
             return self.iams_namespace[0:4] + '_' + regex.group(2)
-        else:
-            raise InvalidAgentName("%s is not a valid agent-name" % name)
+        raise InvalidAgentName("%s is not a valid agent-name" % name)
 
     def get_service_and_name(self, name):
+        """
+        get service and name
+        """
         if isinstance(name, docker.models.services.Service):
             service = name
             name = service.name
@@ -73,7 +85,10 @@ class DockerSwarmRuntime(RuntimeInterface):
                 yield plugin, image_object.labels[label]
 
     def get_agent_config(self, name):
-        service, name = self.get_service_and_name(name)
+        """
+        get agent config
+        """
+        service, name = self.get_service_and_name(name)  # pylint: disable=unused-variable
 
         configs = self.client.configs.list(filters={
             'name': name,
@@ -85,8 +100,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         })
         if len(configs) == 1:
             return base64.decodebytes(configs[0].attrs["Spec"]["Data"].encode())
-        else:
-            return None
+        return None
 
     def wake_agent(self, name):
         service, name = self.get_service(name)
@@ -126,6 +140,9 @@ class DockerSwarmRuntime(RuntimeInterface):
             config.remove()
 
     def get_service(self, name):
+        """
+        get service
+        """
         services = self.client.services.list(filters={
             'name': str(name),
             'label': [
@@ -136,13 +153,16 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         if len(services) == 1:
             return services[0]
-        else:
-            raise docker.errors.NotFound('Could not find service %s' % name)
+        raise docker.errors.NotFound('Could not find service %s' % name)
 
-    def get_image_version(self, service):
+    @staticmethod
+    def get_image_version(service):
+        """
+        get image version from service attrs
+        """
         return service.attrs['Spec']['TaskTemplate']['ContainerSpec']['Image'].rsplit('@')[0].rsplit(':', 1)
 
-    def update_agent(self, request, create=False, update=False, skip_label_test=False):
+    def update_agent(self, request, create=False, update=False, skip_label_test=False):  # pylint: disable=too-many-locals,arguments-differ,too-many-branches,too-many-statements  # noqa: E501
         try:
             service = self.get_service(request.name)
             scale = service.attrs['Spec']['Mode']['Replicated']['Replicas'] or int(request.autostart)
@@ -225,7 +245,7 @@ class DockerSwarmRuntime(RuntimeInterface):
                 # apply plugin
                 arg = image_object.labels[label]
                 logger.debug("Apply plugin %s with %s", label, arg)
-                e, l, n, s, g = plugin(request.name, request.image, request.version, arg)
+                e, l, n, s, g = plugin(request.name, request.image, request.version, arg)  # pylint: disable=invalid-name  # noqa: E501
                 labels.update(l)
                 env.update(e)
                 networks.update(n)
@@ -308,9 +328,9 @@ class DockerSwarmRuntime(RuntimeInterface):
             networks=networks,
             placement=docker.types.Placement(
                 constraints=list(request.constraints),
-                preferences=list([
+                preferences=list(
                     docker.types.PlacementPreference('spread', pref) for pref in request.preferences
-                ]),
+                ),
             ),
         )
 
@@ -325,7 +345,7 @@ class DockerSwarmRuntime(RuntimeInterface):
             )
             return True
 
-        elif update:
+        if update:
             logger.debug("update task %s", task_template)
             self.client.api.update_service(
                 service.id,
@@ -348,6 +368,9 @@ class DockerSwarmRuntime(RuntimeInterface):
         return False
 
     def set_secret(self, service, name, data):
+        """
+        set secret
+        """
         md5 = hashlib.md5(service.encode())
         md5.update(data)
         md5 = md5.hexdigest()[0:8]
@@ -356,7 +379,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         # select
         secret = None
         old_secrets = []
-        for s in self.client.secrets.list(filters={"label": [
+        for s in self.client.secrets.list(filters={"label": [  # pylint: disable=invalid-name
             f"{self.label}={self.namespace}",
             f"iams.namespace={self.iams_namespace}",
             f"iams.agent={service}",
@@ -383,6 +406,9 @@ class DockerSwarmRuntime(RuntimeInterface):
         return secret, old_secrets
 
     def set_config(self, service, data):
+        """
+        set config
+        """
         if data:
             md5 = hashlib.md5(data)
             md5 = md5.hexdigest()[0:8]
@@ -393,7 +419,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         # select
         config = None
         old_configs = []
-        for c in self.client.configs.list(filters={"label": [
+        for c in self.client.configs.list(filters={"label": [  # pylint: disable=invalid-name
             f"{self.label}={self.namespace}",
             f"iams.namespace={self.iams_namespace}",
             f"iams.agent={service}",

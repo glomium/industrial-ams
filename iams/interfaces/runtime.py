@@ -44,7 +44,7 @@ class RuntimeInterface(ABC):
         """
 
     @abstractmethod
-    def delete_agent(self, service):
+    def delete_agent(self, name):
         """
         delete agent
         """

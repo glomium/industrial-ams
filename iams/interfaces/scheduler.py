@@ -127,14 +127,17 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
         seconds = self._get_seconds(seconds, now)
         setattr(self, name, seconds)
 
-    def arrive(self, now=None):
+    def arrive(self, time):
         """
         set state to arrived
         """
         self.state = States.ARRIVED
         self.eta_max = None
         self.eta_min = None
-        self.set_eta(0, now)
+        if self.use_datetime:
+            self.set_eta(0, time)
+        else:
+            self.set_eta(time)
 
     def cancel(self):
         """
@@ -144,21 +147,27 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
             self.state = States.CANCELED
         self.canceled = True
 
-    def depart(self, now=None):
+    def depart(self, time):
         """
         set state to departed
         """
         self.state = States.DEPARTED
         self.etd_max = None
         self.etd_min = None
-        self.set_etd(0, now)
+        if self.use_datetime:
+            self.set_etd(0, time)
+        else:
+            self.set_etd(time)
 
-    def finish(self, now=None):
+    def finish(self, time):
         """
         set state to finished
         """
         self.state = States.FINISHED
-        self.set_finish(0, now)
+        if self.use_datetime:
+            self.set_finish(0, time)
+        else:
+            self.set_finish(time)
 
     def schedule(self, start, finish, now=None):
         """
@@ -169,12 +178,15 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
         self.set_start(start, now)
         self.set_finish(finish, now)
 
-    def start(self, now=None):
+    def start(self, time):
         """
         set state to started
         """
         self.state = States.STARTED
-        self.set_start(0, now)
+        if self.use_datetime:
+            self.set_start(0, time)
+        else:
+            self.set_start(time)
 
     def get_start(self, now=None):
         """

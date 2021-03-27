@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+influxdb mixin
+"""
+
 import datetime
 import logging
 import os
@@ -24,8 +28,9 @@ except ImportError:
     INFLUXDB = False
 
 
-class InfluxDBMixin(object):
+class InfluxDBMixin:
     """
+    influxdb mixin
     """
 
     def __init__(self, *args, **kwargs):
@@ -45,14 +50,16 @@ class InfluxDBMixin(object):
 
         if time is not None:
             now = datetime.datetime.utcnow()
-            for i in range(len(data)):
-                if "time" not in data[i]:
+            for i, entry in enumerate(data):
+                if "time" not in entry:
                     data[i]["time"] = now
 
         try:
             self._executor.submit(self._influxdb_write, data)
         except RuntimeError:
             pass
+
+        return None
 
     def _influxdb_write(self, data):
         try:

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+iams server
+"""
 
 import argparse
 import datetime
@@ -34,6 +37,9 @@ logger = logging.getLogger(__name__)
 
 
 def parse_command_line(argv=None):
+    """
+    Command line parser
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-q', '--quiet',
@@ -63,13 +69,6 @@ def parse_command_line(argv=None):
         default=80,
     )
     parser.add_argument(
-        '--rsa',
-        help="RSA key length",
-        dest="rsa",
-        type=int,
-        default=4096,
-    )
-    parser.add_argument(
         '--hosts',
         help="Comma seperated list of hostnames, which are used Hosts used in certificate creation",
         dest="hosts",
@@ -82,12 +81,14 @@ def parse_command_line(argv=None):
         default=os.environ.get('IAMS_NAMESPACE', "prod"),
     )
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main(args):
+    """
+    starts the server
+    """
     dictConfig(get_logging_config(["iams"], args.loglevel))
-
     logger.info("IAMS namespace: %s", args.namespace)
 
     if args.hosts:
@@ -96,10 +97,10 @@ def main(args):
         args.host = []
 
     # init and configure certificate authority
-    ca = CFSSL(args.cfssl, args.hosts, args.rsa)
+    ca = CFSSL(args.cfssl, args.hosts)  # pylint: disable=invalid-name
     ca()
     # init and configure directory facilitator
-    df = ArangoDF()
+    df = ArangoDF()  # pylint: disable=invalid-name
     df()
     # init and configure runtime
     runtime = DockerSwarmRuntime(ca)
@@ -115,7 +116,7 @@ def main(args):
             ))
         except SkipPlugin:
             logger.info("Skipped plugin %s", cls.__qualname__)
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             logger.exception("Error loading plugin %s", cls.__qualname__)
             continue
 
@@ -167,6 +168,9 @@ def main(args):
 
 
 def execute_command_line():  # pragma: no cover
+    """
+    Execute command line
+    """
     main(parse_command_line())
 
 

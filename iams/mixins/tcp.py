@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+mixins to establish tcp interfaces
+"""
+
 import logging
 import socket
 
@@ -14,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 class TCPReadMixin(EventMixin):
+    """
+    read from tcp
+    """
     TCP_BUFFER = 1024
     TCP_PORT = None
     TCP_TIMEOUT = 15
@@ -56,7 +63,7 @@ class TCPReadMixin(EventMixin):
 
     def _tcp_reader(self):
         logger.info("TCP reader started")
-        while not self._socket._closed:
+        while not self._socket._closed:  # pylint: disable=protected-access
             try:
                 data = self._socket.recv(self.TCP_BUFFER)
                 # connection was closed
@@ -69,7 +76,7 @@ class TCPReadMixin(EventMixin):
                 logger.info("Connection Error - Shutdown", exc_info=True)
                 self.stop()
                 break
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 logger.exception("Error in tcp_process_data")
                 self.stop()
                 break
@@ -106,8 +113,6 @@ class TCPMixin(TCPReadMixin):
         self._tcp_queue = Queue()
 
     def _pre_setup(self):
-        """
-        """
         super()._pre_setup()
         self._executor.submit(self._tcp_writer)
 
@@ -116,14 +121,13 @@ class TCPMixin(TCPReadMixin):
         TCP_HEARTBEAT is used as an interval.
         if no data was send this function is triggered and can, for example send a packet to test the connection
         """
-        pass
 
     def _tcp_writer(self):
 
         logger.info("TCP writer started")
         heartbeat = False
 
-        while not self._socket._closed:
+        while not self._socket._closed:  # pylint: disable=protected-access
 
             if heartbeat:
                 self.tcp_heartbeat()

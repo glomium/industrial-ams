@@ -15,6 +15,7 @@ from datetime import datetime
 from datetime import timedelta
 from enum import Enum
 from enum import auto
+from operator import attrgetter
 from typing import Union
 
 from iams.exceptions import CanNotSchedule
@@ -46,17 +47,25 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
     args: Union[list, tuple] = field(default_factory=list, repr=False, init=True, compare=True)
     kwargs: dict = field(default_factory=dict, repr=False, init=True, compare=True)
 
+    uid: int = field(default=0, repr=False, init=False, compare=False, hash=True)
     state: States = field(default=States.NEW, repr=True, init=True, compare=False)
     schedule_start: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     schedule_finish: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     eta: Union[list, tuple, int, float, datetime] = field(default=None, repr=True, init=True, compare=True)
     eta_min: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     eta_max: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
+    eta_lane: int = field(default=None, repr=False, init=False, compare=False)
     etd: Union[list, tuple, int, float, datetime, None] = field(default=None, repr=True, init=True, compare=True)
     etd_min: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     etd_max: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
+    etd_lane: int = field(default=None, repr=False, init=False, compare=False)
     use_datetime: bool = field(default=False, repr=False, init=False, compare=False)
+    setup: Union[int, float] = field(default=0, repr=False, init=True, compare=True)
+    setup_condition: Union[str, None] = field(default=None, repr=False, init=True, compare=True)
     canceled: bool = field(default=False, repr=False, init=False, compare=False)
+
+    def __hash__(self):
+        return self.uid
 
     def __post_init__(self):  # pylint: disable=too-many-branches
         if isinstance(self.eta, datetime):
@@ -278,16 +287,29 @@ class SchedulerInterface(ABC):
         """
         return Event(**kwargs)
 
-    @property
-    def events(self):
+    def get_events(self, new_event=None):
         """
         returns a list of registered events
         """
-        return self._events
+        if new_event is None:
+            for event in self._events:
+                yield event
 
-    @events.setter
-    def events(self, value):
-        self._events = value
+        events = sorted(self._events + [new_event], key=attrgetter('eta', 'etd'))
+        delete = []
+        for event in events:
+            if event.state in [States.DEPARTED, States.CANCELED]:
+                delete.append(event)
+                continue
+            yield event
+
+        for event in delete:
+            try:
+                self._events.remove(event)
+            except ValueError:
+                pass
+            else:
+                self.cleanup(event)
 
     @abstractmethod
     def add(self, event, now=None):
@@ -301,6 +323,11 @@ class SchedulerInterface(ABC):
         Returns True if an event can be scheduled
         """
 
+    def cleanup(self, event):
+        """
+        callback after event was removed
+        """
+
     def save(self, event, now=None):
         """
         save event to eventlist
@@ -311,18 +338,6 @@ class SchedulerInterface(ABC):
             return False
 
         if response is None or response is True:
-            self._events.append(event)
+            self._events = sorted(self._events + [event], key=attrgetter('eta', 'etd'))
             return True
         return False
-
-    def cancel(self, event):
-        """
-        deletes a scheduled event
-        """
-        response = False
-        for i, scheduled_event in enumerate(self.events):
-            if scheduled_event == event:
-                del self.events[i]
-                response = True
-                break
-        return response

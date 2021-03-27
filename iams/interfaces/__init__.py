@@ -12,6 +12,7 @@ __all__ = [
     'Plugin',
     'RuntimeInterface',
     'SchedulerInterface',
+    'SchedulerState',
     'SimulationInterface',
 ]
 
@@ -21,4 +22,5 @@ from iams.interfaces.df import DirectoryFacilitatorInterface
 from iams.interfaces.plugin import Plugin
 from iams.interfaces.runtime import RuntimeInterface
 from iams.interfaces.scheduler import SchedulerInterface
+from iams.interfaces.scheduler import States as SchedulerState
 from iams.interfaces.simulation import SimulationInterface

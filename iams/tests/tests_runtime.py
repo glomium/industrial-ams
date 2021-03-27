@@ -1,5 +1,9 @@
 #!/usr/bin/python
 # ex:set fileencoding=utf-8:
+"""
+unittests for iams.runtime
+"""
+# pylint: disable=missing-function-docstring,missing-class-docstring,protected-access
 
 import unittest
 

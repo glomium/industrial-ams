@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+unittests for iams.interfaces.simulation
+"""
+# pylint: disable=missing-function-docstring,missing-class-docstring,protected-access
 
 import io
 import unittest

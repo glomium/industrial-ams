@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+All stubs from proto are here (its easier to import)
+"""
+
+# pylint: disable=missing-class-docstring
+# as we use the docstrings from the proto-files
+
 import logging
 
 # from functools import wraps

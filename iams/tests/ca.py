@@ -1,5 +1,8 @@
 #!/usr/bin/python
 # ex:set fileencoding=utf-8:
+"""
+test ca
+"""
 
 from iams.interfaces.ca import CertificateAuthorityInterface
 

@@ -1,6 +1,10 @@
 #!/usr/bin/python3
 # vim: set fileencoding=utf-8 :
 
+"""
+Certificate authorities
+"""
+
 import logging
 import requests
 
@@ -11,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class CFSSL(CertificateAuthorityInterface):
+    """
+    CFSSL as CA
+    """
 
     def __init__(self, service_uri, hosts=None):
         self.service = service_uri
@@ -29,9 +36,16 @@ class CFSSL(CertificateAuthorityInterface):
         return data
 
     def get_root_ca(self):
+        """
+        gets the root CA
+        """
         return self.root_ca
 
+    # pylint: disable=invalid-name
     def get_certificate(self, agent=None, cn=None, hosts=None):
+        """
+        get certificate from ca
+        """
         if agent is None:
             if hosts is None:
                 hosts = [""]
@@ -55,15 +69,16 @@ class CFSSL(CertificateAuthorityInterface):
 
         return self._get_certificate(cn, hosts, profile, "ecdsa", 256)
 
-    def _get_certificate(self, cn, hosts=[""], profile="peer", algo="rsa", size=None):
+    # pylint: disable=invalid-name,too-many-arguments
+    def _get_certificate(self, cn, hosts=None, profile="peer", algo="rsa", size=None):
         url = f'http://{self.service}/api/v1/cfssl/newcert'
         data = {
             "request": {
-                "hosts": hosts,
+                "hosts": hosts or [""],
                 "CN": cn,
                 "key": {
                     "algo": algo,
-                    "size": size or self.rsa_size,
+                    "size": size,
                 },
                 "profile": profile,
             },
@@ -72,6 +87,7 @@ class CFSSL(CertificateAuthorityInterface):
         response = requests.post(url, json=data).json()
         return response
 
+    # pylint: disable=
     def get_agent_certificate(self, name, hosts=None):
         response = self.get_certificate(agent=name, hosts=hosts)
         certificate = response["result"]["certificate"].encode()

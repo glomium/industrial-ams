@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+iams agent interface definition
+"""
 
 import logging
 import signal
@@ -44,7 +47,7 @@ class AgentCAMixin:
         try:
             with framework_channel() as channel:
                 stub = CAStub(channel)
-                response = stub.renew(ca_pb2.RenewRequest(hard=hard), timeout=10)
+                response = stub.renew(ca_pb2.RenewRequest(hard=hard), timeout=10)  # pylint: disable=no-member
             return response.private_key, response.certificate
         except grpc.RpcError:
             return None, None
@@ -125,6 +128,7 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
             self.configure()  # local module specification
             self._configure()  # definitions on mixins
         except grpc.RpcError as exception:  # pragma: no cover
+            # pylint: disable=no-member
             logger.debug(
                 "gRPC request failed in configure - resetting: %s - %s",
                 exception.code(),
@@ -139,7 +143,7 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
             self.start()
             try:
                 self._loop()
-            except Exception as exception:  # pragma: no cover
+            except Exception as exception:  # pylint: disable=broad-except # pragma: no cover
                 logger.exception(str(exception))
 
         logger.debug("Stopping gRPC service on %s", self._iams.agent)

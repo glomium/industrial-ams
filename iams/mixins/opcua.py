@@ -29,6 +29,10 @@ else:
 
 
 def monkeypatch_call_datachange(self, datachange):
+    """
+    Monkeypatching to have one signal, when a new packet with datachanges arrives.
+    """
+    # pylint: disable=protected-access
     changes = []
     for item in datachange.MonitoredItems:
         with self._lock:
@@ -146,32 +150,36 @@ class OPCUAMixin(EventMixin):  # pylint: disable=abstract-method
         while not self._stop_event.is_set():
             try:
                 self.opcua_client.get_values([self.opcua_client.get_objects_node()])
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 self.stop()
                 break
             self._stop_event.wait(self.OPCUA_HEARTBEAT)
 
-    def opcua_datachanges(self, run_loop):
+    def opcua_datachanges(self, run_loop):  # pylint: disable=no-self-use
         """
+        Datachanges callback (one per packet)
         """
         return run_loop
 
     def opcua_datachange(self, node, val, data):
         """
+        Datachange callback (one per subscribed variable)
         """
-        pass
 
     def opcua_event(self, event):
         """
+        Event callback
         """
-        pass
 
     def opcua_status_change(self, status):
         """
+        Status-change callback
         """
-        pass
 
     def opcua_write(self, node, value, datatype):
+        """
+        write value to node on opcua-server
+        """
         self.opcua_write_many([node, value, datatype])
 
     def opcua_write_many(self, data):
@@ -197,6 +205,7 @@ class OPCUAMixin(EventMixin):  # pylint: disable=abstract-method
         try:
             subscription = self.opcua_subscriptions[interval]
         except KeyError:
+            # pylint: disable=protected-access
             subscription = self.opcua_client.create_subscription(interval, Handler(self))
             subscription._call_datachange = MethodType(monkeypatch_call_datachange, subscription)
             self.opcua_subscriptions[interval] = subscription

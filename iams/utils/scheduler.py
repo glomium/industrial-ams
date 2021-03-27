@@ -5,13 +5,12 @@
 ortools implementation for scheduler
 """
 
-from operator import attrgetter
 import logging
-
 from ortools.sat.python import cp_model
 
 from iams.exceptions import CanNotSchedule
 from iams.interfaces import SchedulerInterface
+from iams.interfaces import SchedulerState
 
 
 logger = logging.getLogger(__name__)
@@ -21,6 +20,7 @@ class BufferScheduler(SchedulerInterface):
     """
     Generic scheduler class for buffers
     """
+    # pylint: disable=too-many-locals,too-many-statements,too-many-branches
 
     def __init__(self, ceiling, resolution=1.0,  # pylint: disable=keyword-arg-before-vararg,too-many-arguments
                  production_lines=1, buffer_input=1, buffer_output=1,
@@ -63,15 +63,115 @@ class BufferScheduler(SchedulerInterface):
         """
         return round(value * self.resolution)
 
-    def solve_model(self, new_event, now=None, save=False):  # pylint: disable=too-many-locals,too-many-statements
+    def get_event_variables(self, new_event, now=None):
+        """
+        get variables from a collection of events
+        """
+        events = {}
+        maxs = []
+        mins = []
+        for i, event in enumerate(self.get_events(new_event)):
+            data = {}
+            event.uid = i
+
+            # set eta variables
+            if event.state in [SchedulerState.NEW, SchedulerState.SCHEDULED]:
+                eta_min = event.get_eta_min(now)
+                eta_max = event.get_eta_max(now)
+                eta = event.get_eta(now)
+                if eta_min is None and eta_max is None:
+                    data[('iq', i)] = (None, None)
+                else:
+                    eta_min = self.convert(eta_min)
+                    eta_max = self.convert(eta_max)
+                    data[('iq', i)] = (eta_min, eta_max)
+                data[('il', i)] = None
+
+                if eta is None:
+                    data[('eta', i)] = None
+                else:
+                    eta = self.convert(eta)
+                    data[('eta', i)] = eta
+
+                if eta_min is not None:
+                    mins.append(eta_min)
+                elif eta is not None:
+                    mins.append(eta)
+                else:
+                    mins.append(0)
+            elif event.state in [SchedulerState.ARRIVED]:
+                eta_max = event.get_eta_max(now)
+                eta = self.convert(event.get_eta(now))
+                if eta_max is None:
+                    data[('iq', i)] = (eta, None)
+                else:
+                    data[('iq', i)] = (eta, self.convert(eta_max))
+                data[('il', i)] = event.eta_lane
+                data[('eta', i)] = eta
+                mins.append(eta)
+
+            # set production variables
+            if event.state in [SchedulerState.NEW, SchedulerState.SCHEDULED, SchedulerState.ARRIVED]:
+                if event.canceled:
+                    data[('p', i)] = None
+                else:
+                    data[('p', i)] = self.convert(event.duration)
+            elif event.state in [SchedulerState.STARTED]:
+                data[('p', i)] = (self.convert(event.get_start(now)), self.convert(event.get_finish(now)))
+
+            # set etd variables
+            if event.state in [SchedulerState.FINISHED]:
+                etd_max = event.get_etd_max(now)
+                etd = self.convert(event.get_etd(now))
+                if etd_max is None:
+                    data[('oq', i)] = (etd, None)
+                else:
+                    data[('oq', i)] = (etd, self.convert(etd_max))
+                data[('ol', i)] = event.etd_lane
+                data[('etd', i)] = etd
+            else:
+                etd_min = event.get_etd_min(now)
+                etd_max = event.get_etd_max(now)
+                etd = event.get_etd(now)
+                if etd_min is None and etd_max is None:
+                    data[('oq', i)] = (None, None)
+                else:
+                    etd_min = self.convert(etd_min)
+                    etd_max = self.convert(etd_max)
+                    data[('oq', i)] = (etd_min, etd_max)
+                data[('ol', i)] = None
+                if etd is None:
+                    data[('etd', i)] = None
+                else:
+                    etd = self.convert(etd)
+                    data[('etd', i)] = etd
+
+                if etd_max is not None:
+                    maxs.append(etd_max)
+                elif etd is not None:
+                    maxs.append(etd)
+                else:
+                    maxs.append(None)
+
+            events[event] = data
+        offset = min(mins)
+        if offset > 0:
+            ceiling = self.ceiling + offset
+        else:
+            ceiling = self.ceiling
+        horizon = max(value or ceiling for value in maxs) - offset
+        return events, offset, horizon
+
+    def solve_model(self, new_event, now=None, save=False):
         """
         solve model with linear optimization
         """
-        events = list(self.events) + [new_event]
-        events = sorted(events, key=attrgetter('eta', 'etd'))
-
-        offset = min(self.convert(node.get_eta(now)) for node in events)
-        horizon = max(self.convert(node.get_etd(now) or (self.ceiling + offset)) for node in events) - offset
+        events, offset, horizon = self.get_event_variables(new_event, now=None)
+        # print(offset)  # noqa
+        # print(horizon)  # noqa
+        # print(events)  # noqa
+        events = list(events.keys())  # TODO: OLD
+        model = cp_model.CpModel()
 
         iqs = []  # input queue time
         oqs = []  # output queue time
@@ -82,7 +182,6 @@ class BufferScheduler(SchedulerInterface):
         starts = []
         intervals = []
 
-        model = cp_model.CpModel()
         previous = None
         for i, event in enumerate(events):
             eta = self.convert(event.get_eta(now))
@@ -179,5 +278,5 @@ class BufferScheduler(SchedulerInterface):
             # event.set_schedule_start(solver.Value(starts[i]) + offset)
             # event.set_schedule_end(solver.Value(ends[i]) + offset)
 
-        self.events = events
+        # self.events = events
         return True

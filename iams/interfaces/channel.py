@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Channel context manager
+"""
+
 import logging
 
 from abc import ABC
@@ -9,8 +13,8 @@ import grpc
 
 from google.protobuf.empty_pb2 import Empty
 
-from ..constants import AGENT_PORT
-from ..stub import AgentStub
+from iams.constants import AGENT_PORT
+from iams.stub import AgentStub
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +36,7 @@ class Channel(ABC):
     def __enter__(self):
         return self._channel
 
-    def __exit__(self):
+    def __exit__(self, exception_type, exception_value, traceback):
         return None
 
     def _set_state(self, connectivity):
@@ -42,8 +46,9 @@ class Channel(ABC):
                 # if the channel is idle and no request was exchanged, we ping the agent to get a
                 # force the change of the connection
                 AgentStub(self._channel).ping(Empty())
-            except grpc.RpcError as e:
-                logger.info("Ping to %s failed: %s", self._agent, e.details())
+            except grpc.RpcError as exception:
+                # pylint: disable=no-member
+                logger.info("Ping to %s failed: %s", self._agent, exception.details())
         elif connectivity == grpc.ChannelConnectivity.READY:
             self.connected(self._parent)
         elif self._state == grpc.ChannelConnectivity.READY:

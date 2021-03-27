@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+iams scheduler interface
+"""
+
 import logging
 
 from abc import ABC
@@ -20,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 
 class States(Enum):
+    """
+    Event-states enum
+    """
     NEW = auto()
     SCHEDULED = auto()
     ARRIVED = auto()
@@ -30,7 +37,10 @@ class States(Enum):
 
 
 @dataclass
-class Event:  # pylint: disable=too-many-instance-attributes
+class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
+    """
+    Schedule events
+    """
     duration: Union[int, float]
     callback: str
     args: Union[list, tuple] = field(default_factory=list, repr=False, init=True, compare=True)
@@ -46,6 +56,7 @@ class Event:  # pylint: disable=too-many-instance-attributes
     etd_min: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     etd_max: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     use_datetime: bool = field(default=False, repr=False, init=False, compare=False)
+    canceled: bool = field(default=False, repr=False, init=False, compare=False)
 
     def __post_init__(self):  # pylint: disable=too-many-branches
         if isinstance(self.eta, datetime):
@@ -116,11 +127,13 @@ class Event:  # pylint: disable=too-many-instance-attributes
         self.eta_min = None
         self.set_eta(0, now)
 
-    def cancel(self, now=None):
+    def cancel(self):
         """
         set state to canceled
         """
-        self.state = States.CANCELED
+        if self.state in [States.NEW, States.SCHEDULED, States.DEPARTED]:
+            self.state = States.CANCELED
+        self.canceled = True
 
     def depart(self, now=None):
         """
@@ -258,36 +271,47 @@ class SchedulerInterface(ABC):
 
     def __init__(self, agent):
         self._agent = agent
-        self.events = []
+        self._events = []
 
     def __call__(self, **kwargs):
         """
         """
         return Event(**kwargs)
 
-    @abstractmethod
-    def schedule(self, event):
+    @property
+    def events(self):
         """
-        schedule an new event
+        returns a list of registered events
+        """
+        return self._events
+
+    @events.setter
+    def events(self, value):
+        self._events = value
+
+    @abstractmethod
+    def add(self, event, now=None):
+        """
+        add a new event to the scheduler
         """
 
     @abstractmethod
-    def can_schedule(self, event):
+    def can_schedule(self, event, now=None):
         """
         Returns True if an event can be scheduled
         """
 
-    def add(self, event, now=None):
+    def save(self, event, now=None):
         """
-        adds a new event
+        save event to eventlist
         """
         try:
-            response = self.schedule(event, now)
+            response = self.add(event, now)
         except CanNotSchedule:
             return False
 
         if response is None or response is True:
-            self.events.append(event)
+            self._events.append(event)
             return True
         return False
 

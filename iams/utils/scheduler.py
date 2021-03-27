@@ -1,24 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+ortools implementation for scheduler
+"""
+
+from operator import attrgetter
 import logging
 
 from ortools.sat.python import cp_model
-from operator import attrgetter
 
 from iams.exceptions import CanNotSchedule
-from iams.interfaces.scheduler import SchedulerInterface
+from iams.interfaces import SchedulerInterface
 
 
 logger = logging.getLogger(__name__)
 
 
 class BufferScheduler(SchedulerInterface):
-    def __init__(self, ceiling, resolution=1.0,
+    """
+    Generic scheduler class for buffers
+    """
+
+    def __init__(self, ceiling, resolution=1.0,  # pylint: disable=keyword-arg-before-vararg,too-many-arguments
                  production_lines=1, buffer_input=1, buffer_output=1,
                  *args, **kwargs):
-        """
-        """
         super().__init__(*args, **kwargs)
         self.ceiling = ceiling
         self.production_lines = production_lines
@@ -39,10 +45,16 @@ class BufferScheduler(SchedulerInterface):
             self.resolution,
         )
 
-    def schedule(self, event, now=None):
+    def add(self, event, now=None):
+        """
+        schedule the event
+        """
         return self.solve_model(event, now, save=True)
 
     def can_schedule(self, event, now=None):
+        """
+        can the new event be scheduled?
+        """
         return self.solve_model(event, now, save=False)
 
     def convert(self, value):
@@ -51,11 +63,11 @@ class BufferScheduler(SchedulerInterface):
         """
         return round(value * self.resolution)
 
-    def solve_model(self, new_event, now=None, save=False):
+    def solve_model(self, new_event, now=None, save=False):  # pylint: disable=too-many-locals,too-many-statements
         """
         solve model with linear optimization
         """
-        events = self.events + [new_event]
+        events = list(self.events) + [new_event]
         events = sorted(events, key=attrgetter('eta', 'etd'))
 
         offset = min(self.convert(node.get_eta(now)) for node in events)

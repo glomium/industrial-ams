@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# pylint: disable=too-many-locals
 
-import argparse
-import logging
-import yaml
-import sys
-import os
+"""
+Manages simulation configurations
+"""
 
-# from logging.config import dictConfig
-# from dataclasses import asdict
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import wait
 from copy import deepcopy
@@ -17,16 +14,27 @@ from itertools import product
 from math import floor
 from math import log10
 
+import argparse
+import logging
+import os
+import sys
+import yaml
 
-from iams.tests.df import DF
-from iams.interfaces.simulation import SimulationInterface
+# from logging.config import dictConfig
+# from dataclasses import asdict
 # from iams.interfaces.df import DirectoryFacilitatorInterface
+
+from iams.interfaces.simulation import SimulationInterface
+from iams.tests.df import DF
 
 
 logger = logging.getLogger(__name__)
 
 
 def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING):
+    """
+    processes a simulation config
+    """
     path = os.path.abspath(path)
     folder = os.path.join(os.path.dirname(path), config.get("foldername", "results"))
     project = os.path.basename(path)[:-5]
@@ -62,12 +70,15 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
         if not dryrun and not force and os.path.exists(kwargs['file_data']):  # pragma: no cover
             continue
 
-        kwargs.update({'force': force, 'dryrun': dryrun, 'loglevel': loglevel})
+        kwargs.update({'dryrun': dryrun, 'loglevel': loglevel})
 
         yield kwargs
 
 
 def prepare_run(count, folder, template, run_config, config):
+    """
+    prepare a single run
+    """
     name = template.format(count, **run_config)
     seed = config.get('seed', name).format(count, **run_config)
     start = config.get('start', 0)
@@ -75,22 +86,18 @@ def prepare_run(count, folder, template, run_config, config):
 
     try:
         module_name, class_name = config["simulation-class"].rsplit('.', 1)
-    except (KeyError, AttributeError):
-        raise ValueError('The configuration-file needs a valid "simulation-class-setting')
+    except (KeyError, AttributeError) as exception:
+        raise ValueError('The configuration-file needs a valid "simulation-class-setting') from exception
     else:
         simcls = getattr(import_module(module_name), class_name)
 
         if not issubclass(simcls, SimulationInterface):
-            raise AssertionError(
-                "%s needs to be a subclass of %s",
-                simcls.__qualname__,
-                SimulationInterface.__qualname__,
-            )
+            raise AssertionError(f"{simcls.__qualname__} needs to be a subclass of {SimulationInterface.__qualname__}")
 
     try:
         module_name, class_name = config["directory-facilitator"].rsplit('.', 1)
     except (KeyError, AttributeError):
-        df = DF()
+        df = DF()  # pylint: disable=invalid-name
     else:
         raise NotImplementedError("the directory facilitator cannot be changed")
         # df = getattr(import_module(module_name), class_name)
@@ -104,7 +111,7 @@ def prepare_run(count, folder, template, run_config, config):
     settings = config.get('settings', {})
     settings.update(run_config)
 
-    for x in [
+    for key in [
         "formatter",
         "simulation-class",
         "directory-facilitator",
@@ -115,7 +122,7 @@ def prepare_run(count, folder, template, run_config, config):
         "stop",
     ]:
         try:
-            del config[x]
+            del config[key]
         except KeyError:
             pass
 
@@ -135,6 +142,9 @@ def prepare_run(count, folder, template, run_config, config):
 
 
 def load_agent(agents, global_settings):
+    """
+    generate agents from configuration
+    """
     for agent in agents:
         module_name, class_name = agent["class"].rsplit('.', 1)
         cls = getattr(import_module(module_name), class_name)
@@ -157,9 +167,12 @@ def load_agent(agents, global_settings):
             yield instance
 
 
-def run_simulation(
+def run_simulation(  # pylint: disable=invalid-name,too-many-arguments
         simcls, df, name, folder, settings, start, stop, seed, config,
-        dryrun, force, loglevel, file_data, file_log):
+        dryrun, loglevel, file_data, file_log):
+    """
+    execute single simulation config
+    """
 
     if loglevel == logging.DEBUG:
         formatter = "%(levelname).1s [%(name)s:%(lineno)s] %(message)s"
@@ -203,6 +216,9 @@ def run_simulation(
 
 
 def parse_command_line(argv=None):
+    """
+    Parse command line arguments
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-q', '--quiet',
@@ -243,6 +259,9 @@ def parse_command_line(argv=None):
 
 
 def main(args, function=run_simulation):
+    """
+    main function
+    """
     kwarg_list = []
     for fobj in args.configs:
         try:
@@ -269,6 +288,9 @@ def main(args, function=run_simulation):
 
 
 def execute_command_line():  # pragma: no cover
+    """
+    Execute command line
+    """
     main(parse_command_line())
 
 

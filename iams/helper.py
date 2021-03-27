@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+helper functions
+"""
+
 import logging
 import os
 
@@ -17,12 +21,15 @@ except ImportError:
     SENTRY = False
 
 
-def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no cover
+def get_logging_config(config=None, level=logging.INFO, main=True):  # pragma: no cover
+    """
+    generate a loggin config
+    """
 
     if isinstance(config, (list, tuple)):
         loggers = {}
-        for ln in config:
-            loggers[ln] = {}
+        for key in config:
+            loggers[key] = {}
     elif isinstance(config, dict):
         loggers = config
 
@@ -71,7 +78,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
             },
         }
         conf["handlers"]["fluentd"] = {
-            'class': 'fluent.handler.FluentHandler',
+            'class': fluent.handler.FluentHandler,
             'host': os.environ.get('FLUENTD_HOST'),
             'port': int(os.environ.get('FLUENTD_PORT', 24224)),
             'tag': os.environ.get('FLUENTD_TAG'),

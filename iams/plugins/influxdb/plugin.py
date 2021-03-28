@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+InfluxDB plugin
+"""
+
 import logging
 import os
 
@@ -17,6 +21,7 @@ class InfluxDB(Plugin):
     Adds INFLUXDB_HOST and INFLUXDB_DATABASE to the agents environment variabled
     Adds the agent to the network {stack-namespace}_influxdb
     """
+    # pylint: disable=arguments-differ
 
     @classmethod
     def label(cls):

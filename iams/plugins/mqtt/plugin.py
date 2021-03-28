@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+mqtt
+"""
 
 import logging
 import os
@@ -12,6 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 class Mqtt(Plugin):
+    """
+    mqtt
+    """
+    # pylint: disable=arguments-differ
 
     @classmethod
     def label(cls):

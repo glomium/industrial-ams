@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Envoy
+"""
 
 import logging
 
@@ -10,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 class Envoy(Plugin):
+    """
+    envoy
+    """
 
     @classmethod
     def label(cls):

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+arangodb
+"""
+
 import logging
 import hashlib
 
@@ -12,23 +16,30 @@ logger = logging.getLogger(__name__)
 
 
 def get_credentials(namespace, password=None):
+    """
+    get credentials
+    """
 
     if password is None:
         # TODO make this configurable
         # (specify environment variables or settings to make this configurable)
-        with open('/run/secrets/arango', 'r') as f:
-            password = f.read().strip()
+        with open('/run/secrets/arango', 'r') as fobj:
+            password = fobj.read().strip()
 
     database = "iams_" + namespace
     return database, password, hashlib.pbkdf2_hmac("sha1", database.encode(), password.encode(), 10000).hex()[:32]
 
 
-class Arango(object):
+class Arango:
+    """
+    argangodb
+    """
 
-    def __init__(self,
+    def __init__(self,  # pylint: disable=too-many-arguments,too-many-branches
                  namespace=None, username="root", password=None,
                  database=None,
                  hosts="http://tasks.arangodb:8529", docker=None):
+        # pylint: disable=invalid-name
 
         # namespace is set by AMS or left as None by agents
         logger.debug("Init: %s(%s, %s, %s, %s)", self.__class__.__qualname__, namespace, username, password, database)
@@ -122,6 +133,9 @@ class Arango(object):
                 }])
 
     def create_agent(self, name, node):
+        """
+        create agent
+        """
 
         data = {
             "_key": name,
@@ -193,6 +207,10 @@ class Arango(object):
         self.update_agents()
 
     def delete_agent(self, name, update=True):
+        """
+        delete agent
+        """
+
         query1 = """
         LET edge = (FOR t IN topology FILTER t.agent == @agent LIMIT 1 RETURN t._id)[0]
         LET related = (FOR v, e IN 0..100 OUTBOUND edge directed, ANY symmetric
@@ -220,19 +238,22 @@ class Arango(object):
         return True
 
     def update_agent(self, name, node):
+        """
+        update agent
+        """
         try:
             self.delete_agent(name, update=False)
         except AQLQueryExecuteError:
             pass
         self.create_agent(name, node)
 
-    def update_agents(self):
+    def update_agents(self):  # pylint: disable=too-many-branches,too-many-statements
         """
         iterates over all agents with update == true and updates their data
         """
         for data in self.db.collection('agent').find({"update": True}):
             # get neighbor agents
-            pk = data["_id"]
+            pk = data["_id"]  # pylint: disable=invalid-name
 
             # TODO use template system from arangodb
             query = f"""
@@ -283,7 +304,7 @@ class Arango(object):
 
             # add to automatically generated pool
             if update is False and "pool" in data:
-                pk = data["_id"]
+                pk = data["_id"]  # pylint: disable=invalid-name
                 pool = data["pool"]
 
                 # TODO use template sysetm from arangodb
@@ -297,7 +318,7 @@ class Arango(object):
                     RETURN v
                 """
                 pool = None
-                for i, p in enumerate(self.db.aql.execute(query)):
+                for i, p in enumerate(self.db.aql.execute(query)):  # pylint: disable=invalid-name
                     if i == 0:
                         pool = p
                         continue
@@ -314,7 +335,7 @@ class Arango(object):
                     # TODO delete pool agent - if docker is available
 
                 if pool is None:
-                    p = self.db.collection("agent").insert({})
+                    p = self.db.collection("agent").insert({})  # pylint: disable=invalid-name
                     pool = self.db.collection("agent").insert({
                         "_key": "pool-%s" % p["_key"],
                         "pool_cls": data["pool"],

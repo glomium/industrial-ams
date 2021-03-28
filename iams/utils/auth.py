@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Auth tools
+"""
 
-import logging
-import grpc
 from functools import wraps
+import logging
+
+import grpc
 
 
 logger = logging.getLogger(__name__)
 
 
 def permissions(function=None, is_optional=False):
+    """
+    permission decorator
+    """
+    # pylint: disable=protected-access
 
     def decorator(func):
         @wraps(func)
@@ -28,10 +36,10 @@ def permissions(function=None, is_optional=False):
 
             if is_optional or context._agent is not None:
                 return func(self, request, context)
-            else:
-                message = "Client needs to be authentifacted"
-                logger.debug(message)
-                context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+
+            message = "Client needs to be authentifacted"
+            logger.debug(message)
+            return context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
 
         return wrapped
 

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+helper for loading plugins
+"""
 
 import logging
 import os
@@ -12,11 +15,14 @@ from inspect import getmembers, isclass
 from iams.interfaces.plugin import Plugin
 
 
-plugin_name = "plugin"
+plugin_name = "plugin"  # pylint: disable=invalid-name
 logger = logging.getLogger(__name__)
 
 
 def get_plugins():
+    """
+    read plugins from cwd
+    """
     specs = []
 
     # get plugins included in lib
@@ -50,10 +56,10 @@ def get_plugins():
         try:
             module = spec.loader.load_module()
         except ModuleNotFoundError:
-            logger.exception("Import error for %s" % spec.name)
+            logger.exception("Import error for %s", spec.name)
             continue
 
-        for name, cls in getmembers(module, isclass):
+        for name, cls in getmembers(module, isclass):  # pylint: disable=unused-variable
             if cls is not Plugin and issubclass(cls, Plugin):
                 yield cls
 

@@ -54,6 +54,24 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         with self.assertRaises(ValueError):
             Event(eta=[1, 2, 3, 4], duration=0, callback="callback")
 
+    def test_eta_none(self):
+        with self.assertRaises(ValueError):
+            Event(eta=None, duration=0, callback="callback")
+        with self.assertRaises(ValueError):
+            Event(eta=[None], duration=0, callback="callback")
+        with self.assertRaises(ValueError):
+            Event(eta=[0, None], duration=0, callback="callback")
+        with self.assertRaises(ValueError):
+            Event(eta=[None, 0], duration=0, callback="callback")
+
+    def test_wrong_type(self):
+        with self.assertRaises(ValueError):
+            Event(eta='wrong', duration=0, callback="callback")
+
+    def test_wrong_type_datetime(self):
+        with self.assertRaises(ValueError):
+            Event(eta=[0, self.now, 10], duration=0, callback="callback")
+
     def test_etd_tuple1(self):
         event = Event(eta=0, etd=[1], duration=0, callback="callback")
         self.assertEqual(event.get_etd(), 1)
@@ -136,11 +154,20 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         event.depart(self.now)
         self.assertEqual(event.state, States.DEPARTED)
 
-    def test_event_cancel(self):
+    def test_event_cancel1(self):
         event = Event(eta=0, duration=0, callback="callback")
         self.assertEqual(event.state, States.NEW)
         event.cancel()
         self.assertEqual(event.state, States.CANCELED)
+        self.assertTrue(event.canceled)
+
+    def test_event_cancel2(self):
+        event = Event(eta=0, duration=0, callback="callback")
+        self.assertEqual(event.state, States.NEW)
+        event.start(0)
+        event.cancel()
+        self.assertEqual(event.state, States.STARTED)
+        self.assertTrue(event.canceled)
 
     def test_getter_setter(self):
         event = Event(eta=0, duration=0, callback="callback")

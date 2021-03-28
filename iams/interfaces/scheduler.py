@@ -15,7 +15,6 @@ from datetime import datetime
 from datetime import timedelta
 from enum import Enum
 from enum import auto
-from operator import attrgetter
 from typing import Union
 
 from iams.exceptions import CanNotSchedule
@@ -42,6 +41,7 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
     """
     Schedule events
     """
+    eta: Union[list, tuple, int, float, datetime] = field(repr=True, init=True, compare=True)
     duration: Union[int, float]
     callback: str
     args: Union[list, tuple] = field(default_factory=list, repr=False, init=True, compare=True)
@@ -51,7 +51,6 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
     state: States = field(default=States.NEW, repr=True, init=True, compare=False)
     schedule_start: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     schedule_finish: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
-    eta: Union[list, tuple, int, float, datetime] = field(default=None, repr=True, init=True, compare=True)
     eta_min: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     eta_max: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     eta_lane: int = field(default=None, repr=False, init=False, compare=False)
@@ -68,8 +67,6 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
         return self.uid
 
     def __post_init__(self):  # pylint: disable=too-many-branches
-        if isinstance(self.eta, datetime):
-            self.use_datetime = True
 
         if isinstance(self.eta, (tuple, list)):
             if len(self.eta) == 1:
@@ -82,6 +79,10 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
             else:
                 raise ValueError("ETA list or tuple is to long")
 
+        if self.eta is None and (self.eta_min is None or self.eta_max is None):
+            raise ValueError("ETA must be set")
+        self.use_datetime = isinstance(self.eta, datetime) or isinstance(self.eta_min, datetime) or isinstance(self.eta_max, datetime)  # noqa: E501
+
         if isinstance(self.etd, (tuple, list)):
             if len(self.etd) == 1:
                 self.etd = self.etd[0]
@@ -93,21 +94,16 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
             else:
                 raise ValueError("ETD list or tuple is to long")
 
-        if isinstance(self.eta, datetime) \
-                or isinstance(self.eta_min, datetime) \
-                or isinstance(self.eta_max, datetime):
-            self.use_datetime = True
-
         if self.use_datetime:
             for attr_name in ["eta", "eta_min", "eta_max", "etd", "etd_min", "etd_max"]:
                 attr = getattr(self, attr_name)
-                assert attr is None \
-                    or isinstance(attr, datetime), "self.%s has the wrong type (%s)" % (attr_name, type(attr))
+                if attr is not None and not isinstance(attr, datetime):
+                    raise ValueError("self.%s has the wrong type (%s)" % (attr_name, type(attr)))
         else:
             for attr_name in ["eta", "eta_min", "eta_max", "etd", "etd_min", "etd_max"]:
                 attr = getattr(self, attr_name)
-                assert attr is None \
-                    or isinstance(attr, (int, float)), "self.%s has the wrong type (%s)" % (attr_name, type(attr))
+                if attr is not None and not isinstance(attr, (int, float)):
+                    raise ValueError("self.%s has the wrong type (%s)" % (attr_name, type(attr)))
 
     def _get_seconds(self, seconds, now):
         if self.use_datetime:
@@ -299,20 +295,26 @@ class SchedulerInterface(ABC):
         """
         return Event(**kwargs)
 
-    def get_events(self, new_event=None):
+    def get_events(self, new_events=None):
         """
         returns a list of registered events
         """
-        if new_event is None:
-            for event in self._events:
-                yield event
-
-        events = sorted(self._events + [new_event], key=attrgetter('eta', 'etd'))
         delete = []
-        for event in events:
+        for i, event in enumerate(self._events, 1):
+            event.uid = i
             if event.state in [States.DEPARTED, States.CANCELED]:
                 delete.append(event)
                 continue
+            yield event
+
+        if isinstance(new_events, Event):
+            new_events = [new_events]
+        elif new_events is None:
+            new_events = []
+
+        for i, event in enumerate(new_events, len(self._events)):
+            assert event.state == States.NEW, "Event needs to be new"
+            event.uid = len(self._events) + 1
             yield event
 
         for event in delete:
@@ -349,7 +351,8 @@ class SchedulerInterface(ABC):
         except CanNotSchedule:
             return False
 
-        if response is None or response is True:
-            self._events = sorted(self._events + [event], key=attrgetter('eta', 'etd'))
-            return True
-        return False
+        if not isinstance(response, Event):
+            raise ValueError("'event' has the wrong class")
+
+        self._events.append(response)
+        return True

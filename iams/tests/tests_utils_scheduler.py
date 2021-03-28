@@ -21,26 +21,26 @@ else:
 class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
 
     def test_repr(self):
-        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        scheduler = BufferScheduler(agent="simulation", horizon=5)
         self.assertEqual(
             repr(scheduler),
-            "<BufferScheduler(buffer_input=[1], buffer_output=[1], ceiling=5, production_lines=1, resolution=1.0)>",
+            "<BufferScheduler(horizon=5, buffer_input=[1], buffer_output=[1], production_lines=1, resolution=1.0)>",
         )
 
     def test_event_okay(self):
-        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        scheduler = BufferScheduler(agent="simulation", horizon=5)
         event = scheduler(eta=0, etd=1, duration=1, callback=None)
         result = scheduler.can_schedule(event)
         self.assertTrue(result)
 
     def test_event_to_long(self):
-        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        scheduler = BufferScheduler(agent="simulation", horizon=5)
         event = scheduler(eta=0, etd=1, duration=2, callback=None)
         with self.assertRaises(CanNotSchedule):
             scheduler.can_schedule(event)
 
     def test_two_events(self):
-        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        scheduler = BufferScheduler(agent="simulation", horizon=5)
         event1 = scheduler(eta=0, etd=1, duration=1, callback=None)
         event2 = scheduler(eta=0, etd=1, duration=1, callback=None)
         event3 = scheduler(eta=0, etd=2, duration=1, callback=None)
@@ -61,7 +61,7 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
 
     @unittest.expectedFailure
     def test_event_no_etd(self):
-        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        scheduler = BufferScheduler(agent="simulation", horizon=5)
         event = scheduler(eta=0, duration=1, callback=None)
         scheduler.save(event)
         self.assertEqual(event.get_eta(), 0)
@@ -73,7 +73,7 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
 
     @unittest.expectedFailure
     def test_event_schedule_before(self):
-        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        scheduler = BufferScheduler(agent="simulation", horizon=5)
         event1 = scheduler(eta=2, etd=3, duration=1, callback=None)
         event1.schedule()
         scheduler.save(event1)
@@ -87,7 +87,7 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
 
     @unittest.expectedFailure
     def test_event_schedule_after(self):
-        scheduler = BufferScheduler(agent="simulation", ceiling=5)
+        scheduler = BufferScheduler(agent="simulation", horizon=5)
         event1 = scheduler(eta=0, etd=3, duration=1, callback=None)
         event1.schedule()
         scheduler.save(event1)
@@ -104,7 +104,7 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
 class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
 
     def setUp(self):
-        self.scheduler = BufferScheduler(agent="simulation", ceiling=50)
+        self.scheduler = BufferScheduler(agent="simulation", horizon=50)
 
     def test_event_none(self):
         event = self.scheduler(duration=1, callback=None)
@@ -112,15 +112,14 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('eta', 0): None,
             ('etd', 0): None,
             ('il', 0): None,
-            ('iq', 0): (None, None),
+            ('iq', 0): (0, 49),
             ('ol', 0): None,
-            ('oq', 0): (None, None),
+            ('oq', 0): (1, 50),
             ('p', 0): (None, 1),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
         self.assertEqual(offset, 0, "offset")
-        self.assertEqual(horizon, 50, "horizon")
 
     def test_event_eta1(self):
         event = self.scheduler(eta=2, duration=1, callback=None)
@@ -128,15 +127,14 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('eta', 0): 2,
             ('etd', 0): None,
             ('il', 0): None,
-            ('iq', 0): (None, None),
+            ('iq', 0): (2, 2),
             ('ol', 0): None,
-            ('oq', 0): (None, None),
+            ('oq', 0): (3, 50),
             ('p', 0): (None, 1),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
-        self.assertEqual(offset, 2, "offset")
-        self.assertEqual(horizon, 52, "horizon")
+        self.assertEqual(offset, 0, "offset")
 
     def test_event_eta2(self):
         event = self.scheduler(eta=(1, 3), duration=1, callback=None)
@@ -146,13 +144,12 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('il', 0): None,
             ('iq', 0): (1, 3),
             ('ol', 0): None,
-            ('oq', 0): (None, None),
+            ('oq', 0): (2, 50),
             ('p', 0): (None, 1),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
-        self.assertEqual(offset, 1, "offset")
-        self.assertEqual(horizon, 51, "horizon")
+        self.assertEqual(offset, 0, "offset")
 
     def test_event_eta3(self):
         event = self.scheduler(eta=(1, 2, 3), duration=1, callback=None)
@@ -162,13 +159,12 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('il', 0): None,
             ('iq', 0): (1, 3),
             ('ol', 0): None,
-            ('oq', 0): (None, None),
+            ('oq', 0): (2, 50),
             ('p', 0): (None, 1),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
-        self.assertEqual(offset, 1, "offset")
-        self.assertEqual(horizon, 51, "horizon")
+        self.assertEqual(offset, 0, "offset")
 
     def test_event_etd1(self):
         event = self.scheduler(etd=3, duration=1, callback=None)
@@ -176,15 +172,14 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('eta', 0): None,
             ('etd', 0): 3,
             ('il', 0): None,
-            ('iq', 0): (None, None),
+            ('iq', 0): (0, 2),
             ('ol', 0): None,
-            ('oq', 0): (None, None),
+            ('oq', 0): (3, 3),
             ('p', 0): (None, 1),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
         self.assertEqual(offset, 0, "offset")
-        self.assertEqual(horizon, 3, "horizon")
 
     def test_event_etd2(self):
         event = self.scheduler(etd=(2, 4), duration=1, callback=None)
@@ -192,15 +187,14 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('eta', 0): None,
             ('etd', 0): None,
             ('il', 0): None,
-            ('iq', 0): (None, None),
+            ('iq', 0): (0, 3),
             ('ol', 0): None,
             ('oq', 0): (2, 4),
             ('p', 0): (None, 1),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
         self.assertEqual(offset, 0, "offset")
-        self.assertEqual(horizon, 4, "horizon")
 
     def test_event_etd3(self):
         event = self.scheduler(etd=(2, 3, 4), duration=1, callback=None)
@@ -208,15 +202,14 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('eta', 0): None,
             ('etd', 0): 3,
             ('il', 0): None,
-            ('iq', 0): (None, None),
+            ('iq', 0): (0, 3),
             ('ol', 0): None,
             ('oq', 0): (2, 4),
             ('p', 0): (None, 1),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
         self.assertEqual(offset, 0, "offset")
-        self.assertEqual(horizon, 4, "horizon")
 
     def test_event_arrived(self):
         event = self.scheduler(etd=4, duration=1, callback=None)
@@ -226,13 +219,12 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('etd', 0): 4,
             ('il', 0): None,
             ('ol', 0): None,
-            ('oq', 0): (None, None),
+            ('oq', 0): (4, 4),
             ('p', 0): (None, 1),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
-        self.assertEqual(offset, 1, "offset")
-        self.assertEqual(horizon, 4, "horizon")
+        self.assertEqual(offset, 0, "offset")
 
     def test_event_arrived_canceled(self):
         event = self.scheduler(etd=4, duration=1, callback=None)
@@ -243,12 +235,11 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('etd', 0): 4,
             ('il', 0): None,
             ('ol', 0): None,
-            ('oq', 0): (None, None),
+            ('oq', 0): (4, 4),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
-        self.assertEqual(offset, 1, "offset")
-        self.assertEqual(horizon, 4, "horizon")
+        self.assertEqual(offset, 0, "offset")
 
     def test_event_started(self):
         event = self.scheduler(etd=4, duration=1, callback=None)
@@ -257,13 +248,12 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
         result = {
             ('etd', 0): 4,
             ('ol', 0): None,
-            ('oq', 0): (None, None),
+            ('oq', 0): (3, 4),
             ('p', 0): (2, 1),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
         self.assertEqual(offset, 0, "offset")
-        self.assertEqual(horizon, 4, "horizon")
 
     def test_event_finished(self):
         event = self.scheduler(etd=4, duration=1, callback=None)
@@ -273,12 +263,11 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
         result = {
             ('etd', 0): 4,
             ('ol', 0): None,
-            ('oq', 0): (3, None),
+            ('oq', 0): (3, 4),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
         self.assertEqual(offset, 0, "offset")
-        self.assertEqual(horizon, 53, "horizon")
 
     def test_event_finished_max(self):
         event = self.scheduler(etd=(2, 5), duration=1, callback=None)
@@ -290,7 +279,6 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('ol', 0): None,
             ('oq', 0): (3, 5),
         }
-        data, offset, horizon = self.scheduler.get_event_variables(event)
+        data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
         self.assertEqual(offset, 0, "offset")
-        self.assertEqual(horizon, 5, "horizon")

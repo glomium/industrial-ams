@@ -46,9 +46,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
 COPY requirements/dev.txt requirements/test.txt ./
 RUN pip3 install --no-cache-dir -r dev.txt -r test.txt
 
-COPY LICENSE setup.py setup.cfg .coveragerc run_tests.sh ./
-COPY iams ./iams
+COPY LICENSE setup.py setup.cfg .coveragerc .pylintrc ./
 COPY proto ./proto
+COPY iams ./iams
 
 RUN mkdir -p iams/proto \
  && python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto \
@@ -57,13 +57,11 @@ RUN mkdir -p iams/proto \
     proto/df.proto \
     proto/framework.proto \
     proto/market.proto \
- && sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
-
-COPY examples ./examples
-
-RUN doc8 iams examples
-RUN flake8 iams examples
-RUN python3 -m unittest
+ && sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py \
+ && doc8 iams \
+ && flake8 iams \
+ && pylint iams \
+ && python3 -m unittest
 
 # build wheel package
 RUN python3 setup.py bdist_wheel

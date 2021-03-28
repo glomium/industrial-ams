@@ -218,6 +218,7 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('eta', 0): 1,
             ('etd', 0): 4,
             ('il', 0): None,
+            ('iq', 0): (1, 3),
             ('ol', 0): None,
             ('oq', 0): (4, 4),
             ('p', 0): (None, 1),
@@ -234,6 +235,7 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
             ('eta', 0): 1,
             ('etd', 0): 4,
             ('il', 0): None,
+            ('iq', 0): (1, 3),
             ('ol', 0): None,
             ('oq', 0): (4, 4),
         }
@@ -282,3 +284,49 @@ class BufferSchedulerEventVariablesTests(unittest.TestCase):  # pragma: no cover
         data, offset = self.scheduler.get_event_variables(event)
         self.assertEqual(data[event], result)
         self.assertEqual(offset, 0, "offset")
+
+    def test_event_negative_eta(self):
+        event = self.scheduler(eta=-1, etd=(2, 5), duration=1, callback=None)
+        result = {
+            ('eta', 0): -1,
+            ('etd', 0): None,
+            ('il', 0): None,
+            ('iq', 0): (-1, -1),
+            ('ol', 0): None,
+            ('oq', 0): (2, 5),
+            ('p', 0): (None, 1),
+        }
+        data, offset = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, -1, "offset")
+
+    def test_event_negative_etd(self):
+        event = self.scheduler(etd=(-2, 5), duration=1, callback=None)
+        result = {
+            ('eta', 0): None,
+            ('etd', 0): None,
+            ('il', 0): None,
+            ('iq', 0): (0, 4),
+            ('ol', 0): None,
+            ('oq', 0): (-2, 5),
+            ('p', 0): (None, 1),
+        }
+        data, offset = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, -2, "offset")
+
+    def test_event_negative_arrived(self):
+        event = self.scheduler(etd=(2, 5), duration=1, callback=None)
+        event.arrive(-1)
+        result = {
+            ('eta', 0): -1,
+            ('etd', 0): None,
+            ('il', 0): None,
+            ('iq', 0): (-1, 4),
+            ('ol', 0): None,
+            ('oq', 0): (2, 5),
+            ('p', 0): (None, 1),
+        }
+        data, offset = self.scheduler.get_event_variables(event)
+        self.assertEqual(data[event], result)
+        self.assertEqual(offset, -1, "offset")

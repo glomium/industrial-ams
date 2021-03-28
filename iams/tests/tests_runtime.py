@@ -126,6 +126,17 @@ class DockerSwarmRuntimeTests(unittest.TestCase):
         )
         self.instance.update_agent(request, skip_label_test=True)
 
+        # update
+        request = framework_pb2.AgentData(
+            name="doesnotexist",
+            image="busybox",
+            version="latest",
+            address="localhost",
+            port=5555,
+            autostart=False,
+        )
+        self.instance.update_agent(request, skip_label_test=True)
+
         # delete
         self.instance.delete_agent("doesnotexist")
 

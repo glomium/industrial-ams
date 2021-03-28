@@ -100,9 +100,9 @@ class BufferScheduler(SchedulerInterface):
             eta_bound_high = eta_max or eta or etd_bound_high - event.duration
 
             if eta_bound_low < offset:
-                offset = eta_bound_low  # TODO unittest needed
+                offset = eta_bound_low
             if etd_bound_low < offset:
-                offset = etd_bound_low  # TODO unittest needed
+                offset = etd_bound_low
 
             # set eta variables
             if event.state in [SchedulerState.NEW, SchedulerState.SCHEDULED]:
@@ -114,9 +114,6 @@ class BufferScheduler(SchedulerInterface):
                 data[('iq', i)] = (eta, etd_bound_high - event.duration)
                 data[('il', i)] = event.eta_lane
                 data[('eta', i)] = eta
-
-                if eta < offset:
-                    offset = eta  # TODO unittest needed
 
             # set production variables
             if event.state in [SchedulerState.NEW, SchedulerState.SCHEDULED, SchedulerState.ARRIVED]:

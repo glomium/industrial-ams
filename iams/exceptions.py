@@ -12,6 +12,12 @@ class SkipPlugin(AssertionError):
     """
 
 
+class StopSimulation(RuntimeError):
+    """
+    Raised if the agent name is not compatible with the runtime
+    """
+
+
 class InvalidAgentName(ValueError):
     """
     Raised if the agent name is not compatible with the runtime

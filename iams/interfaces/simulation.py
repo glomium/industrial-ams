@@ -20,6 +20,8 @@ from heapq import heappush
 from time import time
 from typing import Any
 
+from iams.exceptions import StopSimulation
+
 
 logger = logging.getLogger(__name__)
 
@@ -121,21 +123,28 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
                 continue
 
             if self._limit is not None and event.time > self._limit:
-                self._events -= 1 + len(self._queue)
+                self._events -= 1
                 break
 
-            dt = event.time - self._time  # pylint: disable=invalid-name
-            if dt > 0:  # pragma: no branch
+            delta = event.time - self._time
+            if delta > 0:  # pragma: no branch
                 logger.debug("Update timestamp: %.3f", event.time)
 
             # callback to act interact with event, gather statistics, etc
-            self.event_callback(event, dt, dryrun)
+            self.event_callback(event, delta, dryrun)
 
             # update time
             self._time = event.time
 
-            # run event-callback metod
-            getattr(event.obj, event.callback)(self, *event.args, **event.kwargs)
+            try:
+                # run event-callback metod
+                getattr(event.obj, event.callback)(self, *event.args, **event.kwargs)
+            except StopSimulation:
+                logger.debug("StopSimulation raised")
+                break
+
+        # reduce processed events by events still in queue
+        self._events -= len(self._queue)
 
         logger.info("=== Calling stop on agents")
         for agent in sorted(self._agents):

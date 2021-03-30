@@ -292,8 +292,6 @@ class SchedulerInterface(ABC):
         self._events = []
 
     def __call__(self, **kwargs):
-        """
-        """
         return self.event_class(**kwargs)
 
     def get_events(self, new_events=None):

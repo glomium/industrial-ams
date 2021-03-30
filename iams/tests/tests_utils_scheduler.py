@@ -210,294 +210,121 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(event.get_etd_min(), 26.0)
         self.assertEqual(event.get_etd_max(), None)
 
-#   @unittest.expectedFailure
-#   def test_event_eta1(self):
-#       event = self.scheduler(eta=2, duration=1, callback=None)
-#       result = [
-#           2, 2, 2,  # eta
-#           3, None, 50,  # etd
-#           2, 50, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_eta2(self):
-#       event = self.scheduler(eta=(1, 3), duration=1, callback=None)
-#       result = [
-#           1, None, 3,  # eta
-#           2, None, 50,  # etd
-#           1, 50, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_eta3(self):
-#       event = self.scheduler(eta=(1, 2, 3), duration=1, callback=None)
-#       result = [
-#           1, 2, 3,  # eta
-#           3, None, 50,  # etd
-#           2, 50, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_etd1(self):
-#       event = self.scheduler(etd=3, duration=1, callback=None)
-#       result = [
-#           0, None, 2,  # eta
-#           3, 3, 3,  # etd
-#           0, 3, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_etd2(self):
-#       event = self.scheduler(etd=(2, 4), duration=1, callback=None)
-#       result = [
-#           0, None, 3,  # eta
-#           2, None, 4,  # etd
-#           0, 4, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_etd3(self):
-#       event = self.scheduler(etd=(2, 3, 4), duration=1, callback=None)
-#       result = [
-#           0, None, 2,  # eta
-#           2, 3, 4,  # etd
-#           0, 3, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_arrived(self):
-#       event = self.scheduler(etd=4, duration=1, callback=None)
-#       event.arrive(1)
-#       result = [
-#           1, 1, 1,  # eta
-#           4, 4, 4,  # etd
-#           1, 4, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_arrived_canceled(self):
-#       event = self.scheduler(etd=4, duration=1, callback=None)
-#       event.arrive(1)
-#       event.cancel()
-#       result = [
-#           1, 1, 1,  # eta
-#           4, 4, 4,  # etd
-#           1, 4, True,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_started(self):
-#       event = self.scheduler(etd=4, duration=1, callback=None)
-#       event.arrive(1)
-#       event.start(2)
-#       result = [
-#           None, None, None,  # eta
-#           4, 4, 4,  # etd
-#           2, 3, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_finished(self):
-#       event = self.scheduler(etd=4, duration=1, callback=None)
-#       event.arrive(1)
-#       event.start(2)
-#       event.finish(3)
-#       result = [
-#           None, None, None,  # eta
-#           4, 4, 4,  # etd
-#           None, 3, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_finished_max(self):
-#       event = self.scheduler(etd=(2, 5), duration=1, callback=None)
-#       event.arrive(1)
-#       event.start(2)
-#       event.finish(3)
-#       result = [
-#           None, None, None,  # eta
-#           3, None, 5,  # etd
-#           None, 3, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, 0, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
-#   def test_event_negative_eta(self):
-#       event = self.scheduler(eta=-1, etd=(2, 5), duration=1, callback=None)
-#       result = [
-#           -1, -1, -1,  # eta
-#           2, None, 5,  # etd
-#           -1, 5, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, -1, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
+    def test_event_arrived(self):
+        self.setup1()
+        self.event1.arrive(8)
+        event = self.scheduler(eta=(9, 10), duration=2, callback=None)
+        result = self.scheduler.save(event)
+
+        self.assertTrue(result)
+        self.assertEqual(event.get_eta(), 9.0)
+        self.assertEqual(event.get_start(), 10.0)
+        self.assertEqual(event.get_finish(), 12.0)
+        self.assertEqual(event.get_etd(), 12.0)
+        self.assertEqual(event.duration, 2)
+        self.assertEqual(event.get_eta_min(), 9)
+        self.assertEqual(event.get_eta_max(), 10)
+        self.assertEqual(event.get_etd_min(), 12.0)
+        self.assertEqual(event.get_etd_max(), 21.0)
+
+    def test_event_arrived_canceled(self):
+        self.setup1()
+        self.event1.arrive(8)
+        self.event1.cancel()
+        event = self.scheduler(eta=(9, 10), duration=2, callback=None)
+        result = self.scheduler.save(event)
+
+        self.assertTrue(result)
+        self.assertEqual(event.get_eta(), 9.0)
+        self.assertEqual(event.get_start(), 10.0)
+        self.assertEqual(event.get_finish(), 12.0)
+        self.assertEqual(event.get_etd(), 12.0)
+        self.assertEqual(event.duration, 2)
+        self.assertEqual(event.get_eta_min(), 9)
+        self.assertEqual(event.get_eta_max(), 10)
+        self.assertEqual(event.get_etd_min(), 12.0)
+        self.assertEqual(event.get_etd_max(), 21.0)
+
+    def test_event_started(self):
+        self.setup1()
+        self.event1.arrive(8)
+        self.event1.start(9)
+        event = self.scheduler(eta=(9, 10), duration=2, callback=None)
+        result = self.scheduler.save(event)
+
+        self.assertTrue(result)
+        self.assertEqual(event.get_eta(), 9.0)
+        self.assertEqual(event.get_start(), 11.0)
+        self.assertEqual(event.get_finish(), 13.0)
+        self.assertEqual(event.get_etd(), 13.0)
+        self.assertEqual(event.duration, 2)
+        self.assertEqual(event.get_eta_min(), 9)
+        self.assertEqual(event.get_eta_max(), 10)
+        self.assertEqual(event.get_etd_min(), 13.0)
+        self.assertEqual(event.get_etd_max(), 21.0)
+
+    def test_event_finished(self):
+        self.setup1()
+        self.event1.arrive(8)
+        self.event1.start(9)
+        self.event1.finish(10)
+        event = self.scheduler(eta=(9, 10), duration=2, callback=None)
+        result = self.scheduler.save(event)
+
+        self.assertTrue(result)
+        self.assertEqual(event.get_eta(), 10.0)
+        self.assertEqual(event.get_start(), 10.0)
+        self.assertEqual(event.get_finish(), 12.0)
+        self.assertEqual(event.get_etd(), 12.0)
+        self.assertEqual(event.duration, 2)
+        self.assertEqual(event.get_eta_min(), 9)
+        self.assertEqual(event.get_eta_max(), 10)
+        self.assertEqual(event.get_etd_min(), 12.0)
+        self.assertEqual(event.get_etd_max(), 21.0)
+
+    def test_event_negative_eta(self):
+        event = self.scheduler(eta=-1, duration=2, callback=None)
+        result = self.scheduler.save(event)
+
+        self.assertTrue(result)
+        self.assertEqual(event.get_eta(), -1.0)
+        self.assertEqual(event.get_start(), -1.0)
+        self.assertEqual(event.get_finish(), 1.0)
+        self.assertEqual(event.get_etd(), 1.0)
+        self.assertEqual(event.duration, 2)
+        self.assertEqual(event.get_eta_min(), None)
+        self.assertEqual(event.get_eta_max(), None)
+        self.assertEqual(event.get_etd_min(), 1)
+        self.assertEqual(event.get_etd_max(), None)
+
 #   def test_event_negative_etd(self):
-#       event = self.scheduler(etd=(-2, 5), duration=1, callback=None)
-#       result = [
-#           0, None, 4,  # eta
-#           -2, None, 5,  # etd
-#           0, 5, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, -2, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
-#
-#   @unittest.expectedFailure
+#       event = self.scheduler(eta=0, etd=[-1, 10], duration=2, callback=None)
+#       result = self.scheduler.save(event)
+
+#       self.assertTrue(result)
+#       self.assertEqual(event.get_eta(), 10.0)
+#       self.assertEqual(event.get_start(), 10.0)
+#       self.assertEqual(event.get_finish(), 12.0)
+#       self.assertEqual(event.get_etd(), 12.0)
+#       self.assertEqual(event.duration, 2)
+#       self.assertEqual(event.get_eta_min(), 9)
+#       self.assertEqual(event.get_eta_max(), 10)
+#       self.assertEqual(event.get_etd_min(), 12.0)
+#       self.assertEqual(event.get_etd_max(), 21.0)
+
 #   def test_event_negative_arrived(self):
-#       event = self.scheduler(etd=(2, 5), duration=1, callback=None)
-#       event.arrive(-1)
-#       result = [
-#           -1, -1, -1,  # eta
-#           2, None, 5,  # etd
-#           -1, 5, False,  # production
-#           1,
-#       ]
-#       data, offset = self.scheduler.get_event_variables(event)
-#       self.assertEqual(data[event]["number"], 1)
-#       self.assertEqual(data[event]["il"], None)
-#       self.assertEqual(data[event]["ol"], None)
-#       self.assertEqual(data[event]["production"], result)
-#       self.assertEqual(offset, -1, "offset")
-#
-#       model, events = self.scheduler.build_model(data, offset)
-#       response = self.scheduler.optimize_model(model, events)
-#       self.assertEqual(response, None)
+#       self.setup1()
+#       self.event1.arrive(-3)
+#       event = self.scheduler(eta=(9, 10), duration=2, callback=None)
+#       result = self.scheduler.save(event)
+
+#       self.assertTrue(result)
+#       self.assertEqual(event.get_eta(), 10.0)
+#       self.assertEqual(event.get_start(), 10.0)
+#       self.assertEqual(event.get_finish(), 12.0)
+#       self.assertEqual(event.get_etd(), 12.0)
+#       self.assertEqual(event.duration, 2)
+#       self.assertEqual(event.get_eta_min(), 9)
+#       self.assertEqual(event.get_eta_max(), 10)
+#       self.assertEqual(event.get_etd_min(), 12.0)
+#       self.assertEqual(event.get_etd_max(), 21.0)

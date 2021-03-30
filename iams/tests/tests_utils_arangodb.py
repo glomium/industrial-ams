@@ -30,7 +30,7 @@ else:
 ABILITIES = ["A", "B", "C", "D", "E", "F", "G"]
 
 
-class IMS(object):
+class IMS:
     def __init__(self, name, b1=None, b2=None):
         self.name = name
         self.b1 = b1
@@ -97,7 +97,7 @@ class IMS(object):
             }
 
 
-class UR(object):
+class UR:
 
     def __init__(self, name, p1=None, p2=None, p3=None, p4=None):
         self.p1 = p1

@@ -144,6 +144,8 @@ class BufferScheduler(SchedulerInterface):
                 finish = self.convert(event.get_finish(now))
                 data["finish"] = finish
                 data["ol"] = event.etd_lane
+            else:  # pragma: no cover
+                raise NotImplementedError("Implementation of state %s is missing" % event.state)
             events_data[event] = data
         return events_data, makespan, offset
 
@@ -169,7 +171,12 @@ class BufferScheduler(SchedulerInterface):
             if "eta" in data:
                 value_min, value_max = data["eta"]
                 new_data["eta"] = model.NewIntVar(value_min - offset, value_max - offset, f'eta_{number}')
-                intervals['i'] = [("eta", (value_min - offset)), None, None]
+                # TODO: a dataclass to store intervalls would be nice
+                intervals['i'] = [
+                    ("eta", (value_min - offset)),
+                    None,
+                    (None, False),
+                ]
 
             # second and third variable
             if "production" in data:
@@ -192,12 +199,12 @@ class BufferScheduler(SchedulerInterface):
                     intervals['p'] = [
                         ("start", value_min),
                         ("finish", None),
-                        None if event.canceled else duration,
+                        (duration, event.canceled),
                     ]
                     intervals['o'] = [
                         ("finish", (value_min + duration)),
                         None,
-                        None,
+                        (None, False),
                     ]
                     makespans.append(new_data["start"])
                     makespans.append(new_data["finish"])
@@ -219,12 +226,12 @@ class BufferScheduler(SchedulerInterface):
                     intervals['p'] = [
                         ("start", value_min),
                         ("finish", value_max),
-                        None if event.canceled else duration,
+                        (duration, event.canceled),
                     ]
                     intervals['o'] = [
                         ("finish", (value_min + duration)),
                         None,
-                        None,
+                        (None, False),
                     ]
                     makespans.append(new_data["start"])
                     makespans.append(new_data["finish"])
@@ -234,7 +241,7 @@ class BufferScheduler(SchedulerInterface):
                 intervals['o'] = [
                     ("finish", (data["finish"])),
                     None,
-                    None,
+                    (None, False),
                 ]
                 finish_min = data["finish"]
 
@@ -257,7 +264,7 @@ class BufferScheduler(SchedulerInterface):
                     continue
                 name_s, range_min = intervals[key][0]
                 name_e, range_max = intervals[key][1]
-                duration = intervals[key][2]
+                duration, canceled = intervals[key][2]
 
                 if previous:
                     model.Add(new_data[previous] <= new_data[name_s])
@@ -266,7 +273,9 @@ class BufferScheduler(SchedulerInterface):
                 if range_max is None:
                     range_max = self.horizon
 
-                if duration is None:
+                if canceled is True and duration is not None:
+                    new_data[name] = model.NewIntVar(0, duration, f'{name}_{number}')
+                elif duration is None:
                     new_data[name] = model.NewIntVar(0, range_max - range_min, f'{name}_{number}')
                 else:
                     new_data[name] = model.NewIntVar(duration, duration, f'{name}_{number}')
@@ -288,7 +297,7 @@ class BufferScheduler(SchedulerInterface):
             events[event] = new_data
         return model, makespans, events
 
-    def optimize_model(self, model, events, now, save):
+    def optimize_model(self, model, events, offset, now, save):  # pylint: disable=too-many-arguments
         """
         optimizes the model with a CP-solver
         """
@@ -329,10 +338,10 @@ class BufferScheduler(SchedulerInterface):
 
         for event, data in events.items():
             if event.state == SchedulerState.NEW:
-                event.set_eta(self.store(solver.Value(data["eta"])), now)
-                event.set_start(self.store(solver.Value(data["start"])), now)
-                event.set_finish(self.store(solver.Value(data["finish"])), now)
-                event.set_etd(self.store(solver.Value(data["etd"])), now)
+                event.set_eta(self.store(solver.Value(data["eta"]) + offset), now)
+                event.set_start(self.store(solver.Value(data["start"]) + offset), now)
+                event.set_finish(self.store(solver.Value(data["finish"]) + offset), now)
+                event.set_etd(self.store(solver.Value(data["etd"]) + offset), now)
 
         for lane in self.buffer_input:  # pylint: disable=unused-variable
             data = []
@@ -422,118 +431,6 @@ class BufferScheduler(SchedulerInterface):
         new_events, makespan, offset = self.get_event_variables(new_event, now=now)
         model, makespans, events = self.build_model(new_events, offset)
 
-        self.optimize_model(model, events, now, save)
+        self.optimize_model(model, events, offset, now, save)
 
         return new_event
-
-        # model = cp_model.CpModel()
-        # horizon = self.horizon
-        # # print(offset)  # noqa
-        # # print(horizon)  # noqa
-        # # print(events)  # noqa
-        # events = list(new_events.keys())  # TODO: OLD
-
-        # iqs = []  # input queue time
-        # oqs = []  # output queue time
-        # idemands = []
-        # odemands = []
-        # pdemands = []
-        # ends = []
-        # starts = []
-        # intervals = []
-
-        # previous = None
-        # for i, event in enumerate(events):
-        #     eta = self.convert(event.get_eta(now))
-        #     duration = self.convert(event.duration)
-
-        #     etd = event.get_etd(now)
-        #     if etd is None:
-        #         # time in input queue
-        #         iqs.append(model.NewIntVar(eta, horizon - duration, 'iq_%i' % i))
-        #         # time in output queue
-        #         oqs.append(model.NewIntVar(eta + duration, horizon, 'oq_%i' % i))
-
-        #         # production
-        #         starts.append(model.NewIntVar(eta, horizon - duration, 'ps_%i' % i))
-        #         ends.append(model.NewIntVar(eta + duration, horizon, 'pe_%i' % i))
-        #         intervals.append(model.NewIntervalVar(starts[i], duration, ends[i], 'pi_%i' % i))
-
-        #         idemands.append((eta, 1))
-        #         idemands.append((starts[i], -1))
-        #         pdemands.append(1)
-        #         # odemands.append((ends[i], 1))
-        #         # odemands.append((ends[i], -1))
-
-        #         model.Add(eta <= starts[i])
-        #         model.Add(horizon >= ends[i])
-        #     else:
-        #         # time in input queue
-        #         iqs.append(model.NewIntVar(eta, etd - duration - offset, 'iq_%i' % i))
-        #         # time in output queue
-        #         oqs.append(model.NewIntVar(eta + duration, etd - offset, 'oq_%i' % i))
-
-        #         # production
-        #         starts.append(model.NewIntVar(eta, etd - duration - offset, 'ps_%i' % i))
-        #         ends.append(model.NewIntVar(eta + duration, etd - offset, 'pe_%i' % i))
-        #         intervals.append(model.NewIntervalVar(starts[i], duration, ends[i], 'pi_%i' % i))
-
-        #         idemands.append((eta, 1))
-        #         idemands.append((starts[i], -1))
-        #         pdemands.append(1)
-        #         odemands.append((ends[i], 1))
-        #         odemands.append((etd, -1))
-
-        #         model.Add(eta <= starts[i])
-        #         model.Add(etd >= ends[i])
-
-        #     # Precedences inside a job.
-        #     if previous is not None:
-        #         model.Add(starts[i] >= previous)
-        #     previous = starts[i]
-
-        # model.AddCumulative(intervals, pdemands, self.production_lines)
-        # model.AddReservoirConstraint(
-        #     [x[0] for x in idemands],
-        #     [x[1] for x in idemands],
-        #     0,
-        #     list(self.buffer_input.values())[0],
-        # )
-        # model.AddReservoirConstraint(
-        #     [x[0] for x in odemands],
-        #     [x[1] for x in odemands],
-        #     0,
-        #     list(self.buffer_output.values())[0],
-        # )
-        # model.Minimize(sum(starts))
-
-        # solver = cp_model.CpSolver()
-        # try:
-        #     solver.Solve(model)
-        # except Exception as exception:  # pragma: no cover
-        #     logger.exception("Solver failed")
-        #     raise CanNotSchedule('Solver failed') from exception
-
-        # # solver needs to be optimal to result in a match
-        # if solver.StatusName() not in ["OPTIMAL"]:
-        #     raise CanNotSchedule('Solver returned %s' % solver.StatusName())
-
-        # previous = None
-        # for i, event in enumerate(events):
-        #     if i > 0:
-        #         prev_event = events[i - 1]  # noqa
-
-        #     try:
-        #         next_event = events[i + 1]  # noqa
-        #     except IndexError:
-        #         pass
-        #     else:
-        #         pass  # TODO
-
-        #         # self.schedule_eta_min = solver.Value(ends[i]) / event.resolution
-        #         # previous.schedule_etd_max = solver.Value(ends[i]) / event.resolution
-        #     # event.set_schedule_start(solver.Value(starts[i]) + offset)
-        #     # event.set_schedule_end(solver.Value(ends[i]) + offset)
-
-        # # self.events = events
-        # return True

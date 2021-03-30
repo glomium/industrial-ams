@@ -285,6 +285,7 @@ class SchedulerInterface(ABC):
     """
     Scheduler interface
     """
+    event_class = Event
 
     def __init__(self, agent):
         self._agent = agent
@@ -293,7 +294,7 @@ class SchedulerInterface(ABC):
     def __call__(self, **kwargs):
         """
         """
-        return Event(**kwargs)
+        return self.event_class(**kwargs)
 
     def get_events(self, new_events=None):
         """
@@ -307,7 +308,7 @@ class SchedulerInterface(ABC):
                 continue
             yield event
 
-        if isinstance(new_events, Event):
+        if isinstance(new_events, self.event_class):
             new_events = [new_events]
         elif new_events is None:
             new_events = []

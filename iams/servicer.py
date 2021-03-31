@@ -51,7 +51,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         update
         """
         # pylint: disable=protected-access
-        logger.debug('Update called from %s', context._username)
+        logger.debug('Update called from %s', context._credential)
         request.name = self.get_agent_name(context, request.name)
 
         try:
@@ -75,7 +75,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         create
         """
         # pylint: disable=protected-access
-        logger.debug('create called from %s', context._username)
+        logger.debug('create called from %s', context._credential)
         raise NotImplementedError()
 
         # regex = self.RE_NAME.match(request.name)
@@ -121,7 +121,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         upgrade
         """
         # pylint: disable=protected-access
-        logger.debug('upgrade called from %s', context._agent)
+        logger.debug('upgrade called from %s', context._credential)
         self.runtime.update_agent(framework_pb2.AgentData(name=request.name), update=True)  # noqa
         return Empty()
 
@@ -130,12 +130,12 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         get agent name
         """
         # pylint: disable=protected-access
-        if context._agent is None and name is None:
+        if context._credential is None and name is None:
             message = 'Need to give agent name in request'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        if context._agent:
-            return context._agent
+        if name is None and context._credential:
+            return context._credential
 
         try:
             return self.runtime.get_valid_agent_name(name)
@@ -149,7 +149,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         destroy
         """
         # pylint: disable=protected-access
-        logger.debug('Destroy called from %s', context._username)
+        logger.debug('Destroy called from %s', context._credential)
         try:
             request.name = self.get_agent_name(context, request.name)
         except docker_errors.NotFound as exception:
@@ -165,7 +165,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         sleep
         """
         # pylint: disable=protected-access
-        logger.debug('sleep called from %s', context._agent)
+        logger.debug('sleep called from %s', context._credential)
         try:
             request.name = self.get_agent_name(context, request.name)
         except docker_errors.NotFound as exception:
@@ -181,7 +181,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         wake agent
         """
         # pylint: disable=protected-access
-        logger.debug('wake called from %s', context._agent)
+        logger.debug('wake called from %s', context._credential)
         try:
             request.name = self.get_agent_name(context, request.name)
         except docker_errors.NotFound as exception:
@@ -206,8 +206,8 @@ class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):  #
     @permissions(is_optional=True)
     def renew(self, request, context):
 
-        if context._agent is not None:  # pylint: disable=protected-access
-            request.name = context._agent  # pylint: disable=protected-access
+        if context._credential is not None:  # pylint: disable=protected-access
+            request.name = context._credential  # pylint: disable=protected-access
         else:
 
             # connect to ping-rpc on name and check if connection breaks due to an invalid certificate

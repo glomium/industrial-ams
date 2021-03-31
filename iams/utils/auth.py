@@ -24,17 +24,17 @@ def permissions(function=None, is_optional=False):
         def wrapped(self, request, context):
 
             # internal request
-            if hasattr(context, "_agent"):
+            if hasattr(context, "_credential"):
                 logger.debug("Context already as a _agent attribute - internal request")
                 return func(self, request, context)
 
             try:
-                context._agent = context.auth_context()["x509_common_name"][0]
+                context._credential = context.auth_context()["x509_common_name"][0]
             except (KeyError, AttributeError):
                 logger.debug("Could not assign the _agent attribute")
-                context._agent = None
+                context._credential = None
 
-            if is_optional or context._agent is not None:
+            if is_optional or context._credential is not None:
                 return func(self, request, context)
 
             message = "Client needs to be authentifacted"

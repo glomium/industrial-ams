@@ -7,7 +7,6 @@ Manages simulation configurations
 """
 
 from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures import wait
 from copy import deepcopy
 from importlib import import_module
 from itertools import product
@@ -20,8 +19,6 @@ import logging
 import os
 import yaml
 
-# from logging.config import dictConfig
-# from dataclasses import asdict
 # from iams.interfaces.df import DirectoryFacilitatorInterface
 
 from iams.interfaces.simulation import SimulationInterface
@@ -311,16 +308,18 @@ def main(args, function=run_simulation):
         function(**kwarg_list.pop(0))
     elif len(kwarg_list) > 1:
         with ProcessPoolExecutor() as executor:
-            futures = []
             for kwargs in kwarg_list:
-                futures.append(executor.submit(function, **kwargs))
-            del kwarg_list
-            wait(futures)
-            for future in futures:
-                try:
-                    future.result()
-                except Exception as exception:  # pylint: disable=broad-except
-                    print(str(exception))  # noqa
+                executor.submit(function, **kwargs).add_done_callback(handler)
+
+
+def handler(future):
+    """
+    the responde from the process pool exetutor is catched here
+    """
+    try:
+        future.result()
+    except Exception as exception:  # pylint: disable=broad-except
+        logger.exception(str(exception))
 
 
 def execute_command_line():  # pragma: no cover

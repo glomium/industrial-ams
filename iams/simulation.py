@@ -11,13 +11,13 @@ from concurrent.futures import wait
 from copy import deepcopy
 from importlib import import_module
 from itertools import product
+from logging.config import dictConfig
 from math import floor
 from math import log10
 
 import argparse
 import logging
 import os
-import sys
 import yaml
 
 # from logging.config import dictConfig
@@ -42,14 +42,14 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
     if not dryrun and not os.path.exists(folder):
         os.mkdir(folder)
 
-    permutations = []
+    products = []
     length = 1
-    for key, values in config.get("permutations", {}).items():
+    for key, values in config.get("products", {}).items():
         length *= len(values)
         data = []
         for value in values:
             data.append((key, value))
-        permutations.append(data)
+        products.append(data)
 
     if length > 1:
         length = int(floor(log10(length)) + 1)
@@ -61,7 +61,7 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
         template = project
 
     count = 0
-    for run_config in product(*permutations):
+    for run_config in product(*products):
         run_config = dict(run_config)
         count += 1
 
@@ -70,7 +70,50 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
         if not dryrun and not force and os.path.exists(kwargs['file_data']):  # pragma: no cover
             continue
 
-        kwargs.update({'dryrun': dryrun, 'loglevel': loglevel})
+        if dryrun:
+            kwargs['file_data'] = None
+
+        log_config = {
+            'version': 1,
+            'disable_existing_loggers': False,
+            'formatters': {
+                'default': {
+                    'format': "%(levelname)s %(message)s",
+                },
+                'logfile': {
+                    'format': "%(message)s",
+                },
+                'debug': {
+                    'format': "%(levelname)s [%(name)s:%(lineno)s] %(message)s",
+                },
+            },
+            'handlers': {
+                'console': {
+                    'class': "logging.StreamHandler",
+                    'level': loglevel,
+                    'formatter': 'debug' if loglevel < logging.INFO else "default",
+                },
+                'file': {
+                    'class': "logging.FileHandler",
+                    'level': logging.DEBUG if loglevel < logging.INFO else logging.INFO,
+                    'formatter': "logfile",
+                    'filename': kwargs.pop("file_log"),
+                    'mode': 'w',
+                },
+            },
+            'root': {
+                'handlers': ['console'],
+                'level': logging.DEBUG if loglevel < logging.INFO else logging.INFO,
+            },
+        }
+
+        if dryrun is True:
+            del log_config['handlers']['file']
+        else:
+            log_config['root']['handlers'].append('file')
+            log_config['handlers']['console']['level'] = logging.WARNING
+            log_config['handlers']['console']['formatter'] = "logfile"
+        kwargs.update({'log_config': log_config, 'dryrun': dryrun})
 
         yield kwargs
 
@@ -115,7 +158,7 @@ def prepare_run(count, folder, template, run_config, config):
         "formatter",
         "simulation-class",
         "directory-facilitator",
-        "permutations",
+        "products",
         "seed",
         "settings",
         "start",
@@ -152,15 +195,15 @@ def load_agent(agents, global_settings):
         for name in agent.get('use_global', []):
             settings[name] = global_settings[name]
 
-        permutations = []
-        for key, values in agent.get("permutations", {}).items():
+        products = []
+        for key, values in agent.get("products", {}).items():
             data = []
             for value in values:
                 data.append((key, value))
-            permutations.append(sorted(data))
+            products.append(sorted(data))
 
-        for permutation in product(*permutations):
-            settings.update(dict(permutation))
+        for prod in product(*products):
+            settings.update(dict(prod))
             logger.debug("Create agent: %r with %s", cls, settings)
             instance = cls(**settings)
             logger.info("Created agent: %s", instance)
@@ -169,34 +212,14 @@ def load_agent(agents, global_settings):
 
 def run_simulation(  # pylint: disable=invalid-name,too-many-arguments
         simcls, df, name, folder, settings, start, stop, seed, config,
-        dryrun, loglevel, file_data, file_log):
+        dryrun, log_config, file_data):
     """
     execute single simulation config
     """
+    dictConfig(log_config)
+    logger.warning('Start simulation "%s"', name)
 
-    if loglevel == logging.DEBUG:
-        formatter = "%(levelname).1s [%(name)s:%(lineno)s] %(message)s"
-    else:
-        formatter = '%(message)s'
-
-    if dryrun:
-        # redirect output to null device
-        file_data = os.devnull
-        logging.basicConfig(
-            stream=sys.stdout,
-            level=loglevel,
-            format=formatter,
-        )
-    else:
-        logging.basicConfig(
-            filename=file_log,
-            filemode='w',
-            level=loglevel,
-            force=True,
-            format=formatter,
-        )
-
-    with open(file_data, "w") as fobj:
+    with open(file_data or os.devnull, "w") as fobj:
         # init simulation
         simulation = simcls(
             df=df,
@@ -284,7 +307,10 @@ def main(args, function=run_simulation):
             del kwarg_list
             wait(futures)
             for future in futures:
-                future.result()
+                try:
+                    future.result()
+                except Exception as exception:  # pylint: disable=broad-except
+                    print(str(exception))  # noqa
 
 
 def execute_command_line():  # pragma: no cover

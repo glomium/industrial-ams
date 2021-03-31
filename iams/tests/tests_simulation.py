@@ -48,7 +48,7 @@ class SimulationTests(unittest.TestCase):  # pragma: no cover
             agents=[{
                 'class': 'iams.tests.tests_simulation.Agent',
                 'use_global': ['g'],
-                'permutations': {
+                'products': {
                     'h': [2, 1],
                 },
             }],
@@ -98,7 +98,7 @@ class SimulationTests(unittest.TestCase):  # pragma: no cover
     def test_config_mulit1(self):
         result = list(process_config("/does/not/exist.yaml", {
             'simulation-class': 'iams.tests.tests_interfaces_simulation.Simulation',
-            'permutations': {'a': [1, 2]},
+            'products': {'a': [1, 2]},
         }, dryrun=True))
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["name"], "exist-1")
@@ -107,7 +107,7 @@ class SimulationTests(unittest.TestCase):  # pragma: no cover
     def test_config_mulit2(self):
         result = list(process_config("/does/not/exist.yaml", {
             'simulation-class': 'iams.tests.tests_interfaces_simulation.Simulation',
-            'permutations': {'a': [2, 1]},
+            'products': {'a': [2, 1]},
             'formatter': 'a-{a:d}',
         }, dryrun=True))
         self.assertEqual(len(result), 2)

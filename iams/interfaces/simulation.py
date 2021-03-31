@@ -139,8 +139,8 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
             try:
                 # run event-callback metod
                 getattr(event.obj, event.callback)(self, *event.args, **event.kwargs)
-            except StopSimulation:
-                logger.debug("StopSimulation raised")
+            except StopSimulation as exception:
+                logger.info("Simulation stopped: %s", exception)
                 break
 
         # reduce processed events by events still in queue

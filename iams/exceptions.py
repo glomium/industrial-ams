@@ -12,7 +12,7 @@ class SkipPlugin(AssertionError):
     """
 
 
-class StopSimulation(RuntimeError):
+class StopSimulation(Exception):
     """
     Raised if the agent name is not compatible with the runtime
     """

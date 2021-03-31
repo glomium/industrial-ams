@@ -26,38 +26,37 @@ from iams.exceptions import StopSimulation
 logger = logging.getLogger(__name__)
 
 
-class Agent:  # pylint: disable=no-member
+class Agent(ABC):
     """
     basic agent class for simulations
     """
+    # pylint: disable=no-member
 
     def __call__(self, simulation, dryrun):
         """
         init agent in simulation
         """
 
-    def __str__(self):
-        return self.name
-
     def __hash__(self):
-        return hash(self.name)
+        return hash(str(self))
 
-    def asdict(self):
+    @abstractmethod
+    def __str__(self):
+        """
+        Agents name
+        """
+
+    @abstractmethod
+    def asdict(self) -> dict:
         """
         returns the agent object's data as a dictionary
         """
-        return {
-            'name': self.name,
-        }
 
-
-@dataclass(order=True, frozen=True)
-class AgentContainer:
-    """
-    Storage of agent instances in simulation
-    """
-    name: str = field(compare=True, repr=True, hash=True)
-    obj: Any = field(compare=False, repr=False, hash=False)
+    @abstractmethod
+    def attributes(self) -> dict:
+        """
+        returns the agent attributes as a dictionary
+        """
 
 
 @dataclass(order=True, frozen=True)
@@ -92,7 +91,7 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
     def __init__(self, df, name, folder, fobj, seed, start, stop):  # pylint: disable=too-many-arguments
         logger.info("=== Start: %s", datetime.now())
         logger.info("=== Initialize %s", self.__class__.__qualname__)
-        self._agents = set()
+        self._agents = {}
         self._csv_writer = None
         self._df = df
         self._events = 0
@@ -104,6 +103,19 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
         self._time = start
         logger.info("=== Setting random-seed: %s", seed)
         random.seed(seed)
+        self.post_init()
+
+    def post_init(self):
+        """
+        executes after init
+        """
+        self._df(**self.df_kwargs())
+
+    def df_kwargs(self):  # pylint: disable=no-self-use
+        """
+        returns the directors facilitator keyword arguments
+        """
+        return {}
 
     def __call__(self, dryrun, settings):
         timer = time()
@@ -113,7 +125,7 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
 
         logger.info("=== Init agents")
         for agent in sorted(self._agents):
-            agent.obj(self, dryrun)
+            self._agents[agent](self, dryrun)
 
         logger.info("=== Start simulation")
         while self._queue:
@@ -149,9 +161,9 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
         logger.info("=== Calling stop on agents")
         for agent in sorted(self._agents):
             try:
-                agent.obj.stop(self, dryrun)
+                self._agents[agent].stop(self, dryrun)
             except (AttributeError, TypeError, NotImplementedError):
-                logger.debug("%s does not provide a stop method", agent.name)
+                logger.debug("%s does not provide a stop method", agent)
         logger.info("=== Stop simulation")
         self.stop(dryrun)
         timer = time() - timer
@@ -168,28 +180,45 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
     def __str__(self):
         return f'{self.__class__.__qualname__}({self._name})'
 
+    @property
+    def df(self):  # pylint: disable=invalid-name
+        """
+        returns the directory facilitator
+        """
+        return self._df
+
+    def get_state(self, **kwargs):
+        """
+        write system state
+        """
+        kwargs.update(self.asdict() or {})
+        for agent, _ in self.df.agents():
+            for key, value in self._agents[agent].asdict().items():
+                kwargs[f'{agent}_{key}'] = value
+        return kwargs
+
     def register(self, agent):
         """
         register agent
         """
-        obj = AgentContainer(str(agent), agent)
-        if obj in self._agents:
-            raise KeyError(f'{agent} already registered')
-        self._agents.add(obj)
+        attrs = agent.attributes() or {}
+        self._df.register_agent(str(agent), **attrs)
+        self._agents[str(agent)] = agent
 
-    def agents(self):
+    def agent(self, name):
         """
         iterator over all agents
         """
-        for agent in self._agents:
-            yield agent.obj
+        return self._agents[name]
 
     def unregister(self, agent):
         """
         unregister agent
         """
-        obj = AgentContainer(str(agent), agent)
-        self._agents.remove(obj)
+        try:
+            del self._agents[str(agent)]
+        except KeyError:
+            pass
 
     def schedule(self, obj, dt, callback, *args, **kwargs):  # pylint: disable=invalid-name
         """
@@ -255,4 +284,9 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
     def event_callback(self, event, dt, dryrun):  # pylint: disable=invalid-name
         """
         overwrite to process event callbacks
+        """
+
+    def asdict(self) -> dict:
+        """
+        returns the agent object's data as a dictionary
         """

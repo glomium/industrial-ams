@@ -145,7 +145,7 @@ def prepare_run(count, folder, template, run_config, config):
         raise NotImplementedError("the directory facilitator cannot be changed")
         # df = getattr(import_module(module_name), class_name)
         # if not issubclass(df, DierctoryFacilitatorInterface):
-        #     raise AssertionError(
+        #     raise TypeError(
         #         "%s needs to be a subclass of %s",
         #         df.__qualname__,
         #         DirectoryFacilitatorInterface.__qualname__,
@@ -205,7 +205,10 @@ def load_agent(agents, global_settings):
         for prod in product(*products):
             settings.update(dict(prod))
             logger.debug("Create agent: %r with %s", cls, settings)
-            instance = cls(**settings)
+            try:
+                instance = cls(**settings)
+            except TypeError as exception:
+                raise TypeError('%s on %r' % (exception, cls)) from exception
             logger.info("Created agent: %s", instance)
             yield instance
 
@@ -273,6 +276,13 @@ def parse_command_line(argv=None):
         help="Dry-run",
     )
     parser.add_argument(
+        '--single',
+        action='store_true',
+        default=False,
+        dest="single",
+        help="Only run one instance",
+    )
+    parser.add_argument(
         'configs',
         nargs='+',
         help="Simulation configuration files",
@@ -297,7 +307,7 @@ def main(args, function=run_simulation):
         for kwargs in process_config(fobj.name, config, dryrun=args.dryrun, force=args.force, loglevel=args.loglevel):
             kwarg_list.append(deepcopy(kwargs))
 
-    if len(kwarg_list) == 1:
+    if len(kwarg_list) == 1 or args.single:
         function(**kwarg_list.pop(0))
     elif len(kwarg_list) > 1:
         with ProcessPoolExecutor() as executor:

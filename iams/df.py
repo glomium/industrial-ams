@@ -22,3 +22,13 @@ class ArangoDF(DirectoryFacilitatorInterface):
         """
         Connects the class to argangodb server
         """
+
+    def agents(self, **kwargs):
+        """
+        Get agents with matching filters
+        """
+
+    def register_agent(self, name, **kwargs):
+        """
+        add agent
+        """

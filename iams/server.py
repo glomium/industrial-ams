@@ -77,79 +77,89 @@ def parse_command_line(argv=None):
         default=os.environ.get('IAMS_NAMESPACE', "prod"),
     )
 
-    return parser.parse_args(argv)
-
-
-def main(args):
-    """
-    starts the server
-    """
-    dictConfig(get_logging_config(["iams"], args.loglevel))
-    logger.info("IAMS namespace: %s", args.namespace)
+    args = parser.parse_args(argv)
 
     if args.hosts:
         args.hosts = args.hosts.split(',')
     else:
         args.host = []
 
-    # init and configure certificate authority
-    ca = CFSSL(args.cfssl, args.hosts)  # pylint: disable=invalid-name
-    ca()
-    # init and configure directory facilitator
-    df = ArangoDF()  # pylint: disable=invalid-name
-    df()
-    # init and configure runtime
-    runtime = DockerSwarmRuntime(ca)
-    runtime()
+    return args
 
-    # dynamically load services from environment
-    for cls in get_plugins():
-        try:
-            logger.info("Loaded plugin %s (usage label: %s)", cls.__qualname__, cls.label())
-            runtime.register_plugin(cls(
-                namespace=runtime.namespace,
-                simulation=False,
-            ))
-        except SkipPlugin:
-            logger.info("Skipped plugin %s", cls.__qualname__)
-        except Exception:  # pylint: disable=broad-except
-            logger.exception("Error loading plugin %s", cls.__qualname__)
-            continue
 
-    server = Grpc(runtime.servername, ca)
-    with ThreadPoolExecutor() as executor:
-        server.server(executor)
-        server.add(add_CertificateAuthorityServicer_to_server, CertificateAuthorityServicer(ca, runtime, executor))
-        server.add(add_DirectoryFacilitatorServicer_to_server, DirectoryFacilitatorServicer(df))
-        server.add(add_FrameworkServicer_to_server, FrameworkServicer(runtime, ca, df, executor))
+class Server:
+    """
+    Iams Server
+    """
 
-        # load certificate data (used to shutdown service after certificate became invalid)
-        cert = x509.load_pem_x509_certificate(server.certificate, default_backend())
+    def __init__(self, args):
+        self.args = args
 
-        with server:
+    def __call__(self, ca=None, df=None, runtime=None):
+
+        if ca is None:
+            ca = CFSSL(self.args.cfssl, self.args.hosts)
+        ca()
+
+        if df is None:
+            df = ArangoDF()
+        df()
+
+        if runtime is None:
+            runtime = DockerSwarmRuntime(ca)
+        runtime()
+
+        # dynamically load services from environment
+        for cls in get_plugins():
             try:
-                while True:
-                    eta = cert.not_valid_after - datetime.datetime.now()
-                    logger.debug("certificate valid for %s days", eta.days)
+                logger.info("Loaded plugin %s (usage label: %s)", cls.__qualname__, cls.label())
+                runtime.register_plugin(cls(
+                    namespace=runtime.namespace,
+                    simulation=False,
+                ))
+            except SkipPlugin:
+                logger.info("Skipped plugin %s", cls.__qualname__)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("Error loading plugin %s", cls.__qualname__)
+                continue
 
-                    if eta.days > 1:
-                        sleep(86400)
-                        continue
-                    if runtime.container:
-                        logger.debug("restart container")
-                        runtime.container.reload()
-                        runtime.container.restart()
-                    break
-            except KeyboardInterrupt:
-                pass
+        server = Grpc(runtime.servername, ca)
+        with ThreadPoolExecutor() as executor:
+            server.server(executor)
+            server.add(add_CertificateAuthorityServicer_to_server, CertificateAuthorityServicer(ca, runtime, executor))
+            server.add(add_DirectoryFacilitatorServicer_to_server, DirectoryFacilitatorServicer(df))
+            server.add(add_FrameworkServicer_to_server, FrameworkServicer(runtime, ca, df, executor))
+
+            # load certificate data (used to shutdown service after certificate became invalid)
+            cert = x509.load_pem_x509_certificate(server.certificate, default_backend())
+
+            with server:
+                try:
+                    while True:
+                        eta = cert.not_valid_after - datetime.datetime.now()
+                        logger.debug("certificate valid for %s days", eta.days)
+
+                        if eta.days > 1:
+                            sleep(86400)
+                            continue
+                        if runtime.container:
+                            logger.debug("restart container")
+                            runtime.container.reload()
+                            runtime.container.restart()
+                        break
+                except KeyboardInterrupt:
+                    pass
 
 
 def execute_command_line():  # pragma: no cover
     """
     Execute command line
     """
-    main(parse_command_line())
+    args = parse_command_line()
+    dictConfig(get_logging_config(["iams"], args.loglevel))
+    server = Server(args)
+    server()
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main(parse_command_line())
+    execute_command_line()

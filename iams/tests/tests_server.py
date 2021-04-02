@@ -7,9 +7,10 @@ unittests for iams.server
 
 import unittest
 
-from iams.server import *  # noqa
+# from iams.server import Server
+from iams.server import parse_command_line
 
 
-class ImportTests(unittest.TestCase):  # pragma: no cover
-    def test_empty(self):
-        pass
+class ServerTests(unittest.TestCase):  # pragma: no cover
+    def test_parse_command_line(self):
+        parse_command_line(["localhost:8888"])

@@ -15,6 +15,9 @@ class CA(CertificateAuthorityInterface):
     def get_ca_secret(self, data, namespace):
         return data
 
+    def get_root_cert(self):
+        return b'root-ca'
+
     def get_agent_certificate(self, name, hosts=None):
         return b'None', b'None'
 

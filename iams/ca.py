@@ -35,7 +35,7 @@ class CFSSL(CertificateAuthorityInterface):
         data["%s_ca.crt" % namespace] = "ca.crt"
         return data
 
-    def get_root_ca(self):
+    def get_root_cert(self):
         """
         gets the root CA
         """
@@ -67,6 +67,7 @@ class CFSSL(CertificateAuthorityInterface):
         if cn and cn not in hosts:
             hosts = [cn] + hosts
 
+        # return self._get_certificate(cn, hosts, profile, "rsa", 2048)
         return self._get_certificate(cn, hosts, profile, "ecdsa", 256)
 
     # pylint: disable=invalid-name,too-many-arguments

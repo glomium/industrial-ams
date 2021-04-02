@@ -22,7 +22,7 @@ from iams.proto import ca_pb2_grpc
 from iams.proto import df_pb2_grpc
 from iams.proto import framework_pb2
 from iams.proto import framework_pb2_grpc
-from iams.utils.auth import permissions
+from iams.utils.grpc import credentials
 # from .utils.grpc import framework_channel
 # from .utils.arangodb import Arango
 from iams.utils.ssl import validate_certificate
@@ -45,7 +45,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         self.event.set()
 
     # RPC
-    @permissions()
+    @credentials
     def update(self, request, context):
         """
         update
@@ -69,7 +69,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
 
         return framework_pb2.AgentData(name=request.name)
 
-    @permissions
+    @credentials
     def create(self, request, context):
         """
         create
@@ -115,7 +115,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
 
         # return framework_pb2.AgentData(name=request.name)
 
-    @permissions
+    @credentials
     def upgrade(self, request, context):
         """
         upgrade
@@ -143,7 +143,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
             message = 'Given an invalid agent name (%s) in request' % name
             return context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-    @permissions
+    @credentials
     def destroy(self, request, context):
         """
         destroy
@@ -159,7 +159,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
                 return Empty()
             return Empty()
 
-    @permissions
+    @credentials
     def sleep(self, request, context):
         """
         sleep
@@ -175,7 +175,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
                 return Empty()
             return Empty()
 
-    @permissions
+    @credentials
     def wake(self, request, context):
         """
         wake agent
@@ -203,7 +203,7 @@ class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):  #
         self.runtime = runtime
         self.threadpool = threadpool
 
-    @permissions(is_optional=True)
+    @credentials(optional=True)
     def renew(self, request, context):
 
         if context._credential is not None:  # pylint: disable=protected-access

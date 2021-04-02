@@ -4,22 +4,17 @@
 iams server
 """
 
+from concurrent.futures import ThreadPoolExecutor
+from logging.config import dictConfig
+from time import sleep
 import argparse
 import datetime
 import logging
 import os
 
-from concurrent.futures import ThreadPoolExecutor
-from logging.config import dictConfig
-from time import sleep
-
-import grpc
-
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-
 from iams.ca import CFSSL
-from iams.constants import AGENT_PORT
 from iams.df import ArangoDF
 from iams.exceptions import SkipPlugin
 from iams.helper import get_logging_config
@@ -30,6 +25,7 @@ from iams.runtime import DockerSwarmRuntime
 from iams.servicer import CertificateAuthorityServicer
 from iams.servicer import DirectoryFacilitatorServicer
 from iams.servicer import FrameworkServicer
+from iams.utils.grpc import Grpc
 from iams.utils.plugins import get_plugins
 
 
@@ -120,51 +116,32 @@ def main(args):
             logger.exception("Error loading plugin %s", cls.__qualname__)
             continue
 
-    threadpool = ThreadPoolExecutor()
-    server = grpc.server(threadpool)
+    server = Grpc(runtime.servername, ca)
+    with ThreadPoolExecutor() as executor:
+        server.server(executor)
+        server.add(add_CertificateAuthorityServicer_to_server, CertificateAuthorityServicer(ca, runtime, executor))
+        server.add(add_DirectoryFacilitatorServicer_to_server, DirectoryFacilitatorServicer(df))
+        server.add(add_FrameworkServicer_to_server, FrameworkServicer(runtime, ca, df, executor))
 
-    logger.info("Generating certificates for root:%s", runtime.servername)
-    certificate, private_key = ca.get_service_certificate("root", hosts=[runtime.servername])
-    credentials = grpc.ssl_server_credentials(
-        ((private_key, certificate),),
-        root_certificates=ca.get_root_ca(),
-        require_client_auth=True,
-    )
-    # channel_credentials = grpc.ssl_channel_credentials(
-    #     root_certificates=cfssl.ca,
-    #     private_key=private_key,
-    #     certificate_chain=certificate,
-    # )
-    # load certificate data (used to shutdown service after certificate became invalid)
-    cert = x509.load_pem_x509_certificate(certificate, default_backend())
+        # load certificate data (used to shutdown service after certificate became invalid)
+        cert = x509.load_pem_x509_certificate(server.certificate, default_backend())
 
-    logger.debug("Open server on ports %s and %s", AGENT_PORT, args.insecure_port)
-    server.add_insecure_port('[::]:%s' % args.insecure_port)
-    server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
+        with server:
+            try:
+                while True:
+                    eta = cert.not_valid_after - datetime.datetime.now()
+                    logger.debug("certificate valid for %s days", eta.days)
 
-    add_CertificateAuthorityServicer_to_server(CertificateAuthorityServicer(ca, runtime, threadpool), server)
-    add_DirectoryFacilitatorServicer_to_server(DirectoryFacilitatorServicer(df), server)
-    add_FrameworkServicer_to_server(FrameworkServicer(runtime, ca, df, threadpool), server)
-
-    server.start()
-
-    # service running
-    logger.info("container manager running")
-    try:
-        while True:
-            eta = cert.not_valid_after - datetime.datetime.now()
-            logger.debug("certificate valid for %s days", eta.days)
-
-            if eta.days > 1:
-                sleep(86400)
-                continue
-            if runtime.container:
-                logger.debug("restart container")
-                runtime.container.reload()
-                runtime.container.restart()
-            break
-    except KeyboardInterrupt:
-        pass
+                    if eta.days > 1:
+                        sleep(86400)
+                        continue
+                    if runtime.container:
+                        logger.debug("restart container")
+                        runtime.container.reload()
+                        runtime.container.restart()
+                    break
+            except KeyboardInterrupt:
+                pass
 
 
 def execute_command_line():  # pragma: no cover

@@ -27,9 +27,16 @@ class CertificateAuthorityInterface(ABC):
         """
 
     @abstractmethod
+    def get_root_cert(self):
+        """
+        Returns the public root certificate from the CA
+        """
+
+    @abstractmethod
     def get_ca_secret(self, data, namespace):
         """
-        Init CA
+        when creating agents this returs the secret containing the CA
+        (currently the secret is configured globally - might be subject to change)
         """
 
     @abstractmethod

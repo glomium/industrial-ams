@@ -29,7 +29,7 @@ class CFSSLTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(ca, {'test_ca.crt': "ca.crt"})
 
     def test_get_root_certificate1(self):
-        ca = cfssl.get_root_ca()
+        ca = cfssl.get_root_cert()
         self.assertEqual(ca[:27], b'-----BEGIN CERTIFICATE-----')
 
     def test_agent_certificate1(self):

@@ -11,10 +11,10 @@ import sys
 from abc import ABC
 from abc import abstractmethod
 from concurrent import futures
-from contextlib import contextmanager
+# from contextlib import contextmanager
 from threading import Event
 from threading import Lock
-from time import sleep
+# from time import sleep
 
 import grpc
 import yaml
@@ -25,10 +25,11 @@ from iams.proto import ca_pb2
 from iams.stub import CAStub
 # from iams.stub import DFStub
 from iams.utils.grpc import Grpc
-from iams.utils.grpc import framework_channel
-from iams.utils.grpc import get_channel_credentials
-from iams.utils.grpc import get_server_credentials
-from iams.utils.ssl import validate_certificate
+# from iams.utils.grpc import framework_channel
+# from iams.utils.grpc import get_channel_credentials
+# from iams.utils.grpc import get_server_credentials
+# from iams.utils.ssl import validate_certificate
+from iams.proto.agent_pb2_grpc import add_AgentServicer_to_server
 
 
 logger = logging.getLogger(__name__)
@@ -39,13 +40,12 @@ class AgentCAMixin:
     Adds functionality to the agent to interact with certificate authorities
     """
 
-    @staticmethod
-    def ca_renew(hard=True):
+    def ca_renew(self, hard=True):
         """
         Ask CA for a new certificate
         """
         try:
-            with framework_channel() as channel:
+            with self.grpc.channel as channel:
                 stub = CAStub(channel)
                 response = stub.renew(ca_pb2.RenewRequest(hard=hard), timeout=10)  # pylint: disable=no-member
             return response.private_key, response.certificate
@@ -68,24 +68,21 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
 
     def __init__(self) -> None:
         self._executor = futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
+
         # agent servicer for iams
-        self._iams = Servicer(self, self._executor)
+        self.iams = Servicer(self, self._executor)
+        self.grpc = Grpc(self.iams.agent)
+        self.grpc(self._executor)
+        self.grpc.add(add_AgentServicer_to_server, self.iams)
 
-        if self._iams.cloud:
-            self._credentials = get_channel_credentials()
-            # grpc communication (via threadpoolexecutor)
-            self._grpc = Grpc(self._iams, self._executor, get_server_credentials())
-            try:
-                with open('/config', 'rb') as fobj:
-                    self._config = yaml.load(fobj, Loader=yaml.SafeLoader)
-                logger.debug('Loaded configuration from /config')
+        # TODO make config configureable via environment variable
+        try:
+            with open('/config', 'rb') as fobj:
+                self._config = yaml.load(fobj, Loader=yaml.SafeLoader)
+            logger.debug('Loaded configuration from /config')
 
-            except FileNotFoundError:
-                logger.debug('Configuration at /config was not found')
-                self._config = {}
-        else:
-            self._credentials = None
-            self._grpc = Grpc(self._iams, self._executor, None)
+        except FileNotFoundError:
+            logger.debug('Configuration at /config was not found')
             self._config = {}
 
         self._lock = Lock()
@@ -108,20 +105,21 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
         # load and start gRPC service
         self.grpc_setup()  # local module specification
         self._grpc_setup()  # definition on mixins
-        self._grpc.start()
+        self.grpc.start()
 
-        if self._iams.cloud:
-            logger.debug("Informing the runtime that %s is booted", self._iams.agent)
-            while not self._stop_event.is_set():
-                if self._iams.call_booted():
-                    break
-                if not validate_certificate():
-                    if self.ca_renew():
-                        logger.info("Certificate needs to be renewed")
-                        sleep(600)
-                    else:
-                        logger.debug("Could not connect to manager")
-                        sleep(1)
+        if self.iams.cloud:
+            logger.debug("Informing the runtime that %s is booted", self.iams.agent)
+            raise NotImplementedError()
+            # while not self._stop_event.is_set():
+            #     # if self.iams.call_booted():
+            #     #     break
+            #     if not validate_certificate():
+            #         if self.ca_renew():
+            #             logger.info("Certificate needs to be renewed")
+            #             sleep(600)
+            #         else:
+            #             logger.debug("Could not connect to manager")
+            #             sleep(1)
 
         # run agent configuration
         try:
@@ -146,25 +144,20 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
             except Exception as exception:  # pylint: disable=broad-except # pragma: no cover
                 logger.exception(str(exception))
 
-        logger.debug("Stopping gRPC service on %s", self._iams.agent)
-        self._grpc.stop()
+        logger.debug("Stopping gRPC service on %s", self.iams.agent)
+        self.grpc.stop()
 
         logger.debug("call self.teardown")
         self.teardown()
         logger.debug("call self._teardown")
         self._teardown()
 
-        logger.info("Exit %s", self._iams.agent)
+        logger.info("Exit %s", self.iams.agent)
         sys.exit()
 
     def __stop(self, signum, frame):
         logger.info("Exit requested with code %s (%s)", signum, frame)
         self.stop()
-
-    @contextmanager
-    def _channel(self, agent=None):
-        with framework_channel(hostname=agent, credentials=self._credentials) as channel:
-            yield channel
 
     def _grpc_setup(self):
         """

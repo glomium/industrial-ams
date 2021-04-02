@@ -125,7 +125,7 @@ class Server:
 
         server = Grpc(runtime.servername, ca)
         with ThreadPoolExecutor() as executor:
-            server.server(executor)
+            server(executor, insecure_port=self.args.insecure_port)
             server.add(add_CertificateAuthorityServicer_to_server, CertificateAuthorityServicer(ca, runtime, executor))
             server.add(add_DirectoryFacilitatorServicer_to_server, DirectoryFacilitatorServicer(df))
             server.add(add_FrameworkServicer_to_server, FrameworkServicer(runtime, ca, df, executor))

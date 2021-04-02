@@ -38,11 +38,10 @@ class Grpc(ContextDecorator):
         if ca is None:
             if secure:
                 self._credentials = self.credentials_from_secrets()
-                self.certificate = self._credentials[1]
-        elif secure:
+        elif secure:  # pragma: no branch
             ca_public = ca.get_root_cert()
             self.certificate, private_key = ca.get_agent_certificate(name)
-            self._credentials = ca_public, private_key, self.certificate
+            self._credentials = ca_public, private_key
 
     def __call__(self, threadpool, port=None, insecure_port=None):
         self.server = grpc.server(threadpool)
@@ -61,8 +60,7 @@ class Grpc(ContextDecorator):
     def __exit__(self, exception_type, exception_value, traceback):
         self.stop()
 
-    @staticmethod
-    def credentials_from_secrets():
+    def credentials_from_secrets(self):
         """
         read credentials from secrets
         """
@@ -72,30 +70,30 @@ class Grpc(ContextDecorator):
         with open('/run/secrets/peer.key', 'rb') as fobj:
             private_key = fobj.read()
         with open('/run/secrets/peer.crt', 'rb') as fobj:
-            certificate = fobj.read()
+            self.certificate = fobj.read()
 
-        return ca_public, private_key, certificate
+        return ca_public, private_key
 
     def get_channel_credentials(self):
         """
         get channel certificate
         """
-        ca_public, private_key, certificate = self._credentials
+        ca_public, private_key = self._credentials
 
         return grpc.ssl_channel_credentials(
             root_certificates=ca_public,
             private_key=private_key,
-            certificate_chain=certificate,
+            certificate_chain=self.certificate,
         )
 
     def get_server_credentials(self):
         """
         get server certificate
         """
-        ca_public, private_key, certificate = self._credentials
+        ca_public, private_key = self._credentials
 
         return grpc.ssl_server_credentials(
-            ((private_key, certificate),),
+            ((private_key, self.certificate),),
             root_certificates=ca_public,
             require_client_auth=True,
         )

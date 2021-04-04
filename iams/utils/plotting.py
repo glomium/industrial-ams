@@ -54,11 +54,13 @@ class PlotInterface(ABC):
                 self.dataframe.to_csv(save)
 
         if self.dataframe is not None:
-            try:
-                for function in self.iterator_aggregated_plots():
-                    function(self.dataframe)
-            except TypeError:
-                pass
+            self.dataframe = self.prepare_aggregated_dataframe(self.dataframe)
+            with ProcessPoolExecutor(max_workers=workers) as executor:
+                try:
+                    for function in self.iterator_aggregated_plots():
+                        executor.submit(function, self.dataframe)
+                except TypeError:
+                    pass
 
     @abstractmethod
     def parameters(self, name):
@@ -93,7 +95,7 @@ class PlotInterface(ABC):
         load the pandas dataframe for path
         """
         print(f"loading {path}")  # noqa
-        dataframe = pd.read_csv(path)
+        dataframe = cls.prepare_individual_dataframe(pd.read_csv(path))
         basename = cls.basename(path)
         data = {}
 
@@ -120,3 +122,17 @@ class PlotInterface(ABC):
         callback from process
         """
         self.data.append(future.result())
+
+    @staticmethod
+    def prepare_aggregated_dataframe(dataframe):
+        """
+        Pre-process the aggregated dataframe
+        """
+        return dataframe
+
+    @staticmethod
+    def prepare_individual_dataframe(dataframe):
+        """
+        Pre-process the individual dataframe
+        """
+        return dataframe

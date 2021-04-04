@@ -16,6 +16,10 @@ class EventTests(unittest.TestCase):  # pragma: no cover
     def setUp(self):
         self.now = datetime.datetime(2000, 1, 1, 12, 0, 0)
 
+    def test_hash(self):
+        event = Event(eta=self.now, duration=0, callback="callback")
+        self.assertEqual(hash(event), hash(0))
+
     def test_datetime(self):
         event = Event(eta=self.now, duration=0, callback="callback")
         self.assertTrue(event.use_datetime)
@@ -73,38 +77,107 @@ class EventTests(unittest.TestCase):  # pragma: no cover
             Event(eta=[0, self.now, 10], duration=0, callback="callback")
 
     def test_etd_tuple1(self):
-        event = Event(eta=0, etd=[1], duration=0, callback="callback")
-        self.assertEqual(event.get_etd(), 1)
-        self.assertEqual(event.get_etd_min(), None)
-        self.assertEqual(event.get_etd_max(), None)
+        for etd in [[1], [None]]:
+            with self.subTest(etd=etd):
+                event = Event(eta=0, etd=etd, duration=0, callback="callback")
+                self.assertEqual(event.get_etd(), etd[0])
+                self.assertEqual(event.get_etd_min(), None)
+                self.assertEqual(event.get_etd_max(), None)
+                self.assertEqual(event.state, States.NEW)
 
     def test_etd_tuple2(self):
-        event = Event(eta=0, etd=[1, 2], duration=0, callback="callback")
-        self.assertEqual(event.get_etd(), None)
-        self.assertEqual(event.get_etd_min(), 1)
-        self.assertEqual(event.get_etd_max(), 2)
+        for etd in [[1, 2], [1, None], [None, 2], [None, None]]:
+            with self.subTest(etd=etd):
+                event = Event(eta=0, etd=etd, duration=0, callback="callback")
+                self.assertEqual(event.get_etd(), None)
+                self.assertEqual(event.get_etd_min(), etd[0])
+                self.assertEqual(event.get_etd_max(), etd[1])
+                if etd[0] is not None and etd[1] is not None:
+                    self.assertEqual(event.state, States.SCHEDULED)
+                else:
+                    self.assertEqual(event.state, States.NEW)
 
     def test_etd_tuple3(self):
-        event = Event(eta=0, etd=[1, 2, 3], duration=0, callback="callback")
-        self.assertEqual(event.get_etd(), 2)
-        self.assertEqual(event.get_etd_min(), 1)
-        self.assertEqual(event.get_etd_max(), 3)
+        for etd in [[1, 2, 3], [1, 2, None], [None, 2, 3], [None, None, None]]:
+            with self.subTest(etd=etd):
+                event = Event(eta=0, etd=etd, duration=0, callback="callback")
+                self.assertEqual(event.get_etd(), etd[1])
+                self.assertEqual(event.get_etd_min(), etd[0])
+                self.assertEqual(event.get_etd_max(), etd[2])
+                if etd[0] is not None and etd[2] is not None:
+                    self.assertEqual(event.state, States.SCHEDULED)
+                else:
+                    self.assertEqual(event.state, States.NEW)
 
     def test_etd_tuple4(self):
         with self.assertRaises(ValueError):
             Event(eta=0, etd=[1, 2, 3, 4], duration=0, callback="callback")
 
-    def test_event_schedule(self):
+    def test_schedule_tuple2(self):
+        etd = [1, 2]
         event = Event(eta=0, duration=0, callback="callback")
-        self.assertEqual(event.state, States.NEW)
-        event.schedule(0, 10)
+        event.schedule(etd)
+        self.assertEqual(event.get_etd(), None)
+        self.assertEqual(event.get_etd_min(), etd[0])
+        self.assertEqual(event.get_etd_max(), etd[1])
         self.assertEqual(event.state, States.SCHEDULED)
 
-    def test_event_schedule_error(self):
+    def test_schedule_tuple3(self):
+        etd = [1, 2, 3]
         event = Event(eta=0, duration=0, callback="callback")
-        self.assertEqual(event.state, States.NEW)
-        with self.assertRaises(AssertionError):
-            event.schedule(10, 0)
+        event.schedule(etd)
+        self.assertEqual(event.get_etd(), etd[1])
+        self.assertEqual(event.get_etd_min(), etd[0])
+        self.assertEqual(event.get_etd_max(), etd[2])
+        self.assertEqual(event.state, States.SCHEDULED)
+
+    def test_schedule_invalid(self):
+        for etd in [1, [1], [None, None], [None, None, None], [1, None], [None, 2], [1, 2, 3, 4]]:
+            with self.subTest(etd=etd), self.assertRaises(ValueError):
+                event = Event(eta=0, duration=0, callback="callback")
+                event.schedule(etd)
+
+    def test_schedule_invalid_datetime(self):
+        etd = [self.now, 1]
+        with self.assertRaises(ValueError):
+            event = Event(eta=self.now, duration=0, callback="callback")
+            event.schedule(etd)
+
+    def test_schedule_etd_use_from_event(self):
+        event = Event(eta=0, etd=[1, 3], duration=0, callback="callback")
+        event.schedule([0, 4])
+        self.assertEqual(event.get_etd_min(), 1)
+        self.assertEqual(event.get_etd_max(), 3)
+
+    def test_schedule_etd_max_small(self):
+        with self.assertRaises(ValueError):
+            event = Event(eta=0, duration=0, callback="callback")
+            event.schedule([1, 2, 1])
+
+    def test_schedule_etd_min_large(self):
+        with self.assertRaises(ValueError):
+            event = Event(eta=0, duration=0, callback="callback")
+            event.schedule([3, 2, 3])
+
+    def test_schedule_datetime(self):
+        event = Event(eta=self.now, duration=0, callback="callback")
+        self.assertTrue(event.use_datetime)
+        event.schedule([self.now, self.now])
+        self.assertEqual(event.etd, None)
+        self.assertEqual(event.etd_min, self.now)
+        self.assertEqual(event.etd_max, self.now)
+
+    def test_schedule_wrong_type1(self):
+        with self.assertRaises(ValueError):
+            event = Event(eta=0, duration=0, callback="callback")
+            self.assertFalse(event.use_datetime)
+            event.schedule(self.now)
+
+    def test_schedule_wrong_type2(self):
+        with self.assertRaises(ValueError):
+            event = Event(eta=self.now, duration=0, callback="callback")
+            self.assertTrue(event.use_datetime)
+            event.schedule(1)
 
     def test_event_arrive_nodatetime(self):
         event = Event(eta=0, duration=0, callback="callback")

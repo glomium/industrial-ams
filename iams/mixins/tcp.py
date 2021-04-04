@@ -33,14 +33,14 @@ class TCPReadMixin(EventMixin):
     def _pre_setup(self):
         """
         """
-        assert self._iams.address is not None, 'Must define IAMS_ADDRESS in environment'
+        assert self.iams.address is not None, 'Must define IAMS_ADDRESS in environment'
 
         wait = 0
         while not self._stop_event.is_set():
             try:
                 self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self._socket.settimeout(self.TCP_TIMEOUT)
-                self._socket.connect((self._iams.address, self._iams.port or self.TCP_PORT))
+                self._socket.connect((self.iams.address, self.iams.port or self.TCP_PORT))
                 break
             except (ConnectionRefusedError, socket.timeout, OSError):
                 wait += 1
@@ -48,12 +48,12 @@ class TCPReadMixin(EventMixin):
                     wait = 60
                 logger.info(
                     "%s:%s not reachable (retry in %ss)",
-                    self._iams.address,
-                    self._iams.port or self.TCP_PORT,
+                    self.iams.address,
+                    self.iams.port or self.TCP_PORT,
                     wait,
                 )
                 self._stop_event.wait(wait)
-        logger.debug("TCP socket connected to %s:%s", self._iams.address, self._iams.port or self.TCP_PORT)
+        logger.debug("TCP socket connected to %s:%s", self.iams.address, self.iams.port or self.TCP_PORT)
 
         if self._stop_event.is_set():
             raise SystemExit

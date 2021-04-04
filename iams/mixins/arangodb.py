@@ -77,7 +77,7 @@ class TopologyMixin(ArangoDBMixin, ABC):
         """
         returns a list of all edges
         """
-        self._iams.update_topology(Node(
+        self.iams.update_topology(Node(
             default=self.topology_default_edge(),
             edges=self.topology_get_edges(),
             abilities=self.topology_get_abilities(),

@@ -116,10 +116,10 @@ class OPCUAMixin(EventMixin):  # pylint: disable=abstract-method
 
     def _pre_setup(self):
         super()._pre_setup()
-        assert self._iams.address is not None, 'Must define IAMS_ADDRESS in environment'
+        assert self.iams.address is not None, 'Must define IAMS_ADDRESS in environment'
 
         if OPCUA:
-            address = "opc.tcp://%s:%s/" % (self._iams.address, self._iams.port or self.OPCUA_PORT)
+            address = "opc.tcp://%s:%s/" % (self.iams.address, self.iams.port or self.OPCUA_PORT)
             logger.debug("Creating opcua-client %s", address)
             self.opcua_client = Client(address, timeout=10)
 

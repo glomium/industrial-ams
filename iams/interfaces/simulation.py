@@ -15,6 +15,8 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
+from enum import Enum
+from functools import total_ordering
 from heapq import heappop
 from heapq import heappush
 from time import time
@@ -24,6 +26,17 @@ from iams.exceptions import StopSimulation
 
 
 logger = logging.getLogger(__name__)
+
+
+class Priority(Enum):
+    """
+    Event-states enum
+    """
+    HIGHEST = 1
+    HIGH = 3
+    NORMAL = 5
+    LOW = 7
+    LOWEST = 9
 
 
 class Agent(ABC):
@@ -59,22 +72,61 @@ class Agent(ABC):
         """
 
 
-@dataclass(order=True, frozen=True)
+@total_ordering
+@dataclass(frozen=True)
 class Queue:  # pylint: disable=too-many-instance-attributes
     """
     Storage of simulation events
     """
     time: float = field(compare=True, repr=True, hash=False)
-    number: int = field(compare=True, repr=False, hash=True)
     obj: Any = field(compare=False, repr=False, hash=False)
     callback: str = field(compare=False, repr=True, hash=False)
-    dt: float = field(compare=False, repr=False, hash=False)  # pylint: disable=invalid-name
+    dt: float = field(compare=True, repr=False, hash=False)  # pylint: disable=invalid-name
+    priority: Priority = field(default=Priority.NORMAL, compare=True, repr=True, hash=True)
     args: list = field(compare=False, repr=False, default_factory=list, hash=False)
     kwargs: dict = field(compare=False, repr=False, default_factory=dict, hash=False)
     deleted: bool = field(compare=False, repr=False, hash=False, default=False)
 
     def __str__(self):
         return "%.4f:%s:%s" % (self.time, self.obj, self.callback)
+
+    def __lt__(self, other):
+        if isinstance(other, Queue):
+            return (self.time, other.priority.value, other.dt) < (other.time, self.priority.value, self.dt)
+        raise NotImplementedError
+
+    def __le__(self, other):
+        if isinstance(other, Queue):
+            return (self.time, other.priority.value, other.dt) <= (other.time, self.priority.value, self.dt)
+        raise NotImplementedError
+
+    def __eq__(self, other):
+        if isinstance(other, Queue):
+            return (self.time, other.priority.value, other.dt) == (other.time, self.priority.value, self.dt)
+        raise NotImplementedError
+
+    def __ne__(self, other):
+        if isinstance(other, Queue):
+            return (self.time, other.priority.value, other.dt) != (other.time, self.priority.value, self.dt)
+        raise NotImplementedError
+
+    def __ge__(self, other):
+        if isinstance(other, Queue):
+            return (self.time, other.priority.value, other.dt) >= (other.time, self.priority.value, self.dt)
+        raise NotImplementedError
+
+    def __gt__(self, other):
+        if isinstance(other, Queue):
+            return (self.time, other.priority.value, other.dt) > (other.time, self.priority.value, self.dt)
+        raise NotImplementedError
+
+    def __post_init__(self):
+        if isinstance(self.priority, str):
+            try:
+                priority = Priority[self.priority.upper()]
+            except KeyError:
+                priority = Priority.NORMAL
+            object.__setattr__(self, 'priority', priority)
 
     def cancel(self):
         """
@@ -148,8 +200,8 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
             # update time
             self._time = event.time
 
+            # run event
             try:
-                # run event-callback metod
                 getattr(event.obj, event.callback)(self, *event.args, **event.kwargs)
             except StopSimulation as exception:
                 logger.info("Simulation stopped: %s", exception)
@@ -220,7 +272,7 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
         except KeyError:
             pass
 
-    def schedule(self, obj, dt, callback, *args, **kwargs):  # pylint: disable=invalid-name
+    def schedule(self, obj, dt, callback, *args, priority=Priority.NORMAL, **kwargs):  # pylint: disable=invalid-name
         """
         schedules a new event
         """
@@ -229,7 +281,7 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
         logger.debug("Adding %s.%s at %s to queue", obj, callback, event_time)
         queue = Queue(
             time=event_time,
-            number=self._events,
+            priority=priority,
             obj=obj,
             callback=callback,
             dt=dt,

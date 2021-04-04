@@ -9,6 +9,7 @@ import logging
 
 from abc import ABC
 from abc import abstractmethod
+from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
@@ -54,17 +55,37 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
     eta_min: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     eta_max: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     eta_lane: int = field(default=None, repr=False, init=False, compare=False)
+    margin_arrival: Union[int, float] = field(default=0, repr=False, init=True, compare=False)
     etd: Union[list, tuple, int, float, datetime, None] = field(default=None, repr=True, init=True, compare=True)
     etd_min: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     etd_max: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     etd_lane: int = field(default=None, repr=False, init=False, compare=False)
+    margin_departure: Union[int, float] = field(default=0, repr=False, init=True, compare=False)
     use_datetime: bool = field(default=False, repr=False, init=False, compare=False)
     setup: Union[int, float] = field(default=0, repr=False, init=True, compare=True)
     setup_condition: Union[str, None] = field(default=None, repr=False, init=True, compare=True)
     canceled: bool = field(default=False, repr=False, init=False, compare=False)
 
     def __hash__(self):
-        return self.uid
+        return hash(self.uid)
+
+    # def __lt__(self, other):
+    #     return (self.eta, self.uid) < (other.eta, other.uid)
+
+    # def __le__(self, other):
+    #     return (self.eta, self.uid) <= (other.eta, other.uid)
+
+    # def __eq__(self, other):
+    #     return self.uid == other.uid
+
+    # def __ne__(self, other):
+    #     return self.uid != other.uid
+
+    # def __ge__(self, other):
+    #     return (self.eta, self.uid) >= (other.eta, other.uid)
+
+    # def __gt__(self, other):
+    #     return (self.eta, self.uid) > (other.eta, other.uid)
 
     def __post_init__(self):  # pylint: disable=too-many-branches
 
@@ -104,6 +125,9 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
                 attr = getattr(self, attr_name)
                 if attr is not None and not isinstance(attr, (int, float)):
                     raise ValueError("self.%s has the wrong type (%s)" % (attr_name, type(attr)))
+
+        if self.etd_min is not None and self.etd_max is not None:
+            self.state = States.SCHEDULED
 
     def _get_seconds(self, seconds, now):
         if self.use_datetime:
@@ -165,14 +189,51 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
         else:
             self.set_finish(time)
 
-    def schedule(self, start, finish, now=None):
+    def schedule(self, etd=None):  # pylint: disable=too-many-branches
         """
         set state to scheduled
         """
-        assert finish >= start, "Finish-time must be larger than start-time"
+
+        if not isinstance(etd, (tuple, list)):
+            raise ValueError("etd needs to be a two or three element list or tuple")
+
+        if len(etd) == 2:
+            etd_min, etd_max = etd
+            etd = None
+        elif len(etd) == 3:
+            etd_min, etd, etd_max = etd
+        else:
+            raise ValueError("etd needs to be a two or three element list or tuple")
+
+        if self.use_datetime:
+            if not (etd is None or isinstance(etd, datetime)) or \
+                    not isinstance(etd_max, datetime) or \
+                    not isinstance(etd_min, datetime):
+                raise ValueError("ETD must be a datetime")
+        else:
+            if not (etd is None or isinstance(etd, (int, float))) or \
+                    not isinstance(etd_max, (int, float)) or \
+                    not isinstance(etd_min, (int, float)):
+                raise ValueError("ETD must be a float or integer")
+
+        if self.etd_max is not None and etd_max > self.etd_max:
+            etd_max = self.etd_max
+
+        if self.etd_min is not None and etd_min < self.etd_min:
+            etd_min = self.etd_min
+
+        if etd is not None and etd_min > etd:
+            raise ValueError("ETD_min is larger than ETD")
+
+        if etd is not None and etd_max < etd:
+            raise ValueError("ETD_max is smaller than ETD")
+
+        self.etd_min = etd_min
+        self.etd_max = etd_max
+        if etd is not None:
+            self.etd = etd
+
         self.state = States.SCHEDULED
-        self.set_start(start, now)
-        self.set_finish(finish, now)
 
     def start(self, time):
         """
@@ -286,43 +347,29 @@ class SchedulerInterface(ABC):
     Scheduler interface
     """
     event_class = Event
+    default_margin_arrival = 0
+    default_margin_departure = 0
 
     def __init__(self, agent):
         self._agent = agent
         self._events = []
+        self._counter = 1
 
     def __call__(self, **kwargs):
-        return self.event_class(**kwargs)
+        margin_a = self.get_margin_arrival()
+        margin_d = self.get_margin_departure()
+        if "margin_arrival" not in kwargs:
+            kwargs["margin_arrival"] = margin_a
+        if "margin_departure" not in kwargs:
+            kwargs["margin_departure"] = margin_d
 
-    def get_events(self, new_events=None):
-        """
-        returns a list of registered events
-        """
-        delete = []
-        for i, event in enumerate(self._events, 1):
-            event.uid = i
-            if event.state in [States.DEPARTED, States.CANCELED]:
-                delete.append(event)
-                continue
-            yield event
+        event = self.event_class(**kwargs)
+        event.uid = self._counter
+        self._counter += 1
+        return event
 
-        if isinstance(new_events, self.event_class):
-            new_events = [new_events]
-        elif new_events is None:
-            new_events = []
-
-        for i, event in enumerate(new_events, len(self._events)):
-            assert event.state == States.NEW, "Event needs to be new"
-            event.uid = len(self._events) + 1
-            yield event
-
-        for event in delete:
-            try:
-                self._events.remove(event)
-            except ValueError:
-                pass
-            else:
-                self.cleanup(event)
+    def __len__(self):
+        return len(self._events)
 
     @abstractmethod
     def add(self, event, now=None):
@@ -336,10 +383,56 @@ class SchedulerInterface(ABC):
         Returns True if an event can be scheduled
         """
 
+    def asdicts(self):
+        """
+        returns the scheduler's state as a list of dictionaries
+        """
+        for event in self.get_events():
+            yield asdict(event)
+
     def cleanup(self, event):
         """
         callback after event was removed
         """
+
+    def get_events(self, new_events=None):
+        """
+        returns a list of registered events
+        """
+        delete = []
+        for event in self._events:
+            if event.state in [States.DEPARTED, States.CANCELED]:
+                delete.append(event)
+                continue
+            yield event
+
+        if isinstance(new_events, self.event_class):
+            new_events = [new_events]
+        elif new_events is None:
+            new_events = []
+
+        for event in new_events:
+            yield event
+
+        for event in delete:
+            try:
+                self._events.remove(event)
+            except ValueError:
+                pass
+            else:
+                self.cleanup(event)
+
+    def get_margin_arrival(self):
+        """
+        returns the default martin for etas
+        """
+        return self.default_margin_arrival
+
+    def get_margin_departure(self):
+        """
+        returns the default martin for etds
+        """
+        return self.default_margin_departure
 
     def save(self, event, now=None):
         """

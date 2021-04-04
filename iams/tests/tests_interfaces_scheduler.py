@@ -20,6 +20,94 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         event = Event(eta=self.now, duration=0, callback="callback")
         self.assertEqual(hash(event), hash(0))
 
+    def test_comparison_eq(self):
+        event1 = Event(eta=0, duration=0, callback="callback")
+        event2 = Event(eta=1, duration=0, callback="callback")
+        self.assertEqual(event1, event2)
+        event1.uid = 1
+        event2.uid = 2
+        self.assertNotEqual(event1, event2)
+
+    def test_comparison_lt(self):
+        event1 = Event(eta=0, duration=0, callback="callback")
+        event2 = Event(eta=1, duration=0, callback="callback")
+        event1.uid = 1
+        event2.uid = 2
+        self.assertTrue(event1 < event2)
+        event1.start(0)
+        self.assertTrue(event2 < event1)
+        event2.start(1)
+        self.assertTrue(event1 < event2)
+        event1.finish(0)
+        event2.finish(1)
+        self.assertTrue(event1 < event2)
+        event1.depart(0)
+        event2.depart(1)
+        self.assertTrue(event1 < event2)
+
+        with self.assertRaises(NotImplementedError):
+            event1 < "asd"  # pylint: disable=pointless-statement
+
+    def test_comparison_le(self):
+        event1 = Event(eta=0, duration=0, callback="callback")
+        event2 = Event(eta=1, duration=0, callback="callback")
+        event1.uid = 1
+        event2.uid = 2
+        self.assertTrue(event1 <= event2)
+        event1.start(0)
+        self.assertTrue(event2 <= event1)
+        event2.start(1)
+        self.assertTrue(event1 <= event2)
+        event1.finish(0)
+        event2.finish(1)
+        self.assertTrue(event1 <= event2)
+        event1.depart(0)
+        event2.depart(1)
+        self.assertTrue(event1 <= event2)
+
+        with self.assertRaises(NotImplementedError):
+            event1 <= "asd"  # pylint: disable=pointless-statement
+
+    def test_comparison_ge(self):
+        event1 = Event(eta=0, duration=0, callback="callback")
+        event2 = Event(eta=1, duration=0, callback="callback")
+        event1.uid = 1
+        event2.uid = 2
+        self.assertTrue(event2 >= event1)
+        event1.start(0)
+        self.assertTrue(event1 >= event2)
+        event2.start(1)
+        self.assertTrue(event2 >= event1)
+        event1.finish(0)
+        event2.finish(1)
+        self.assertTrue(event2 >= event1)
+        event1.depart(0)
+        event2.depart(1)
+        self.assertTrue(event2 >= event1)
+
+        with self.assertRaises(NotImplementedError):
+            event1 >= "asd"  # pylint: disable=pointless-statement
+
+    def test_comparison_gt(self):
+        event1 = Event(eta=0, duration=0, callback="callback")
+        event2 = Event(eta=1, duration=0, callback="callback")
+        event1.uid = 1
+        event2.uid = 2
+        self.assertTrue(event2 > event1)
+        event1.start(0)
+        self.assertTrue(event1 > event2)
+        event2.start(1)
+        self.assertTrue(event2 > event1)
+        event1.finish(0)
+        event2.finish(1)
+        self.assertTrue(event2 > event1)
+        event1.depart(0)
+        event2.depart(1)
+        self.assertTrue(event2 > event1)
+
+        with self.assertRaises(NotImplementedError):
+            event1 > "asd"  # pylint: disable=pointless-statement
+
     def test_datetime(self):
         event = Event(eta=self.now, duration=0, callback="callback")
         self.assertTrue(event.use_datetime)

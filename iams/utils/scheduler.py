@@ -254,6 +254,25 @@ class BufferScheduler(SchedulerInterface):
             list(self.buffer_output.values()),
         )
 
+    def debug(self, events=None, now=None):
+        """
+        log debug informations
+        """
+        events, makespan = self.get_event_variables(events or [], now=now)
+        print('*' * 80)  # noqa: T001
+        print('Events:')  # noqa: T001
+        for key, value in events.items():
+            print(key, value)  # noqa: T001
+        print('*' * 80)  # noqa: T001
+        print(makespan)  # noqa: T001
+        _, events, offset = self.build_model(events, makespan)
+        print("offset", offset)  # noqa: T001
+        print('Events:')  # noqa: T001
+        for key, value in events.items():
+            print(key)  # noqa: T001
+            for var, val in value.items():
+                print(var, '%r' % val)  # noqa: T001
+
     def add(self, event, now=None):
         """
         schedule the event
@@ -327,11 +346,6 @@ class BufferScheduler(SchedulerInterface):
 
         offset = makespan[0]
         horizon = makespan[1] - offset
-        makespan = model.NewIntVar(
-            0,
-            horizon,
-            'makespan',
-        )
 
         for event, data in events.items():
             new_data = {}
@@ -414,6 +428,19 @@ class BufferScheduler(SchedulerInterface):
             #     else:
             #         new_data[name] = model.NewIntVar(data[name], data[name], var)
             events[event] = new_data
+
+        previous = None
+        states_eta = {SchedulerState.NEW, SchedulerState.SCHEDULED, SchedulerState.ARRIVED}
+        for event in sorted(events.keys()):
+            logger.debug("%s", event)
+            if previous:
+                if previous.state in states_eta and event.state in states_eta:
+                    model.Add(events[previous]["eta"] <= events[event]["eta"])
+                elif previous.state == SchedulerState.STARTED and event.state == SchedulerState.STARTED:
+                    model.Add(events[previous]["start"] <= events[event]["start"])
+                elif previous.state == SchedulerState.FINISHED and event.state == SchedulerState.FINISHED:
+                    model.Add(events[previous]["finish"] <= events[event]["finish"])
+            previous = event
 
         # model.AddMaxEquality(makespan, makespans)
         return model, events, offset

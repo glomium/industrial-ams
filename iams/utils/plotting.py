@@ -58,7 +58,7 @@ class PlotInterface(ABC):
             with ProcessPoolExecutor(max_workers=workers) as executor:
                 try:
                     for function in self.iterator_aggregated_plots():
-                        executor.submit(function, self.dataframe)
+                        executor.submit(function, self.dataframe).add_done_callback(self.handler_aggregated)
                 except TypeError:
                     pass
 
@@ -122,6 +122,12 @@ class PlotInterface(ABC):
         callback from process
         """
         self.data.append(future.result())
+
+    def handler_aggregated(self, future):
+        """
+        callback from aggregated process
+        """
+        future.result()
 
     @staticmethod
     def prepare_aggregated_dataframe(dataframe):

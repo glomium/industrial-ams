@@ -125,7 +125,8 @@ class PlotInterface(ABC):
         """
         self.data.append(future.result())
 
-    def handler_aggregated(self, future):
+    @staticmethod
+    def handler_aggregated(future):
         """
         callback from aggregated process
         """

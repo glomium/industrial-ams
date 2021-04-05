@@ -78,7 +78,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instan
 
     @credentials
     def position(self, request, context):
-        if self.update_position(context._credential):  # pylint: disable=protected-access
+        if self.update_position(context.credentials):  # pylint: disable=protected-access
             return Empty()
         message = 'Agent is already at requested position'
         return context.abort(grpc.StatusCode.ALREADY_EXISTS, message)

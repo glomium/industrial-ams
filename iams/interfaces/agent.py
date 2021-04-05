@@ -107,19 +107,19 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
         self._grpc_setup()  # definition on mixins
         self.grpc.start()
 
-        if self.iams.cloud:
-            logger.debug("Informing the runtime that %s is booted", self.iams.agent)
-            raise NotImplementedError()
-            # while not self._stop_event.is_set():
-            #     # if self.iams.call_booted():
-            #     #     break
-            #     if not validate_certificate():
-            #         if self.ca_renew():
-            #             logger.info("Certificate needs to be renewed")
-            #             sleep(600)
-            #         else:
-            #             logger.debug("Could not connect to manager")
-            #             sleep(1)
+        # if self.iams.cloud:
+        #     logger.debug("Informing the runtime that %s is booted", self.iams.agent)
+        #     raise NotImplementedError()
+        #     # while not self._stop_event.is_set():
+        #     #     # if self.iams.call_booted():
+        #     #     #     break
+        #     #     if not validate_certificate():
+        #     #         if self.ca_renew():
+        #     #             logger.info("Certificate needs to be renewed")
+        #     #             sleep(600)
+        #     #         else:
+        #     #             logger.debug("Could not connect to manager")
+        #     #             sleep(1)
 
         # run agent configuration
         try:

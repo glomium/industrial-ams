@@ -121,36 +121,49 @@ class Grpc(ContextDecorator):
     @contextmanager
     def channel(self, hostname=None, proxy=None, port=None, secure=True):
         """
-        framework channel context manager
+        channel context manager
         """
-        server = proxy or hostname or os.environ.get("IAMS_SERVICE", None)
-        port = port or AGENT_PORT
-
-        if server is None:
-            raise ValueError("No Endpoint specified")
-
-        if proxy is None:
-            options = []
-        else:
-            options = [
-                ('grpc.default_authority', hostname),
-                ('grpc.ssl_target_name_override', hostname),
-            ]
-
-        logger.debug("connecting to %s:%s with options %s", server, port, options)
         if secure:
-            with grpc.secure_channel(
-                f'{server!s}:{port!s}',
-                self.get_channel_credentials(),
-                options=options,
-            ) as channel:
-                yield channel
+            channel_credentials = self.get_channel_credentials()
         else:
-            with grpc.insecure_channel(
-                f'{server!s}:{port!s}',
-                options=options,
-            ) as channel:
-                yield channel
+            channel_credentials = None
+        with framework_channel(hostname, channel_credentials, proxy, port, secure) as channel:
+            yield channel
+
+
+@contextmanager
+def framework_channel(hostname=None, channel_credentials=None, proxy=None, port=None, secure=True):
+    """
+    framework channel context manager
+    """
+    server = proxy or hostname or os.environ.get("IAMS_SERVICE", None)
+    port = port or AGENT_PORT
+
+    if server is None:
+        raise ValueError("No Endpoint specified")
+
+    if proxy is None:
+        options = []
+    else:
+        options = [
+            ('grpc.default_authority', hostname),
+            ('grpc.ssl_target_name_override', hostname),
+        ]
+
+    logger.debug("connecting to %s:%s with options %s", server, port, options)
+    if secure:
+        with grpc.secure_channel(
+            f'{server!s}:{port!s}',
+            channel_credentials,
+            options=options,
+        ) as channel:
+            yield channel
+    else:
+        with grpc.insecure_channel(
+            f'{server!s}:{port!s}',
+            options=options,
+        ) as channel:
+            yield channel
 
 
 def credentials(function=None, optional=False):

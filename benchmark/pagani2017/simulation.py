@@ -17,17 +17,18 @@ logger = logging.getLogger(__name__)
 class Simulation(SimulationInterface):
 
     def setup(self, max_units, load, **kwargs):
+        # pylint: disable=attribute-defined-outside-init
         self.max_units = max_units
         self.produced = 0
 
         logger.info("Producing %s units", max_units)
 
         # storing agent by type on simulation-class
-        self.sources = list(self._agents[item[0]] for item in self.df.agents(cls="MS"))
+        self.sources = list(self.agent(item[0]) for item in self.df.agents(cls="MS"))
         logger.debug("Sources: %s", self.sources)
-        self.destinations = list(self._agents[item[0]] for item in self.df.agents(cls="MD"))
+        self.destinations = list(self.agent(item[0]) for item in self.df.agents(cls="MD"))
         logger.debug("Destinations: %s", self.destinations)
-        self.vehicles = list(self._agents[item[0]] for item in self.df.agents(cls="Vehicle"))
+        self.vehicles = list(self.agent(item[0]) for item in self.df.agents(cls="Vehicle"))
         logger.debug("Vehicles: %s", self.vehicles)
 
         # set destination and vehicles on source agents
@@ -80,13 +81,14 @@ class Vehicle(Agent):
     def __init__(self, speed, x, y, **kwargs):
         self.name = "%s" % x
         self.name = "V%s" % self.name[0]
+        self.count = 0
+        self.distance = 0
+        self.events = []
         self.speed = speed
         self.x = x
         self.x0 = x
         self.y = y
         self.y0 = y
-        self.distance = 0
-        self.events = []
 
     def __str__(self):
         return self.name
@@ -99,6 +101,7 @@ class Vehicle(Agent):
     def asdict(self):
         return {
             'name': self.name,
+            'count': self.count,
             'jobs': len(self.events),
             'distance': self.distance,
         }
@@ -116,6 +119,7 @@ class Vehicle(Agent):
 
     def finish(self, simulation):
         self.events.pop(0)  # remove scheduled event from events
+        self.count += 1
         self.fcfs(simulation)
 
     def schedule(self, simulation, source, destination, priority):
@@ -152,7 +156,6 @@ class Vehicle(Agent):
         """
         callback when the source is reached (not used)
         """
-        pass
 
     def resource_loaded(self, simulation, source):
         """
@@ -164,7 +167,6 @@ class Vehicle(Agent):
         """
         callback when the destination is reached (not used)
         """
-        pass
 
     def resource_unloaded(self, simulation, destination):
         """
@@ -202,7 +204,7 @@ class MX(Agent):
     def __init__(self, x, y, time, std, size, load):
         self.name = f"{self.__class__.__qualname__}{x}"
         self.name = self.name[:-1]
-        self.generator = self.iterator(time, sqrt(std))
+        self.generator = self.iterator(random.random(), time, sqrt(std))
 
         self.load = load
         self.size = size
@@ -217,9 +219,13 @@ class MX(Agent):
             'cls': str(self.__class__.__qualname__),
         }
 
-    def iterator(self, mu, sigma):  # pylint: disable=invalid-name
+    def iterator(self, seed, mu, sigma):  # pylint: disable=invalid-name
+        random.seed(seed)
+        state = random.getstate()
         while True:
+            random.setstate(state)
             time = round(random.gauss(mu, sigma))
+            state = random.getstate()
             if time < 0:
                 time = 0
             yield time

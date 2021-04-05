@@ -6,6 +6,7 @@ unittests for iams.interfaces.simulation
 # pylint: disable=missing-function-docstring,missing-class-docstring,protected-access
 
 import io
+import random
 import unittest
 
 from iams.tests.df import DF
@@ -26,7 +27,9 @@ class Simulation(SimulationInterface):
 class SimulationAgent(Agent):
 
     def __init__(self):
+        super().__init__()
         self.data = 0
+        self.iterator = self.generator()
 
     def __str__(self):
         return 'test'
@@ -42,6 +45,11 @@ class SimulationAgent(Agent):
 
     def attributes(self):
         return {}
+
+    @staticmethod
+    def generator():
+        while True:
+            yield random.random()
 
     def asdict(self):
         return {}
@@ -59,6 +67,29 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
     def test_asdict(self):
         agent = SimulationAgent()
         self.assertEqual(agent.asdict(), {})
+
+    def test_next(self):
+        random.seed('test')
+        agent1 = SimulationAgent()
+        agent2 = SimulationAgent()
+        a11, a12 = next(agent1), next(agent1)
+        b11, b12 = next(agent2), next(agent2)
+
+        random.seed('test')
+        agent1 = SimulationAgent()
+        agent2 = SimulationAgent()
+        a21, b21 = next(agent1), next(agent2)
+        a22, b22 = next(agent1), next(agent2)
+
+        self.assertNotEqual(a11, b11)
+        self.assertNotEqual(a12, b12)
+        self.assertNotEqual(a21, b21)
+        self.assertNotEqual(a22, b22)
+
+        self.assertEqual(a11, a12)
+        self.assertEqual(a21, a22)
+        self.assertEqual(b11, b12)
+        self.assertEqual(b21, b22)
 
 
 class QueueTests(unittest.TestCase):  # pragma: no cover

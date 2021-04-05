@@ -26,6 +26,8 @@ class PlotInterface(ABC):
             if save.is_file():
                 self.dataframe = pd.read_csv(save).set_index("basename")
                 names = set(self.dataframe.index.values)
+            else:
+                save = None
 
         with ProcessPoolExecutor(max_workers=workers) as executor:
             for path in Path(directory).iterdir():

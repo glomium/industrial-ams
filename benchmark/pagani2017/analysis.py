@@ -9,14 +9,14 @@ import re
 
 from itertools import product
 
-from iams.utils.plotting import PlotInterface
-
 import matplotlib.pyplot as plt
 
+from iams.utils.plotting import PlotInterface
 
-def plot_all(dataframe):
+
+def plot_th(dataframe):
     """
-    plot aggregated data
+    plot th graph
     """
     fig, ax = plt.subplots()  # pylint: disable=invalid-name
     for selection in product(dataframe.index.unique('version'), dataframe.index.unique('run')):
@@ -30,6 +30,21 @@ def plot_all(dataframe):
 
     data = dataframe.loc['no', slice(None), 30]['th'] * 100
     print("load times: %.4f +/- %.4f" % (data.median(), data.std()))  # noqa
+
+
+def plot_distance(dataframe):
+    """
+    plot th graph
+    """
+    fig, ax = plt.subplots()  # pylint: disable=invalid-name
+    for selection in product(dataframe.index.unique('version'), dataframe.index.unique('run')):
+        data = dataframe.loc[selection]
+        ax.plot(data.index, data["distance"], lw=0.2)
+    ax.set_ylabel('average trip distance')
+    ax.set_xlabel('load and unload time')
+
+    fig.savefig('distance.png', dpi=300)
+    plt.close()
 
 
 def plot_buffers(name, parameters, df):
@@ -71,6 +86,8 @@ def plot_buffers(name, parameters, df):
     fig.savefig(name + '.png', dpi=300)
     plt.close()
 
+
+def get_data(name, parameters, df):
     row = df.tail(1)
     th_out = row.MD1_consumed + row.MD2_consumed + row.MD3_consumed + row.MD4_consumed + row.MD5_consumed
     th_out = th_out.values[0]
@@ -78,7 +95,13 @@ def plot_buffers(name, parameters, df):
     th_lost = th_lost.values[0]
     th = th_out / (th_out + th_lost)
 
-    return {"th": th}
+    distance = row.V1_distance + row.V2_distance + row.V3_distance + row.V4_distance
+    distance = distance.values[0]
+
+    count = row.V1_count + row.V2_count + row.V3_count + row.V4_count
+    count = count.values[0]
+
+    return {"th": th, "distance": distance / count}
 
 
 class Main(PlotInterface):
@@ -110,12 +133,14 @@ class Main(PlotInterface):
 
     @staticmethod
     def iterator_individual_plots():
+        yield get_data
         yield plot_buffers
 
     @staticmethod
     def iterator_aggregated_plots():
-        yield plot_all
+        yield plot_distance
+        yield plot_th
 
 
 if __name__ == "__main__":
-    main = Main("results", 2, "data.csv")
+    main = Main("results", 8, "data.csv")

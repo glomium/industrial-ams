@@ -44,6 +44,10 @@ class Agent(ABC):
     basic agent class for simulations
     """
     # pylint: disable=no-member
+    def __init__(self):
+        """
+        """
+        self._iterator = self._generator(random.random())
 
     def __call__(self, simulation, dryrun):
         """
@@ -53,11 +57,29 @@ class Agent(ABC):
     def __hash__(self):
         return hash(str(self))
 
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._iterator)
+
     @abstractmethod
     def __str__(self):
         """
         Agents name
         """
+
+    def _generator(self, seed):
+        if getattr(self, "iterator", None) is None:
+            raise ValueError("%s's iterator is not defined" % self.__class__.__qualname__)
+
+        random.seed(seed)
+        state = random.getstate()
+        while True:
+            random.setstate(state)
+            result = next(self.iterator)
+            state = random.getstate()
+            yield result
 
     @abstractmethod
     def asdict(self) -> dict:

@@ -9,6 +9,7 @@ from math import sqrt
 
 from iams.interfaces.simulation import Agent
 from iams.interfaces.simulation import SimulationInterface
+from iams.interfaces.simulation import manage_random_state
 
 
 logger = logging.getLogger(__name__)
@@ -219,13 +220,10 @@ class MX(Agent):
             'cls': str(self.__class__.__qualname__),
         }
 
+    @manage_random_state
     def iterator(self, seed, mu, sigma):  # pylint: disable=invalid-name
-        random.seed(seed)
-        state = random.getstate()
         while True:
-            random.setstate(state)
             time = round(random.gauss(mu, sigma))
-            state = random.getstate()
             if time < 0:
                 time = 0
             yield time

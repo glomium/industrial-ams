@@ -6,7 +6,7 @@ ortools implementation for scheduler
 
 import logging
 from dataclasses import dataclass
-from operator import attrgetter
+# from operator import attrgetter
 from ortools.sat.python import cp_model
 
 from iams.exceptions import CanNotSchedule
@@ -254,6 +254,69 @@ class BufferScheduler(SchedulerInterface):
             list(self.buffer_output.values()),
         )
 
+    def plotdata(self, events=None, now=None):
+        """
+        aggregate data to generate plots
+        """
+        data = {
+            'activity_width': [],
+            'activity_x': [],
+            'activity_y': [],
+            'eta': [],
+            'eta_width': [],
+            'eta_x': [],
+            'eta_y': [],
+            'etd': [],
+            'etd_width': [],
+            'etd_x': [],
+            'etd_y': [],
+            'production_width': [],
+            'production_x': [],
+            'production_y': [],
+        }
+
+        i = 0
+        for event in sorted(self.get_events(events)):
+            i += 1
+            eta = event.get_eta(now)
+            eta_max = event.get_eta_max(now)
+            eta_min = event.get_eta_min(now)
+            etd = event.get_etd(now)
+            etd_max = event.get_etd_max(now)
+            etd_min = event.get_etd_min(now)
+            finish = event.get_finish(now)
+            start = event.get_start(now)
+
+            times = [eta, eta_min, eta_max, etd, etd_min, etd_max, finish, start]
+
+            activity = min(x for x in times if x is not None), max(x for x in times if x is not None)
+
+            data['activity_x'].append(activity[0])
+            data['activity_y'].append(i)
+            data['activity_width'].append(activity[1] - activity[0])
+
+            if eta is not None:
+                data['eta'].append((i, eta))
+            if etd is not None:
+                data['etd'].append((i, etd))
+
+            if eta_max is not None and eta_min is not None:
+                data['eta_x'].append(eta_min)
+                data['eta_y'].append(i)
+                data['eta_width'].append(eta_max - eta_min)
+
+            if etd_max is not None and etd_min is not None:
+                data['etd_x'].append(etd_min)
+                data['etd_y'].append(i)
+                data['etd_width'].append(etd_max - etd_min)
+
+            if start is not None and finish is not None:
+                data['production_x'].append(start)
+                data['production_y'].append(i)
+                data['production_width'].append(finish - start)
+
+        return data
+
     def debug(self, events=None, now=None):
         """
         log debug informations
@@ -354,6 +417,7 @@ class BufferScheduler(SchedulerInterface):
             # create variables that don't have an upper limit
             for variable in data['no_upper_limit']:
                 relative, absolute = data.pop(variable)
+                # logger.debug("%s v%s r%s a%s o%s", event, variable, relative, absolute, offset)
                 if absolute is None:
                     new_data[variable] = model.NewIntVar(
                         relative or 0,
@@ -436,6 +500,7 @@ class BufferScheduler(SchedulerInterface):
             if previous:
                 if previous.state in states_eta and event.state in states_eta:
                     model.Add(events[previous]["eta"] <= events[event]["eta"])
+                    model.Add(events[previous]["start"] <= events[event]["start"])
                 elif previous.state == SchedulerState.STARTED and event.state == SchedulerState.STARTED:
                     model.Add(events[previous]["start"] <= events[event]["start"])
                 elif previous.state == SchedulerState.FINISHED and event.state == SchedulerState.FINISHED:
@@ -492,68 +557,69 @@ class BufferScheduler(SchedulerInterface):
                 event.set_start(solver.Value(data["start"]) + offset, now)
                 event.set_finish(solver.Value(data["finish"]) + offset, now)
 
-        for lane in self.buffer_input:  # pylint: disable=unused-variable
-            data = []
-            for event in events:
-                if event.state not in {SchedulerState.NEW, SchedulerState.SCHEDULED, SchedulerState.ARRIVED}:
-                    continue
-                # continue if event is not in buffer_input
-                data.append(event)
-            previous = None
-            for event in sorted(data, key=attrgetter('eta', 'etd', 'uid')):
-                if previous is None:
-                    previous = event
-                    continue
+        # for lane in self.buffer_input:  # pylint: disable=unused-variable
+        #     data = []
+        #     for event in events:
+        #         if event.state not in {SchedulerState.NEW, SchedulerState.SCHEDULED, SchedulerState.ARRIVED}:
+        #             continue
+        #         # continue if event is not in buffer_input
+        #         data.append(event)
+        #     previous = None
+        #     for event in sorted(data, key=attrgetter('eta', 'etd', 'uid')):
+        #         if previous is None:
+        #             previous = event
+        #             continue
 
-                if event.state == SchedulerState.NEW or event.eta_min is None or save:
-                    if event.eta_min:
-                        event.eta_min = max([previous.eta, event.eta_min])
-                    else:
-                        event.eta_min = previous.eta
+        #         if event.state == SchedulerState.NEW or event.eta_min is None or save:
+        #             if event.eta_min:
+        #                 event.eta_min = max([previous.eta, event.eta_min])
+        #             else:
+        #                 event.eta_min = previous.eta
 
-                if previous.state == SchedulerState.NEW or previous.eta_max is None or save:
-                    if previous.eta_max:
-                        previous.eta_max = min([event.eta, previous.eta_max])
-                    else:
-                        previous.eta_max = event.eta
+        #         if previous.state == SchedulerState.NEW or previous.eta_max is None or save:
+        #             if previous.eta_max:
+        #                 previous.eta_max = min([event.eta, previous.eta_max])
+        #             else:
+        #                 previous.eta_max = event.eta
 
-                previous = event
+        #         previous = event
 
-        for lane in self.buffer_output:  # pylint: disable=unused-variable
-            data = []
-            for event in events:
-                # continue if event is not in buffer_input
-                data.append(event)
-            previous = None
-            for event in sorted(data, key=attrgetter('etd', 'uid')):
+        # for lane in self.buffer_output:  # pylint: disable=unused-variable
+        #     data = []
+        #     for event in events:
+        #         # continue if event is not in buffer_input
+        #         data.append(event)
+        #     previous = None
+        #     for event in sorted(data, key=attrgetter('etd', 'uid')):
 
-                if event.etd_min is None or (save and event.etd_min < event.schedule_finish):
-                    event.etd_min = event.schedule_finish
+        #         if event.etd_min is None or (save and event.etd_min < event.schedule_finish):
+        #             event.etd_min = event.schedule_finish
 
-                if previous is None:
-                    previous = event
-                    continue
+        #         if previous is None:
+        #             previous = event
+        #             continue
 
-                if event.state == SchedulerState.NEW or event.etd_min is None or save:
-                    if event.etd_min:
-                        event.etd_min = max([previous.etd, event.etd_min])
-                    else:
-                        event.etd_min = previous.etd
+        #         if event.state == SchedulerState.NEW or event.etd_min is None or save:
+        #             if event.etd_min:
+        #                 event.etd_min = max([previous.etd, event.etd_min])
+        #             else:
+        #                 event.etd_min = previous.etd
 
-                if previous.state == SchedulerState.NEW or previous.etd_max is None or save:
-                    if previous.etd_max:
-                        previous.etd_max = min([event.etd, previous.etd_max])
-                    else:
-                        previous.etd_max = event.etd
+        #         if previous.state == SchedulerState.NEW or previous.etd_max is None or save:
+        #             if previous.etd_max:
+        #                 previous.etd_max = min([event.etd, previous.etd_max])
+        #             else:
+        #                 previous.etd_max = event.etd
 
-                previous = event
+        #         previous = event
 
         if not save:
             return True
+        return None
 
-        # raise ValueError('\n'.join(["%s" % x for x in log]))
-        dummy = None
-        return dummy
+        # # raise ValueError('\n'.join(["%s" % x for x in log]))
+        # dummy = None
+        # return dummy
 
     @staticmethod
     def optimize_eta(events, event):

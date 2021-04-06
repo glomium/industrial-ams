@@ -9,10 +9,11 @@ import io
 import random
 import unittest
 
-from iams.tests.df import DF
 from iams.interfaces.simulation import Agent
 from iams.interfaces.simulation import Queue
 from iams.interfaces.simulation import SimulationInterface
+from iams.interfaces.simulation import manage_random_state
+from iams.tests.df import DF
 
 
 class Simulation(SimulationInterface):
@@ -47,6 +48,7 @@ class SimulationAgent(Agent):
         return {}
 
     @staticmethod
+    @manage_random_state
     def generator():
         while True:
             yield random.random()
@@ -68,28 +70,28 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
         agent = SimulationAgent()
         self.assertEqual(agent.asdict(), {})
 
-    def test_next(self):
+    def test_iterator(self):
         random.seed('test')
         agent1 = SimulationAgent()
         agent2 = SimulationAgent()
-        a11, a12 = next(agent1), next(agent1)
-        b11, b12 = next(agent2), next(agent2)
+        a11, a12 = next(agent1.iterator), next(agent1.iterator)
+        b11, b12 = next(agent2.iterator), next(agent2.iterator)
 
         random.seed('test')
         agent1 = SimulationAgent()
         agent2 = SimulationAgent()
-        a21, b21 = next(agent1), next(agent2)
-        a22, b22 = next(agent1), next(agent2)
+        a21, b21 = next(agent1.iterator), next(agent2.iterator)
+        a22, b22 = next(agent1.iterator), next(agent2.iterator)
 
         self.assertNotEqual(a11, b11)
         self.assertNotEqual(a12, b12)
         self.assertNotEqual(a21, b21)
         self.assertNotEqual(a22, b22)
 
-        self.assertEqual(a11, a12)
-        self.assertEqual(a21, a22)
-        self.assertEqual(b11, b12)
-        self.assertEqual(b21, b22)
+        self.assertEqual(a11, a21)
+        self.assertEqual(a12, a22)
+        self.assertEqual(b11, b21)
+        self.assertEqual(b12, b22)
 
 
 class QueueTests(unittest.TestCase):  # pragma: no cover

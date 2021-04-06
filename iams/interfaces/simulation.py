@@ -17,6 +17,7 @@ from dataclasses import field
 from datetime import datetime
 from enum import Enum
 from functools import total_ordering
+from functools import wraps
 from heapq import heappop
 from heapq import heappush
 from time import time
@@ -44,10 +45,6 @@ class Agent(ABC):
     basic agent class for simulations
     """
     # pylint: disable=no-member
-    def __init__(self):
-        """
-        """
-        self._iterator = self._generator(random.random())
 
     def __call__(self, simulation, dryrun):
         """
@@ -57,29 +54,11 @@ class Agent(ABC):
     def __hash__(self):
         return hash(str(self))
 
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return next(self._iterator)
-
     @abstractmethod
     def __str__(self):
         """
         Agents name
         """
-
-    def _generator(self, seed):
-        if getattr(self, "iterator", None) is None:
-            raise ValueError("%s's iterator is not defined" % self.__class__.__qualname__)
-
-        random.seed(seed)
-        state = random.getstate()
-        while True:
-            random.setstate(state)
-            result = next(self.iterator)
-            state = random.getstate()
-            yield result
 
     @abstractmethod
     def asdict(self) -> dict:
@@ -92,6 +71,27 @@ class Agent(ABC):
         """
         returns the agent attributes as a dictionary
         """
+
+
+def manage_random_state(func):
+    """
+    manages the random-state to get consistend results between different simulation runs
+    """
+    def generator(seed, args, kwargs):
+        random.seed(seed)
+        state = random.getstate()
+        iterator = func(*args, **kwargs)
+        while True:
+            random.setstate(state)
+            result = next(iterator)  # pylint: disable=stop-iteration-return
+            state = random.getstate()
+            yield result
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return generator(random.random(), args, kwargs)
+
+    return wrapper
 
 
 @total_ordering

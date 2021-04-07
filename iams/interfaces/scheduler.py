@@ -488,5 +488,6 @@ class SchedulerInterface(ABC):
         if not isinstance(response, Event):
             raise ValueError("'event' has the wrong class")
 
+        logger.debug("Adding event %s to queue", response.uid)
         self._events.append(response)
         return True

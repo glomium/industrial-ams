@@ -322,19 +322,13 @@ class BufferScheduler(SchedulerInterface):
         log debug informations
         """
         events, makespan = self.get_event_variables(events or [], now=now)
-        print('*' * 80)  # noqa: T001
-        print('Events:')  # noqa: T001
         for key, value in events.items():
-            print(key, value)  # noqa: T001
-        print('*' * 80)  # noqa: T001
-        print(makespan)  # noqa: T001
+            logger.warning("%s: %s", key, value)
         _, events, offset = self.build_model(events, makespan)
-        print("offset", offset)  # noqa: T001
-        print('Events:')  # noqa: T001
         for key, value in events.items():
-            print(key)  # noqa: T001
+            logger.warning("%s" % key)
             for var, val in value.items():
-                print(var, '%r' % val)  # noqa: T001
+                logger.warning("%s: %r", var, val)
 
     def add(self, event, now=None):
         """
@@ -501,10 +495,10 @@ class BufferScheduler(SchedulerInterface):
                 if previous.state in states_eta and event.state in states_eta:
                     model.Add(events[previous]["eta"] <= events[event]["eta"])
                     model.Add(events[previous]["start"] <= events[event]["start"])
-                elif previous.state == SchedulerState.STARTED and event.state == SchedulerState.STARTED:
-                    model.Add(events[previous]["start"] <= events[event]["start"])
-                elif previous.state == SchedulerState.FINISHED and event.state == SchedulerState.FINISHED:
-                    model.Add(events[previous]["finish"] <= events[event]["finish"])
+                # elif previous.state == SchedulerState.STARTED and event.state == SchedulerState.STARTED:
+                #     model.Add(events[previous]["start"] <= events[event]["start"])
+                # elif previous.state == SchedulerState.FINISHED and event.state == SchedulerState.FINISHED:
+                #     model.Add(events[previous]["finish"] <= events[event]["finish"])
             previous = event
 
         # model.AddMaxEquality(makespan, makespans)
@@ -555,6 +549,11 @@ class BufferScheduler(SchedulerInterface):
                 event.set_etd(solver.Value(data["etd"]) + offset, now)
             elif event.state == SchedulerState.SCHEDULED:
                 event.set_start(solver.Value(data["start"]) + offset, now)
+                event.set_finish(solver.Value(data["finish"]) + offset, now)
+            elif event.state == SchedulerState.ARRIVED:
+                event.set_start(solver.Value(data["start"]) + offset, now)
+                event.set_finish(solver.Value(data["finish"]) + offset, now)
+            elif event.state == SchedulerState.STARTED:
                 event.set_finish(solver.Value(data["finish"]) + offset, now)
 
         # for lane in self.buffer_input:  # pylint: disable=unused-variable

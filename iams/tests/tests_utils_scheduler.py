@@ -6,7 +6,7 @@ unittests for iams.utils.scheduler
 # pylint: disable=missing-function-docstring,missing-class-docstring,protected-access,too-many-public-methods  # noqa
 
 from itertools import permutations
-from operator import attrgetter
+# from operator import attrgetter
 import unittest
 
 from iams.exceptions import CanNotSchedule
@@ -129,21 +129,21 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
 
     def test_schedule_independent_ordering(self):
         event_data = [
-            {'eta': (7, 7, 7), 'duration': 12, 'callback': None},
-            {'eta': (18, 18, 18), 'duration': 7, 'callback': None},
-            {'eta': (30, 30, 30), 'duration': 12, 'callback': None},
-            {'eta': (27, 27, 27), 'duration': 9, 'callback': None},
+            {'eta': 0, 'duration': 5, 'callback': None},
+            {'eta': 3, 'duration': 3, 'callback': None},
+            {'eta': 3, 'duration': 5, 'callback': None},
+            {'eta': 8, 'duration': 2, 'callback': None},
         ]
         for i, data in enumerate(permutations(event_data)):
             with self.subTest("permutation", i=i, data=data):
-                scheduler = BufferScheduler(agent="simulation", horizon=60, buffer_input=1)
+                scheduler = BufferScheduler(agent="simulation", horizon=20, buffer_input=2)
                 events = []
                 for kwargs in data:
                     event = scheduler(**kwargs)
                     scheduler.can_schedule(event)
                     scheduler.save(event)
                     events.append(event)
-                events = list(sorted(events, key=attrgetter('eta')))
+                events = list(sorted(events))
                 if i == 0:
                     reference = events
                 else:
@@ -154,57 +154,82 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
                         self.assertEqual(event.get_etd(), reference[j].get_etd())
 
     def test_schedule_until_full(self):
-        self.scheduler = BufferScheduler(agent="simulation", horizon=30, buffer_input=2)
-        event1 = self.scheduler(eta=0, duration=2, callback=None)
-        result = self.scheduler.save(event1)
+        scheduler = BufferScheduler(agent="simulation", horizon=20, buffer_input=2)
+
+        event1 = scheduler(eta=0, duration=1, callback=None)
+        result = scheduler.save(event1)
         self.assertTrue(result)
 
-        self.assertEqual(event1.get_eta(), 0)
+        event2 = scheduler(eta=0, duration=2, callback=None)
+        result = scheduler.save(event2)
+        self.assertTrue(result)
+
+        event3 = scheduler(eta=0, duration=3, callback=None)
+        result = scheduler.save(event3)
+        self.assertTrue(result)
+
+        event4 = scheduler(eta=0, duration=4, callback=None)
+        result = scheduler.save(event4)
+        self.assertFalse(result)
+
+        self.assertEqual(len(scheduler), 3)
         self.assertEqual(event1.get_start(), 0)
-        self.assertEqual(event1.get_finish(), 2)
-        self.assertEqual(event1.get_etd(), 2)
-        self.assertEqual(event1.duration, 2)
-        self.assertEqual(event1.get_eta_min(), None)
-        self.assertEqual(event1.get_eta_max(), None)
-        self.assertEqual(event1.get_etd_min(), None)
-        self.assertEqual(event1.get_etd_max(), None)
-        event1.schedule([2, 2])
+        self.assertEqual(event2.get_start(), 1)
+        self.assertEqual(event3.get_start(), 3)
 
-        # event2 = self.scheduler(eta=0, duration=2, callback=None)
-        # result = self.scheduler.save(event2)
-        # self.assertTrue(result)
+        self.assertEqual(event1.get_finish(), 1)
+        self.assertEqual(event2.get_finish(), 3)
+        self.assertEqual(event3.get_finish(), 6)
 
-        # self.assertEqual(event2.get_eta(), 0)
-        # self.assertEqual(event2.get_start(), 2)
-        # self.assertEqual(event2.get_finish(), 4)
-        # self.assertEqual(event2.get_etd(), 4)
-        # self.assertEqual(event2.duration, 2)
+    def test_schedule_overlap_started(self):
+        scheduler = BufferScheduler(agent="simulation", horizon=20, buffer_input=2)
 
-        # self.assertEqual(event2.get_eta_min(), 0)
-        # self.assertEqual(event2.get_eta_max(), None)
-        # self.assertEqual(event2.get_etd_min(), None)
-        # self.assertEqual(event2.get_etd_max(), None)
-        # event2.schedule([4, 4])
+        event1 = scheduler(eta=0, duration=3, callback=None)
+        event1.start(0)
+        result = scheduler.save(event1)
+        self.assertTrue(result)
 
-        # event3 = self.scheduler(eta=0, duration=2, callback=None)
-        # result = self.scheduler.save(event3)
-        # self.assertTrue(result)
+        event2 = scheduler(eta=0, duration=2, callback=None)
+        result = scheduler.save(event2)
+        self.assertTrue(result)
 
-        # self.assertEqual(event3.get_eta(), 0)
-        # self.assertEqual(event3.get_start(), 4)
-        # self.assertEqual(event3.get_finish(), 6)
-        # self.assertEqual(event3.get_etd(), 6)
-        # self.assertEqual(event3.duration, 2)
+        event3 = scheduler(eta=0, duration=3, callback=None)
+        result = scheduler.save(event3)
+        self.assertTrue(result)
 
-        # self.assertEqual(event3.get_eta_min(), 0)
-        # self.assertEqual(event3.get_eta_max(), None)
-        # self.assertEqual(event3.get_etd_min(), None)
-        # self.assertEqual(event3.get_etd_max(), None)
-        # event2.schedule([6, 6])
+        event4 = scheduler(eta=0, duration=4, callback=None)
+        result = scheduler.save(event4)
+        self.assertFalse(result)
 
-        # event4 = self.scheduler(eta=0, duration=2, callback=None)
-        # result = self.scheduler.save(event4)
-        # self.assertFalse(result)
+        self.assertEqual(len(scheduler), 3)
+        self.assertEqual(event1.get_start(), 0)
+        self.assertEqual(event2.get_start(), 3)
+        self.assertEqual(event3.get_start(), 5)
+
+        self.assertEqual(event1.get_finish(), 3)
+        self.assertEqual(event2.get_finish(), 5)
+        self.assertEqual(event3.get_finish(), 8)
+
+    def test_failed_in_simulation1(self):
+        scheduler = BufferScheduler(agent="simulation", horizon=600, buffer_input=2)
+        event1 = scheduler(eta=126, duration=88, callback=None)
+        event2 = scheduler(eta=443, duration=79, callback=None)
+        event3 = scheduler(eta=119, duration=105, callback=None)
+        event4 = scheduler(eta=94, duration=100, callback=None)
+        event3.arrive(194)
+        event4.start(94)
+
+        result = scheduler.save(event1)
+        self.assertTrue(result)
+        result = scheduler.save(event3)
+        self.assertTrue(result)
+        result = scheduler.save(event4)
+        self.assertTrue(result)
+        result = scheduler.save(event2)
+        data = scheduler.plotdata()
+        print(data)  # noqa
+        scheduler.debug()
+        self.assertTrue(result)
 
     def setup1(self):
         # pylint: disable=attribute-defined-outside-init

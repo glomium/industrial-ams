@@ -108,8 +108,8 @@ class QueueTests(unittest.TestCase):  # pragma: no cover
     def test_comparison(self):
         queue1 = Queue(time=0.0, obj=None, callback='c', dt=1.0, args=[], kwargs={})
         queue2 = Queue(time=0.0, obj=None, callback='c', dt=0.0, args=[], kwargs={})
-        queue3 = Queue(time=0.0, obj=None, callback='c', dt=1.0, priority="high", args=[], kwargs={})
-        queue4 = Queue(time=1.0, obj=None, callback='c', dt=1.0, priority="high", args=[], kwargs={})
+        queue3 = Queue(time=0.0, obj=None, callback='c', dt=1.0, priority="low", args=[], kwargs={})
+        queue4 = Queue(time=1.0, obj=None, callback='c', dt=1.0, priority="low", args=[], kwargs={})
         queue5 = Queue(time=0.0, obj=None, callback='c', dt=1.0, priority="undefined", args=[], kwargs={})
 
         self.assertTrue(queue1 < queue2, "%r < %r" % (queue1, queue2))

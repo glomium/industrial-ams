@@ -93,7 +93,7 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
                 'file': {
                     'class': "logging.FileHandler",
                     'level': logging.DEBUG if loglevel < logging.INFO else logging.INFO,
-                    'formatter': "logfile",
+                    'formatter': 'debug' if loglevel < logging.INFO else "logfile",
                     'filename': kwargs.pop("file_log"),
                     'mode': 'w',
                 },

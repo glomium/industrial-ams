@@ -114,32 +114,32 @@ class Queue:  # pylint: disable=too-many-instance-attributes
 
     def __lt__(self, other):
         if isinstance(other, Queue):
-            return (self.time, other.priority.value, other.dt) < (other.time, self.priority.value, self.dt)
+            return (self.time, self.priority.value, other.dt) < (other.time, other.priority.value, self.dt)
         raise NotImplementedError
 
     def __le__(self, other):
         if isinstance(other, Queue):
-            return (self.time, other.priority.value, other.dt) <= (other.time, self.priority.value, self.dt)
+            return (self.time, self.priority.value, other.dt) <= (other.time, other.priority.value, self.dt)
         raise NotImplementedError
 
     def __eq__(self, other):
         if isinstance(other, Queue):
-            return (self.time, other.priority.value, other.dt) == (other.time, self.priority.value, self.dt)
+            return (self.time, self.priority.value, other.dt) == (other.time, other.priority.value, self.dt)
         raise NotImplementedError
 
     def __ne__(self, other):
         if isinstance(other, Queue):
-            return (self.time, other.priority.value, other.dt) != (other.time, self.priority.value, self.dt)
+            return (self.time, self.priority.value, other.dt) != (other.time, other.priority.value, self.dt)
         raise NotImplementedError
 
     def __ge__(self, other):
         if isinstance(other, Queue):
-            return (self.time, other.priority.value, other.dt) >= (other.time, self.priority.value, self.dt)
+            return (self.time, self.priority.value, other.dt) >= (other.time, other.priority.value, self.dt)
         raise NotImplementedError
 
     def __gt__(self, other):
         if isinstance(other, Queue):
-            return (self.time, other.priority.value, other.dt) > (other.time, self.priority.value, self.dt)
+            return (self.time, self.priority.value, other.dt) > (other.time, other.priority.value, self.dt)
         raise NotImplementedError
 
     def __post_init__(self):
@@ -300,7 +300,6 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
         """
         self._events += 1
         event_time = self._time + dt
-        logger.debug("Adding %s.%s at %s to queue", obj, callback, event_time)
         queue = Queue(
             time=event_time,
             priority=priority,
@@ -310,6 +309,7 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
             args=args,
             kwargs=kwargs,
         )
+        logger.debug("Adding %s.%s at %s to queue (%s)", obj, callback, event_time, queue.priority.name)
         heappush(self._queue, queue)
         return queue
 

@@ -36,29 +36,34 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         event = self.scheduler(eta=0, duration=1, callback=None)
 
         with self.subTest("new"):
-            self.scheduler.can_schedule(event)
+            result = self.scheduler.can_schedule(event)
+            self.assertTrue(result)
             self.assertEqual(event.state, SchedulerState.NEW)
             self.assertEqual(event.get_eta(), 0)
 
         with self.subTest("scheduled"):
             event.schedule([1, 1])
-            self.scheduler.can_schedule(event)
+            result = self.scheduler.can_schedule(event)
+            self.assertTrue(result)
             self.assertEqual(event.state, SchedulerState.SCHEDULED)
             self.assertEqual(event.get_etd(), 1)
 
         with self.subTest("arrive"):
             event.arrive(0)
-            self.scheduler.can_schedule(event)
+            result = self.scheduler.can_schedule(event)
+            self.assertTrue(result)
             self.assertEqual(event.state, SchedulerState.ARRIVED)
 
         with self.subTest("start"):
             event.start(0)
-            self.scheduler.can_schedule(event)
+            result = self.scheduler.can_schedule(event)
+            self.assertTrue(result)
             self.assertEqual(event.state, SchedulerState.STARTED)
 
         with self.subTest("finish"):
             event.finish(1)
-            self.scheduler.can_schedule(event)
+            result = self.scheduler.can_schedule(event)
+            self.assertTrue(result)
             self.assertEqual(event.state, SchedulerState.FINISHED)
 
         with self.subTest("depart"), self.assertRaises(NotImplementedError):
@@ -211,24 +216,13 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(event3.get_finish(), 8)
 
     def test_failed_in_simulation1(self):
-        scheduler = BufferScheduler(agent="simulation", horizon=600, buffer_input=2)
-        event1 = scheduler(eta=126, duration=88, callback=None)
-        event2 = scheduler(eta=443, duration=79, callback=None)
-        event3 = scheduler(eta=119, duration=105, callback=None)
-        event4 = scheduler(eta=94, duration=100, callback=None)
-        event3.arrive(194)
-        event4.start(94)
-
+        scheduler = BufferScheduler(agent="simulation", horizon=5, buffer_input=1)
+        event1 = scheduler(eta=0, duration=1, callback=None)
+        event1.arrive(0)
         result = scheduler.save(event1)
         self.assertTrue(result)
-        result = scheduler.save(event3)
-        self.assertTrue(result)
-        result = scheduler.save(event4)
-        self.assertTrue(result)
+        event2 = scheduler(eta=1, duration=1, callback=None)
         result = scheduler.save(event2)
-        data = scheduler.plotdata()
-        print(data)  # noqa
-        scheduler.debug()
         self.assertTrue(result)
 
     def setup1(self):

@@ -324,9 +324,9 @@ class BufferScheduler(SchedulerInterface):
         events, makespan = self.get_event_variables(events or [], now=now)
         for key, value in events.items():
             logger.warning("%s: %s", key, value)
-        _, events, offset = self.build_model(events, makespan)
+        _, events, offset = self.build_model(events, makespan)  # pylint: disable=unused-variable
         for key, value in events.items():
-            logger.warning("%s" % key)
+            logger.warning("%s", key)
             for var, val in value.items():
                 logger.warning("%s: %r", var, val)
 

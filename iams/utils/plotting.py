@@ -27,7 +27,7 @@ class PlotInterface(ABC):
                 self.dataframe = pd.read_csv(save).set_index("basename")
                 names = set(self.dataframe.index.values)
             elif save.exists():
-                raise ValueError("%s already exists and is not a file", save)
+                raise ValueError(f"{save} already exists and is not a file")
 
         with ProcessPoolExecutor(max_workers=workers) as executor:
             for path in Path(directory).iterdir():

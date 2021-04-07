@@ -38,8 +38,8 @@ class States(Enum):
     CANCELED = auto()
 
 
-@total_ordering
 @dataclass
+@total_ordering
 class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """
     Schedule events
@@ -68,65 +68,27 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
     setup_condition: Union[str, None] = field(default=None, repr=False, init=True, compare=True)
     canceled: bool = field(default=False, repr=False, init=False, compare=False)
 
+    __eta_states__ = {States.NEW, States.SCHEDULED, States.ARRIVED}
+
     def __hash__(self):
         return hash(self.uid)
 
+    def __eq__(self, other):
+        if isinstance(other, Event):
+            return self.uid == other.uid
+        raise NotImplementedError
+
     def __lt__(self, other):
         if isinstance(other, Event):
+            if self.state in self.__eta_states__ and other.state in self.__eta_states__:
+                return (self.eta_min if self.eta is None else self.eta, self.duration, self.uid) < (other.eta_min if other.eta is None else other.eta, other.duration, other.uid)  # noqa: E501
             if self.state.value == other.state.value:
-                if self.state in {States.NEW, States.SCHEDULED, States.ARRIVED}:
-                    return (self.eta_min if self.eta is None else self.eta, self.duration, self.uid) < (other.eta_min if other.eta is None else other.eta, other.duration, other.uid)  # noqa: E501
                 if self.state == States.STARTED:
                     return (self.schedule_start, self.duration, self.uid) < (other.schedule_start, other.duration, other.uid)  # noqa: E501
                 if self.state == States.FINISHED:
                     return (self.schedule_finish, self.duration, self.uid) < (other.schedule_finish, other.duration, other.uid)  # noqa: E501
                 return self.eta < other.eta
-            return self.state.value < other.state.value
-        raise NotImplementedError
-
-    def __le__(self, other):
-        if isinstance(other, Event):
-            if self.state.value == other.state.value:
-                if self.state in {States.NEW, States.SCHEDULED, States.ARRIVED}:
-                    return (self.eta_min if self.eta is None else self.eta, self.duration, self.uid) <= (other.eta_min if other.eta is None else other.eta, other.duration, other.uid)  # noqa: E501
-                if self.state == States.STARTED:
-                    return (self.schedule_start, self.duration, self.uid) <= (other.schedule_start, other.duration, other.uid)  # noqa: E501
-                if self.state == States.FINISHED:
-                    return (self.schedule_finish, self.duration, self.uid) <= (other.schedule_finish, other.duration, other.uid)  # noqa: E501
-                return self.eta <= other.eta
-            return self.state.value <= other.state.value
-        raise NotImplementedError
-
-    def __eq__(self, other):
-        return self.uid == other.uid
-
-    def __ne__(self, other):
-        return self.uid != other.uid
-
-    def __ge__(self, other):
-        if isinstance(other, Event):
-            if self.state.value == other.state.value:
-                if self.state in {States.NEW, States.SCHEDULED, States.ARRIVED}:
-                    return (self.eta_min if self.eta is None else self.eta, self.duration, self.uid) >= (other.eta_min if other.eta is None else other.eta, other.duration, other.uid)  # noqa: E501
-                if self.state == States.STARTED:
-                    return (self.schedule_start, self.duration, self.uid) >= (other.schedule_start, other.duration, other.uid)  # noqa: E501
-                if self.state == States.FINISHED:
-                    return (self.schedule_finish, self.duration, self.uid) >= (other.schedule_finish, other.duration, other.uid)  # noqa: E501
-                return self.eta >= other.eta
-            return self.state.value >= other.state.value
-        raise NotImplementedError
-
-    def __gt__(self, other):
-        if isinstance(other, Event):
-            if self.state.value == other.state.value:
-                if self.state in {States.NEW, States.SCHEDULED, States.ARRIVED}:
-                    return (self.eta_min if self.eta is None else self.eta, self.duration, self.uid) > (other.eta_min if other.eta is None else other.eta, other.duration, other.uid)  # noqa: E501
-                if self.state == States.STARTED:
-                    return (self.schedule_start, self.duration, self.uid) > (other.schedule_start, other.duration, other.uid)  # noqa: E501
-                if self.state == States.FINISHED:
-                    return (self.schedule_finish, self.duration, self.uid) > (other.schedule_finish, other.duration, other.uid)  # noqa: E501
-                return self.eta > other.eta
-            return self.state.value > other.state.value
+            return other.state.value < self.state.value
         raise NotImplementedError
 
     def __post_init__(self):  # pylint: disable=too-many-branches

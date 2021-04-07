@@ -145,10 +145,15 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
                 events = []
                 for kwargs in data:
                     event = scheduler(**kwargs)
-                    scheduler.can_schedule(event)
-                    scheduler.save(event)
+                    self.assertTrue(scheduler.can_schedule(event))
+                    self.assertTrue(scheduler.save(event))
                     events.append(event)
-                events = list(sorted(events))
+
+                # sort events (and validate sorting)
+                events = sorted(events)
+                for j in range(1, len(events)):
+                    self.assertTrue(events[j - 1] < events[j])
+
                 if i == 0:
                     reference = events
                 else:
@@ -225,6 +230,18 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         result = scheduler.save(event2)
         self.assertTrue(result)
 
+    def test_iteration(self):
+        scheduler = BufferScheduler(agent="simulation", horizon=5, buffer_input=1)
+        event1 = scheduler(eta=0, duration=1, callback=None)
+        self.assertTrue(self.scheduler.save(event1))
+        event2 = scheduler(eta=1, duration=1, callback=None)
+        self.assertTrue(self.scheduler.save(event2))
+
+        events = list(self.scheduler.get_events(None))
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0], event1)
+        self.assertEqual(events[1], event2)
+
     def setup1(self):
         # pylint: disable=attribute-defined-outside-init
         self.event1 = self.scheduler(eta=(9, 9, 9), etd=(11, 11, 11), duration=2, callback=None)
@@ -233,37 +250,6 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.scheduler.save(self.event2)
         self.assertEqual(self.event1.state, SchedulerState.SCHEDULED)
         self.assertEqual(self.event2.state, SchedulerState.SCHEDULED)
-
-    def test_iteration(self):
-        self.setup1()
-        events = list(self.scheduler.get_events(None))
-        self.assertEqual(len(events), 2)
-        self.assertEqual(events[0], self.event1)
-        self.assertEqual(events[1], self.event2)
-
-    def test_values_event1(self):
-        self.setup1()
-        self.assertEqual(self.event1.get_eta(), 9)
-        self.assertEqual(self.event1.get_eta_min(), 9)
-        self.assertEqual(self.event1.get_eta_max(), 9)
-        self.assertEqual(self.event1.get_start(), 9)
-        self.assertEqual(self.event1.get_finish(), 11)
-        self.assertEqual(self.event1.get_etd(), 11)
-        self.assertEqual(self.event1.get_etd_min(), 11)
-        self.assertEqual(self.event1.get_etd_max(), 11)
-        self.assertEqual(self.event1.duration, 2)
-
-    def test_values_event2(self):
-        self.setup1()
-        self.assertEqual(self.event2.get_eta(), 19)
-        self.assertEqual(self.event2.get_eta_min(), 19)
-        self.assertEqual(self.event2.get_eta_max(), 19)
-        self.assertEqual(self.event2.get_start(), 19)
-        self.assertEqual(self.event2.get_finish(), 21)
-        self.assertEqual(self.event2.get_etd(), 21)
-        self.assertEqual(self.event2.get_etd_min(), 21)
-        self.assertEqual(self.event2.get_etd_max(), 21)
-        self.assertEqual(self.event2.duration, 2)
 
     def test_event_started(self):
         self.setup1()

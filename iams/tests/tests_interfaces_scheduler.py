@@ -34,9 +34,9 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         event1.uid = 1
         event2.uid = 2
         self.assertTrue(event1 < event2)
-        event1.start(0)
-        self.assertTrue(event2 < event1)
         event2.start(1)
+        self.assertTrue(event2 < event1)
+        event1.start(0)
         self.assertTrue(event1 < event2)
         event1.finish(0)
         event2.finish(1)
@@ -54,9 +54,9 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         event1.uid = 1
         event2.uid = 2
         self.assertTrue(event1 <= event2)
-        event1.start(0)
-        self.assertTrue(event2 <= event1)
         event2.start(1)
+        self.assertTrue(event2 <= event1)
+        event1.start(0)
         self.assertTrue(event1 <= event2)
         event1.finish(0)
         event2.finish(1)
@@ -74,9 +74,9 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         event1.uid = 1
         event2.uid = 2
         self.assertTrue(event2 >= event1)
-        event1.start(0)
-        self.assertTrue(event1 >= event2)
         event2.start(1)
+        self.assertTrue(event1 >= event2)
+        event1.start(0)
         self.assertTrue(event2 >= event1)
         event1.finish(0)
         event2.finish(1)
@@ -94,9 +94,9 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         event1.uid = 1
         event2.uid = 2
         self.assertTrue(event2 > event1)
-        event1.start(0)
-        self.assertTrue(event1 > event2)
         event2.start(1)
+        self.assertTrue(event1 > event2)
+        event1.start(0)
         self.assertTrue(event2 > event1)
         event1.finish(0)
         event2.finish(1)

@@ -111,36 +111,42 @@ class EventTests(unittest.TestCase):  # pragma: no cover
     def test_datetime(self):
         event = Event(eta=self.now, duration=0, callback="callback")
         self.assertTrue(event.use_datetime)
-        self.assertEqual(event.get_eta(self.now), 0.0)
-        event.set_etd(10, self.now)
-        self.assertEqual(event.get_etd(self.now), 10.0)
-        self.assertTrue(isinstance(event.etd, datetime.datetime))
+
+        lower, upper = event.eta_constraints()
+        self.assertEqual(lower, self.now)
+        self.assertEqual(upper, self.now)
+        lower, upper = event.eta_constraints(self.now)
+        self.assertEqual(lower, 0.0)
+        self.assertEqual(upper, 0.0)
+
+        event.etd.set(10, self.now)
+        lower, upper = event.etd_constraints(self.now)
+        self.assertEqual(event.etd.get(self.now), 10.0)
+        self.assertTrue(isinstance(event.etd.get(), datetime.datetime))
 
     def test_integer(self):
         event = Event(eta=0, duration=0, callback="callback")
         self.assertFalse(event.use_datetime)
-        self.assertEqual(event.get_eta(), 0)
-        event.set_eta(10)
-        self.assertEqual(event.get_eta(), 10)
-        self.assertTrue(isinstance(event.eta, int))
+        self.assertEqual(event.eta, 0)
+        event.etd.set(10)
+        self.assertEqual(event.etd, 10)
+        self.assertTrue(isinstance(event.etd.get(), int))
 
     def test_eta_tuple1(self):
         event = Event(eta=[1], duration=0, callback="callback")
-        self.assertEqual(event.get_eta(), 1)
-        self.assertEqual(event.get_eta_min(), None)
-        self.assertEqual(event.get_eta_max(), None)
+        self.assertEqual(event.eta.constraint_low, 1)
+        self.assertEqual(event.eta.constraint_high, 1)
 
     def test_eta_tuple2(self):
         event = Event(eta=[1, 2], duration=0, callback="callback")
-        self.assertEqual(event.get_eta(), None)
-        self.assertEqual(event.get_eta_min(), 1)
-        self.assertEqual(event.get_eta_max(), 2)
+        self.assertEqual(event.eta.constraint_low, 1)
+        self.assertEqual(event.eta.constraint_high, 2)
 
     def test_eta_tuple3(self):
         event = Event(eta=[1, 2, 3], duration=0, callback="callback")
-        self.assertEqual(event.get_eta(), 2)
-        self.assertEqual(event.get_eta_min(), 1)
-        self.assertEqual(event.get_eta_max(), 3)
+        self.assertEqual(event.eta, 2)
+        self.assertEqual(event.eta.constraint_low, 1)
+        self.assertEqual(event.eta.constraint_high, 3)
 
     def test_eta_tuple4(self):
         with self.assertRaises(ValueError):
@@ -168,18 +174,19 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         for etd in [[1], [None]]:
             with self.subTest(etd=etd):
                 event = Event(eta=0, etd=etd, duration=0, callback="callback")
-                self.assertEqual(event.get_etd(), etd[0])
-                self.assertEqual(event.get_etd_min(), None)
-                self.assertEqual(event.get_etd_max(), None)
-                self.assertEqual(event.state, States.NEW)
+                self.assertEqual(event.etd.constraint_low, etd[0])
+                self.assertEqual(event.etd.constraint_high, etd[0])
+                if etd[0] is None:
+                    self.assertEqual(event.state, States.NEW)
+                else:
+                    self.assertEqual(event.state, States.SCHEDULED)
 
     def test_etd_tuple2(self):
         for etd in [[1, 2], [1, None], [None, 2], [None, None]]:
             with self.subTest(etd=etd):
                 event = Event(eta=0, etd=etd, duration=0, callback="callback")
-                self.assertEqual(event.get_etd(), None)
-                self.assertEqual(event.get_etd_min(), etd[0])
-                self.assertEqual(event.get_etd_max(), etd[1])
+                self.assertEqual(event.etd.constraint_low, etd[0])
+                self.assertEqual(event.etd.constraint_high, etd[1])
                 if etd[0] is not None and etd[1] is not None:
                     self.assertEqual(event.state, States.SCHEDULED)
                 else:
@@ -189,9 +196,9 @@ class EventTests(unittest.TestCase):  # pragma: no cover
         for etd in [[1, 2, 3], [1, 2, None], [None, 2, 3], [None, None, None]]:
             with self.subTest(etd=etd):
                 event = Event(eta=0, etd=etd, duration=0, callback="callback")
-                self.assertEqual(event.get_etd(), etd[1])
-                self.assertEqual(event.get_etd_min(), etd[0])
-                self.assertEqual(event.get_etd_max(), etd[2])
+                self.assertEqual(event.etd.get(), etd[1])
+                self.assertEqual(event.etd.constraint_low, etd[0])
+                self.assertEqual(event.etd.constraint_high, etd[2])
                 if etd[0] is not None and etd[2] is not None:
                     self.assertEqual(event.state, States.SCHEDULED)
                 else:
@@ -204,68 +211,37 @@ class EventTests(unittest.TestCase):  # pragma: no cover
     def test_schedule_tuple2(self):
         etd = [1, 2]
         event = Event(eta=0, duration=0, callback="callback")
-        event.schedule(etd)
-        self.assertEqual(event.get_etd(), None)
-        self.assertEqual(event.get_etd_min(), etd[0])
-        self.assertEqual(event.get_etd_max(), etd[1])
+        event.schedule_etd(etd[0], etd[1])
+        self.assertEqual(event.etd.get(), None)
+        self.assertEqual(event.etd.constraint_low, etd[0])
+        self.assertEqual(event.etd.constraint_high, etd[1])
         self.assertEqual(event.state, States.SCHEDULED)
-
-    def test_schedule_tuple3(self):
-        etd = [1, 2, 3]
-        event = Event(eta=0, duration=0, callback="callback")
-        event.schedule(etd)
-        self.assertEqual(event.get_etd(), etd[1])
-        self.assertEqual(event.get_etd_min(), etd[0])
-        self.assertEqual(event.get_etd_max(), etd[2])
-        self.assertEqual(event.state, States.SCHEDULED)
-
-    def test_schedule_invalid(self):
-        for etd in [1, [1], [None, None], [None, None, None], [1, None], [None, 2], [1, 2, 3, 4]]:
-            with self.subTest(etd=etd), self.assertRaises(ValueError):
-                event = Event(eta=0, duration=0, callback="callback")
-                event.schedule(etd)
 
     def test_schedule_invalid_datetime(self):
         etd = [self.now, 1]
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             event = Event(eta=self.now, duration=0, callback="callback")
-            event.schedule(etd)
+            event.schedule_etd(etd[0], etd[1])
 
-    def test_schedule_etd_use_from_event(self):
-        event = Event(eta=0, etd=[1, 3], duration=0, callback="callback")
-        event.schedule([0, 4])
-        self.assertEqual(event.get_etd_min(), 1)
-        self.assertEqual(event.get_etd_max(), 3)
-
-    def test_schedule_etd_max_small(self):
-        with self.assertRaises(ValueError):
-            event = Event(eta=0, duration=0, callback="callback")
-            event.schedule([1, 2, 1])
-
-    def test_schedule_etd_min_large(self):
-        with self.assertRaises(ValueError):
-            event = Event(eta=0, duration=0, callback="callback")
-            event.schedule([3, 2, 3])
-
-    def test_schedule_datetime(self):
+    def test_schedule_etd_datetime(self):
         event = Event(eta=self.now, duration=0, callback="callback")
         self.assertTrue(event.use_datetime)
-        event.schedule([self.now, self.now])
-        self.assertEqual(event.etd, None)
-        self.assertEqual(event.etd_min, self.now)
-        self.assertEqual(event.etd_max, self.now)
+        event.schedule_etd(self.now, self.now)
+        self.assertEqual(event.etd.get(), None)
+        self.assertEqual(event.etd.constraint_low, self.now)
+        self.assertEqual(event.etd.constraint_high, self.now)
 
     def test_schedule_wrong_type1(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             event = Event(eta=0, duration=0, callback="callback")
             self.assertFalse(event.use_datetime)
-            event.schedule(self.now)
+            event.schedule_etd(self.now)
 
     def test_schedule_wrong_type2(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             event = Event(eta=self.now, duration=0, callback="callback")
             self.assertTrue(event.use_datetime)
-            event.schedule(1)
+            event.schedule_etd(1)
 
     def test_event_arrive_nodatetime(self):
         event = Event(eta=0, duration=0, callback="callback")
@@ -333,7 +309,7 @@ class EventTests(unittest.TestCase):  # pragma: no cover
     def test_getter_setter(self):
         event = Event(eta=0, duration=0, callback="callback")
 
-        for name in ["eta_max", "eta_min", "etd_max", "etd_min", "start", "finish"]:
+        for name in ["start", "finish"]:
             with self.subTest(name=name):
                 getter = getattr(event, f"get_{name}")
                 setter = getattr(event, f"set_{name}")

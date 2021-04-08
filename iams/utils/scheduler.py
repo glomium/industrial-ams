@@ -235,69 +235,6 @@ class BufferScheduler(SchedulerInterface):
             list(self.buffer_output.values()),
         )
 
-    def plotdata(self, events=None, now=None):
-        """
-        aggregate data to generate plots
-        """
-        data = {
-            'activity_width': [],
-            'activity_x': [],
-            'activity_y': [],
-            'eta': [],
-            'eta_width': [],
-            'eta_x': [],
-            'eta_y': [],
-            'etd': [],
-            'etd_width': [],
-            'etd_x': [],
-            'etd_y': [],
-            'production_width': [],
-            'production_x': [],
-            'production_y': [],
-        }
-
-        i = 0
-        for event in sorted(self.get_events(events)):
-            i += 1
-            eta = event.get_eta(now)
-            eta_max = event.get_eta_max(now)
-            eta_min = event.get_eta_min(now)
-            etd = event.get_etd(now)
-            etd_max = event.get_etd_max(now)
-            etd_min = event.get_etd_min(now)
-            finish = event.get_finish(now)
-            start = event.get_start(now)
-
-            times = [eta, eta_min, eta_max, etd, etd_min, etd_max, finish, start]
-
-            activity = min(x for x in times if x is not None), max(x for x in times if x is not None)
-
-            data['activity_x'].append(activity[0])
-            data['activity_y'].append(i)
-            data['activity_width'].append(activity[1] - activity[0])
-
-            if eta is not None:
-                data['eta'].append((i, eta))
-            if etd is not None:
-                data['etd'].append((i, etd))
-
-            if eta_max is not None and eta_min is not None:
-                data['eta_x'].append(eta_min)
-                data['eta_y'].append(i)
-                data['eta_width'].append(eta_max - eta_min)
-
-            if etd_max is not None and etd_min is not None:
-                data['etd_x'].append(etd_min)
-                data['etd_y'].append(i)
-                data['etd_width'].append(etd_max - etd_min)
-
-            if start is not None and finish is not None:
-                data['production_x'].append(start)
-                data['production_y'].append(i)
-                data['production_width'].append(finish - start)
-
-        return data
-
     def debug(self, events=None, now=None):
         """
         log debug informations
@@ -463,7 +400,6 @@ class BufferScheduler(SchedulerInterface):
                         if not isinstance(upper, int):  # extract data from or-tools object
                             upper = upper._IntVar__var.domain[1]  # pylint: disable=protected-access
                         duration = upper - lower
-                        logger.warning("*222* %s %s %s %s %s", name, lower, upper, duration, interval.optional)
                     else:
                         duration = interval.duration
 

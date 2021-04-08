@@ -104,6 +104,11 @@ class ETX:  # pylint: disable=too-many-instance-attributes
     def __bool__(self):
         return self.constraint_high is not None and self.constraint_low is not None
 
+    def __sub__(self, other):
+        if not self.use_datetime and self.time and isinstance(other, (int, float)):
+            return self.time - other
+        raise NotImplementedError
+
     def __eq__(self, other):
         if other is None:
             return False

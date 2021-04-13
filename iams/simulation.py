@@ -20,6 +20,7 @@ import os
 import yaml
 
 try:
+    # try to import sentry so that it can be used to log errors
     import sentry_sdk  # noqa
     SENTRY = True
 except ImportError:
@@ -34,7 +35,7 @@ from iams.tests.df import DF
 logger = logging.getLogger(__name__)
 
 
-def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING, dsn=None):
+def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING, dsn=None):  # pylint: disable=too-many-arguments  # noqa: E501
     """
     processes a simulation config
     """
@@ -318,7 +319,10 @@ def main(args, function=run_simulation):
         finally:
             fobj.close()
 
-        for kwargs in process_config(fobj.name, config, dryrun=args.dryrun, force=args.force, loglevel=args.loglevel, dsn=args.dsn):
+        for kwargs in process_config(
+                fobj.name, config, dryrun=args.dryrun,
+                force=args.force, loglevel=args.loglevel,
+                dsn=args.dsn):
             kwarg_list.append(deepcopy(kwargs))
 
     if len(kwarg_list) == 1 or args.single:

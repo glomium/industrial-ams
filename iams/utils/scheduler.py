@@ -164,7 +164,7 @@ class Event(SchedulerEvent):
             if data["etd"][0] is None:
                 data["etd"][0] = start
             data["etd"] = tuple(data["etd"])
-            data["makespan"] = data["start"], data["etd"][1]
+            data["makespan"] = start, data["etd"][1]
 
             data["interval_p"] = Interval(
                 start_name="start",
@@ -394,16 +394,17 @@ class BufferScheduler(SchedulerInterface):
 
                 # load fixed values
                 if interval.start_name not in new_data:
-                    raise ValueError("Need to set %s", interval.start_name)
+                    raise ValueError("Need to set %s" % interval.start_name)
 
                 if interval.end_name not in new_data:
-                    raise ValueError("Need to set %s", interval.end_name)
+                    raise ValueError("Need to set %s" % interval.end_name)
 
                 # if interval.start_name not in new_data:
                 #     new_data[interval.start_name] = data.pop(interval.start_name) - offset
                 # if interval.end_name not in new_data:
                 #     new_data[interval.end_name] = data.pop(interval.end_name) - offset
                 if interval.duration_name not in new_data:
+                    # pylint: disable=protected-access
                     if interval.duration is None:
                         lower = new_data[interval.start_name]
                         # if not isinstance(lower, int):  # extract data from or-tools object

@@ -56,67 +56,44 @@ class Event(SchedulerEvent):
         """
         return super()._set_time(name, self._scheduler.convert_seconds(seconds), now)
 
+    def eta_constraints(self, now=None):
+        low, high = super().eta_constraints(now)
+        if low is not None:
+            low = self._scheduler.convert_resolution(low)
+        if high is not None:
+            high = self._scheduler.convert_resolution(low)
+        return low, high
+
+    def etd_constraints(self, now=None):
+        low, high = super().etd_constraints(now)
+        if low is not None:
+            low = self._scheduler.convert_resolution(low)
+        if high is not None:
+            high = self._scheduler.convert_resolution(low)
+        return low, high
+
     def get_variables(self, now=None):  # pylint: disable=too-many-statements,too-many-branches
         """
         This function uses the saved events and a new_event and
         calculates the ranges and values of the variables needed
         for the linear solver.
         """
-        # read ETA
-        eta = self.get_eta(now)
-        eta_min = self.get_eta_min(now)
-        eta_max = self.get_eta_max(now)
-        if eta_min is None:
-            eta_min = eta
-        if eta_max is None:
-            eta_max = eta
-
-        # read ETD
-        etd = self.get_etd(now)
-        if self.state is SchedulerState.NEW:
-            etd_min = None
-            etd_max = None
-        else:
-            etd_max = self.get_etd_max(now)
-            etd_min = self.get_etd_min(now)
-            if etd_min is None:
-                etd_min = etd
-            if etd_max is None:
-                etd_max = etd
-
-        # misc variables
-        duration = self._scheduler.convert_resolution(self.duration)
-
         data = {
             "number": self.uid,
-            "no_upper_limit": set(),
+            "ranges": set(),
         }
-
-        if etd_max is None:
-            data["etd"] = None, etd_min
-            data["no_upper_limit"].add('etd')
-        else:
-            data["etd"] = (etd_min, etd_max)
+        duration = self._scheduler.convert_resolution(self.duration)
 
         if self.state in {SchedulerState.NEW, SchedulerState.SCHEDULED}:
-            data["makespan"] = (eta_min, (eta_min + self._scheduler.horizon) if etd_max is None else etd_max)
-            data["eta"] = (eta_min, eta_max)
-            if etd_min is None:
-                data["start"] = None, eta_max
-                data["finish"] = None, eta_max + duration
-                data["no_upper_limit"].add('start')
-                data["no_upper_limit"].add('finish')
-            else:
-                data["start"] = (eta_min, etd_min - duration)
-                data["finish"] = (eta_min + duration, etd_min)
-            if etd_max is None:
-                data["iqt"] = eta_max - eta_min, None
-                data["oqt"] = 0, None
-                data["no_upper_limit"].add('iqt')
-                data["no_upper_limit"].add('oqt')
-            else:
-                data["iqt"] = (eta_max - eta_min, etd_max - eta_min - duration)
-                data["oqt"] = (eta_max - eta_min, etd_max - eta_min - duration)
+            data["ranges"].add("eta")
+            data["ranges"].add("start")
+            data["ranges"].add("finish")
+            data["ranges"].add("etd")
+            data["eta"] = self.eta_constraints(now)
+            data["etd"] = self.etd_constraints(now)
+            data["start"] = data["eta"][1], data["etd"][0]
+            data["finish"] = data["eta"][1], data["etd"][0]
+            data["makespan"] = data["eta"][0], data["etd"][1]
 
             data["interval_i"] = Interval(
                 start_name="eta",
@@ -137,29 +114,29 @@ class Event(SchedulerEvent):
                 duration_name="oqt",
                 duration=None,
             )
+
         elif self.state is SchedulerState.ARRIVED:
-            data["makespan"] = (eta, etd_max)
+            eta = self._scheduler.convert_resolution(self.eta.get(now))
             data["eta"] = (eta, eta)
-            if etd_min is None:
-                data["start"] = None, eta
-                data["finish"] = None, eta + duration
-                data["no_upper_limit"].add('start')
-                data["no_upper_limit"].add('finish')
-            else:
-                data["start"] = (eta, etd_min - duration)
-                data["finish"] = (eta, etd_min)
-            if etd_max is None:
-                data["iqt"] = 0, None
-                data["oqt"] = 0, None
-                data["no_upper_limit"].add('iqt')
-                data["no_upper_limit"].add('oqt')
-            else:
-                data["iqt"] = (0, etd_max - eta - duration)
-                data["oqt"] = (0, etd_max - eta - duration)
+            data["ranges"].add("eta")
+            data["ranges"].add("start")
+            data["ranges"].add("finish")
+            data["ranges"].add("etd")
+
+            data["etd"] = list(self.etd_constraints(now))
+            if data["etd"][0] is None:
+                data["etd"][0] = eta
+            data["etd"] = tuple(data["etd"])
+            data["makespan"] = eta, data["etd"][1]
+
+            data["start"] = eta, data["etd"][1]
+            data["finish"] = eta, data["etd"][1]
+
             data["interval_i"] = Interval(
                 start_name="eta",
                 end_name="start",
                 duration_name="iqt",
+                duration=None,
             )
             data["interval_p"] = Interval(
                 start_name="start",
@@ -174,17 +151,21 @@ class Event(SchedulerEvent):
                 duration_name="oqt",
             )
             data["il"] = self.eta_lane
+
         elif self.state is SchedulerState.STARTED:
-            start = self.get_start(now)
-            finish = start + duration
-            data["makespan"] = (start, etd_max)
+            start = self._scheduler.convert_resolution(self.get_start(now))
             data["start"] = (start, start)
-            data["finish"] = (finish, finish)
-            if etd_max is None:
-                data["oqt"] = 0, None
-                data["no_upper_limit"].add('oqt')
-            else:
-                data["oqt"] = (0, etd_max - finish)
+            data["finish"] = (start + duration, start + duration)
+            data["ranges"].add("start")
+            data["ranges"].add("finish")
+            data["ranges"].add("etd")
+
+            data["etd"] = list(self.etd_constraints(now))
+            if data["etd"][0] is None:
+                data["etd"][0] = start
+            data["etd"] = tuple(data["etd"])
+            data["makespan"] = data["start"], data["etd"][1]
+
             data["interval_p"] = Interval(
                 start_name="start",
                 end_name="finish",
@@ -196,24 +177,31 @@ class Event(SchedulerEvent):
                 start_name="finish",
                 end_name="etd",
                 duration_name="oqt",
+                duration=None,
             )
         elif self.state is SchedulerState.FINISHED:
-            finish = self.get_finish(now)
-            data["makespan"] = (finish, etd_max)
+            finish = self._scheduler.convert_resolution(self.get_finish(now))
+            data["ranges"].add("finish")
+            data["ranges"].add("etd")
             data["finish"] = (finish, finish)
-            if etd_max is None:
-                data["oqt"] = 0, None
-                data["no_upper_limit"].add('oqt')
-            else:
-                data["oqt"] = (0, etd_max - finish)
+
+            data["etd"] = list(self.etd_constraints(now))
+            if data["etd"][0] is None:
+                data["etd"][0] = finish
+            data["etd"] = tuple(data["etd"])
+            data["makespan"] = finish, data["etd"][1]
+
             data["interval_o"] = Interval(
                 start_name="finish",
                 end_name="etd",
                 duration_name="oqt",
+                duration=None,
             )
             data["ol"] = self.etd_lane
+
         else:  # pragma: no cover
             raise NotImplementedError("Implementation of state %s is missing" % self.state)
+
         return data
 
 
@@ -254,81 +242,33 @@ class BufferScheduler(SchedulerInterface):
             list(self.buffer_output.values()),
         )
 
-    def plotdata(self, events=None, now=None):
-        """
-        aggregate data to generate plots
-        """
-        data = {
-            'activity_width': [],
-            'activity_x': [],
-            'activity_y': [],
-            'eta': [],
-            'eta_width': [],
-            'eta_x': [],
-            'eta_y': [],
-            'etd': [],
-            'etd_width': [],
-            'etd_x': [],
-            'etd_y': [],
-            'production_width': [],
-            'production_x': [],
-            'production_y': [],
-        }
-
-        i = 0
-        for event in sorted(self.get_events(events)):
-            i += 1
-            eta = event.get_eta(now)
-            eta_max = event.get_eta_max(now)
-            eta_min = event.get_eta_min(now)
-            etd = event.get_etd(now)
-            etd_max = event.get_etd_max(now)
-            etd_min = event.get_etd_min(now)
-            finish = event.get_finish(now)
-            start = event.get_start(now)
-
-            times = [eta, eta_min, eta_max, etd, etd_min, etd_max, finish, start]
-
-            activity = min(x for x in times if x is not None), max(x for x in times if x is not None)
-
-            data['activity_x'].append(activity[0])
-            data['activity_y'].append(i)
-            data['activity_width'].append(activity[1] - activity[0])
-
-            if eta is not None:
-                data['eta'].append((i, eta))
-            if etd is not None:
-                data['etd'].append((i, etd))
-
-            if eta_max is not None and eta_min is not None:
-                data['eta_x'].append(eta_min)
-                data['eta_y'].append(i)
-                data['eta_width'].append(eta_max - eta_min)
-
-            if etd_max is not None and etd_min is not None:
-                data['etd_x'].append(etd_min)
-                data['etd_y'].append(i)
-                data['etd_width'].append(etd_max - etd_min)
-
-            if start is not None and finish is not None:
-                data['production_x'].append(start)
-                data['production_y'].append(i)
-                data['production_width'].append(finish - start)
-
-        return data
-
     def debug(self, events=None, now=None):
         """
         log debug informations
         """
         events, makespan = self.get_event_variables(events or [], now=now)
+        logger.warning("Makespan: %s", makespan)
         for key, value in events.items():
             logger.warning("%s: %s", key, value)
-        _, events, offset = self.build_model(events, makespan)  # pylint: disable=unused-variable
+        model, events, offset = self.build_model(events, makespan)  # pylint: disable=unused-variable
+        logger.warning("Offset: %s", offset)
         for key, value in events.items():
             logger.warning("%s", key)
             for var, val in value.items():
                 logger.warning("%s: %r", var, val)
+
+        solver = cp_model.CpSolver()
+        solver.Solve(model)
+        status = solver.StatusName()
+        logger.warning("solved model: %s", status)
+
+        if status not in {'INFEASIBLE'}:
+            for event, data in events.items():
+                logger.warning("event %s", event)
+                for name in ["eta", "iqt", "start", "duration", "finish", "oqt", "etd"]:
+                    if name not in data:
+                        continue
+                    logger.warning("%s(%s) = %s", name, data[name], solver.Value(data[name]))
 
     def add(self, event, now=None):
         """
@@ -341,6 +281,16 @@ class BufferScheduler(SchedulerInterface):
         can the new event be scheduled?
         """
         return self.solve_model(event, now, save=False)
+
+    def validate(self, now=None):
+        """
+        can the new event be scheduled?
+        """
+        try:
+            self.solve_model([], now, save=False)
+        except CanNotSchedule:
+            return False
+        return True
 
     def convert_seconds(self, value):
         """
@@ -370,7 +320,7 @@ class BufferScheduler(SchedulerInterface):
             event_min, event_max = data.pop("makespan")
 
             try:
-                if event_min < sim_min:
+                if event_min is not None and event_min < sim_min:
                     sim_min = event_min
             except TypeError:
                 sim_min = event_min
@@ -383,13 +333,21 @@ class BufferScheduler(SchedulerInterface):
 
             events_data[event] = data
 
-        if sim_max is None:
+        if sim_max is None and sim_min is None:
+            sim_min, sim_max = 0, self._horizon
+        elif sim_max is None:
             sim_max = sim_min + self._horizon
+        elif sim_min is None:
+            sim_min = sim_max - self._horizon
+        else:
+            diff = sim_max - sim_min
+            if diff < self.horizon:
+                sim_max += round(diff / 2)
+                sim_min -= round(diff / 2)
 
         return events_data, (sim_min, sim_max)
 
-    @staticmethod
-    def build_model(events, makespan):
+    def build_model(self, events, makespan):
         """
         Uses the event-list and generates a model for the linear solver
 
@@ -409,62 +367,69 @@ class BufferScheduler(SchedulerInterface):
             number = data.pop("number")
 
             # create variables that don't have an upper limit
-            for variable in data['no_upper_limit']:
-                relative, absolute = data.pop(variable)
-                # logger.debug("%s v%s r%s a%s o%s", event, variable, relative, absolute, offset)
-                if absolute is None:
-                    new_data[variable] = model.NewIntVar(
-                        relative or 0,
-                        horizon,
-                        f'{variable}_{number}',
-                    )
+            for variable in data['ranges']:
+                lower, upper = data.pop(variable)
+                if lower is None:
+                    lower = 0
                 else:
-                    new_data[variable] = model.NewIntVar(
-                        absolute - offset,
-                        horizon,
-                        f'{variable}_{number}',
-                    )
+                    lower -= offset
+                if upper is None:
+                    upper = horizon
+                else:
+                    upper -= offset
+
+                new_data[variable] = model.NewIntVar(
+                    lower,
+                    upper,
+                    f'{variable}_{number}',
+                )
 
             # intervals
             previous = None
             for key, name in {"i": "interval_i", "p": "interval_p", "o": "interval_o"}.items():
-                # print("process", key, name, name in data)
                 if name not in data:
                     continue
 
                 interval = data[name]
-                # print("interval", interval)
 
+                # load fixed values
                 if interval.start_name not in new_data:
-                    var_min, var_max = data.pop(interval.start_name)
-                    new_data[interval.start_name] = model.NewIntVar(
-                        var_min - offset,
-                        var_max - offset,
-                        f'{interval.start_name}_{number}',
-                    )
+                    raise ValueError("Need to set %s", interval.start_name)
 
                 if interval.end_name not in new_data:
-                    var_min, var_max = data.pop(interval.end_name)
-                    new_data[interval.end_name] = model.NewIntVar(
-                        (0 if var_min is None else var_min) - offset,
-                        (horizon if var_max is None else var_max) - offset,
-                        f'{interval.end_name}_{number}',
-                    )
+                    raise ValueError("Need to set %s", interval.end_name)
 
+                # if interval.start_name not in new_data:
+                #     new_data[interval.start_name] = data.pop(interval.start_name) - offset
+                # if interval.end_name not in new_data:
+                #     new_data[interval.end_name] = data.pop(interval.end_name) - offset
                 if interval.duration_name not in new_data:
-                    if interval.duration_name in data:
-                        var_min, var_max = data.pop(interval.duration_name)
-                        new_data[interval.duration_name] = model.NewIntVar(
-                            var_min,
-                            var_max,
-                            f'{interval.duration_name}_{number}',
-                        )
+                    if interval.duration is None:
+                        lower = new_data[interval.start_name]
+                        # if not isinstance(lower, int):  # extract data from or-tools object
+                        if len(lower._IntVar__var.domain) == 2:
+                            lower = lower._IntVar__var.domain[0]  # pylint: disable=protected-access
+                        else:
+                            raise NotImplementedError("%r(%s) is an invalid variable (%s:%s)" % (
+                                interval, lower, type(lower._IntVar__var.domain), lower._IntVar__var.domain,
+                            ))
+                        upper = new_data[interval.end_name]
+                        # if not isinstance(upper, int):  # extract data from or-tools object
+                        if len(upper._IntVar__var.domain) == 2:
+                            upper = upper._IntVar__var.domain[1]  # pylint: disable=protected-access
+                        else:
+                            raise NotImplementedError("%r(%s) is an invalid variable (%s:%s)" % (
+                                interval, upper, type(upper._IntVar__var.domain), upper._IntVar__var.domain,
+                            ))
+                        duration = upper - lower
                     else:
-                        new_data[interval.duration_name] = model.NewIntVar(
-                            0 if interval.optional else interval.duration,
-                            interval.duration,
-                            f'{interval.duration_name}_{number}',
-                        )
+                        duration = interval.duration
+
+                    new_data[interval.duration_name] = model.NewIntVar(
+                        0 if interval.optional else duration,
+                        duration,
+                        f'{interval.duration_name}_{number}',
+                    )
 
                 new_data[name] = model.NewIntervalVar(
                     new_data[interval.start_name],  # start
@@ -501,13 +466,6 @@ class BufferScheduler(SchedulerInterface):
                 #     model.Add(events[previous]["finish"] <= events[event]["finish"])
             previous = event
 
-        # model.AddMaxEquality(makespan, makespans)
-        return model, events, offset
-
-    def optimize_model(self, model, events, offset, now, save):  # pylint: disable=too-many-arguments
-        """
-        optimizes the model with a CP-solver
-        """
         intervals = [data["interval_i"] for data in events.values() if "interval_i" in data]
         model.AddCumulative(intervals, [1] * len(intervals), self.buffer_input[1])
         intervals = [data["interval_p"] for data in events.values() if "interval_p" in data]
@@ -515,8 +473,15 @@ class BufferScheduler(SchedulerInterface):
         intervals = [data["interval_o"] for data in events.values() if "interval_o" in data]
         model.AddCumulative(intervals, [1] * len(intervals), self.buffer_input[1])
 
-        model.Minimize(sum([data["finish"] for data in events.values()]))  # noqa
+        # minimize this
+        model.Minimize(sum([data["etd"] for data in events.values()]))  # noqa
 
+        return model, events, offset
+
+    def optimize_model(self, model, events, offset, now, save):  # pylint: disable=too-many-arguments
+        """
+        optimizes the model with a CP-solver
+        """
         solver = cp_model.CpSolver()
 
         try:
@@ -543,10 +508,10 @@ class BufferScheduler(SchedulerInterface):
 
         for event, data in events.items():
             if event.state == SchedulerState.NEW:
-                event.set_eta(solver.Value(data["eta"]) + offset, now)
+                event.eta.set(self.convert_seconds(solver.Value(data["eta"]) + offset), now)
                 event.set_start(solver.Value(data["start"]) + offset, now)
                 event.set_finish(solver.Value(data["finish"]) + offset, now)
-                event.set_etd(solver.Value(data["etd"]) + offset, now)
+                event.etd.set(self.convert_seconds(solver.Value(data["etd"]) + offset), now)
             elif event.state == SchedulerState.SCHEDULED:
                 event.set_start(solver.Value(data["start"]) + offset, now)
                 event.set_finish(solver.Value(data["finish"]) + offset, now)
@@ -637,31 +602,8 @@ class BufferScheduler(SchedulerInterface):
         solve model with linear optimization
         """
         # pylint: disable=unused-variable
-        # print()
-        # print('*' * 80)
-        # print(new_event)
         new_events, makespan = self.get_event_variables(new_event, now=now)
-        # print('*' * 80)
-        # print(type(new_events))
-        # for key, value in new_events.items():
-        #     print("k", key)
-        #     print("v", value)
-        # print('*' * 80)
-        # print("makespan", makespan)
-        # print('*' * 80)
-        # print("offset_pre", offset)
         model, events, offset = self.build_model(new_events, makespan)
-        # print('*' * 80)
-        # print("offset_post", offset)
-        # print('*' * 80)
-        # print("makespan_var", makespan)
-        # print('*' * 80)
-        # print(type(events))
-        # for key, value in events.items():
-        #     print("k", key)
-        #     for x, y in value.items():
-        #         print("k", repr(x), repr(y))
-        # print('*' * 80)
         self.optimize_model(model, events, offset, now, save)
 
         return new_event

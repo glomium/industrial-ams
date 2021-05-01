@@ -5,8 +5,9 @@ unittests for iams.utils.grpc
 """
 # pylint: disable=missing-function-docstring,missing-class-docstring,protected-access
 
-import unittest
 from concurrent import futures
+from pathlib import Path
+import unittest
 
 import grpc
 from iams.ca import CFSSL
@@ -150,3 +151,9 @@ class SecureGrpcTest(unittest.TestCase):  # pragma: no cover
             response = stub.update(framework_pb2.AgentRequest())
             self.assertEqual(response.name, "servicer2")
         self.assertEqual({"testname"}, servicer.credentials)
+
+
+class SecretGrpcTest(unittest.TestCase):  # pragma: no cover
+
+    def test_no_endpoint(self):
+        Grpc("testname", secret_folder=Path("iams/tests/secrets"))

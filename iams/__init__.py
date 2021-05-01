@@ -34,26 +34,26 @@ def get_version(dev=True, short=False):
         # get version information from git
         repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-        get_branch = subprocess.Popen(
+        with subprocess.Popen(
             'git rev-parse --abbrev-ref HEAD',
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             shell=True,
             cwd=repo_dir,
             universal_newlines=True,
-        )
-        branch = get_branch.communicate()[0].strip()
+        ) as get_branch:
+            branch = get_branch.communicate()[0].strip()
 
         if dev:
-            get_time = subprocess.Popen(
+            with subprocess.Popen(
                 'git log --pretty=format:%ct --quiet -1 HEAD',
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 shell=True,
                 cwd=repo_dir,
                 universal_newlines=True,
-            )
-            timestamp = get_time.communicate()[0]
+            ) as get_time:
+                timestamp = get_time.communicate()[0]
 
             try:
                 timestamp = datetime.datetime.utcfromtimestamp(int(timestamp))

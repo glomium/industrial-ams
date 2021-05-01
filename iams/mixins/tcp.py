@@ -43,9 +43,7 @@ class TCPReadMixin(EventMixin):
                 self._socket.connect((self.iams.address, self.iams.port or self.TCP_PORT))
                 break
             except (ConnectionRefusedError, socket.timeout, OSError):
-                wait += 1
-                if wait > 60:
-                    wait = 60
+                wait = min(wait + 1, 60)
                 logger.info(
                     "%s:%s not reachable (retry in %ss)",
                     self.iams.address,

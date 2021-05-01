@@ -7,6 +7,7 @@ grpc helper
 from contextlib import ContextDecorator
 from contextlib import contextmanager
 from functools import wraps
+from pathlib import Path
 import logging
 import os
 
@@ -18,17 +19,18 @@ from iams.constants import AGENT_PORT
 logger = logging.getLogger(__name__)
 
 
-class Grpc(ContextDecorator):
+class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
     """
     grpc container class
     """
 
     __hash__ = None
 
-    def __init__(self, name, ca=None, secure=True):
+    def __init__(self, name, ca=None, secure=True, secret_folder=Path("/run/secrets/")):
 
         self._certificate = None
         self._credentials = None
+        self._secret_folder = secret_folder
         self.certificate = None
         self.insecure_port = None
         self.port = None
@@ -64,14 +66,12 @@ class Grpc(ContextDecorator):
         """
         read credentials from secrets
         """
-
-        with open('/run/secrets/ca.crt', 'rb') as fobj:
+        with open(self._secret_folder / 'ca.crt', 'rb') as fobj:
             ca_public = fobj.read()
-        with open('/run/secrets/peer.key', 'rb') as fobj:
+        with open(self._secret_folder / 'peer.key', 'rb') as fobj:
             private_key = fobj.read()
-        with open('/run/secrets/peer.crt', 'rb') as fobj:
+        with open(self._secret_folder / 'peer.crt', 'rb') as fobj:
             self.certificate = fobj.read()
-
         return ca_public, private_key
 
     def get_channel_credentials(self):

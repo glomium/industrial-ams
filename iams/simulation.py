@@ -19,6 +19,13 @@ import logging
 import os
 import yaml
 
+try:
+    # try to import sentry so that it can be used to log errors
+    import sentry_sdk  # noqa
+    SENTRY = True
+except ImportError:
+    SENTRY = False
+
 # from iams.interfaces.df import DirectoryFacilitatorInterface
 
 from iams.interfaces.simulation import SimulationInterface
@@ -28,13 +35,16 @@ from iams.tests.df import DF
 logger = logging.getLogger(__name__)
 
 
-def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING):
+def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING, dsn=None):  # pylint: disable=too-many-arguments  # noqa: E501
     """
     processes a simulation config
     """
     path = os.path.abspath(path)
     folder = os.path.join(os.path.dirname(path), config.get("foldername", "results"))
     project = os.path.basename(path)[:-5]
+
+    if not SENTRY:
+        dsn = None
 
     if not dryrun and not os.path.exists(folder):
         os.mkdir(folder)
@@ -103,14 +113,13 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
                 'level': logging.DEBUG if loglevel < logging.INFO else logging.INFO,
             },
         }
-
         if dryrun is True:
             del log_config['handlers']['file']
         else:
             log_config['root']['handlers'].append('file')
             log_config['handlers']['console']['level'] = logging.WARNING
             log_config['handlers']['console']['formatter'] = "logfile"
-        kwargs.update({'log_config': log_config, 'dryrun': dryrun})
+        kwargs.update({'log_config': log_config, 'dryrun': dryrun, 'dsn': dsn})
 
         yield kwargs
 
@@ -212,11 +221,14 @@ def load_agent(agents, global_settings):
 
 def run_simulation(  # pylint: disable=invalid-name,too-many-arguments
         simcls, df, name, folder, settings, start, stop, seed, config,
-        dryrun, log_config, file_data):
+        dryrun, log_config, file_data, dsn):
     """
     execute single simulation config
     """
     dictConfig(log_config)
+    if dsn:
+        logger.warning('Using sentry DSN %s', dsn)
+        sentry_sdk.init(dsn)
     logger.warning('Start simulation "%s"', name)
 
     with open(file_data or os.devnull, "w") as fobj:
@@ -280,6 +292,12 @@ def parse_command_line(argv=None):
         help="Only run one instance",
     )
     parser.add_argument(
+        '--dsn',
+        default=None,
+        dest="dsn",
+        help="Sentry DSN",
+    )
+    parser.add_argument(
         'configs',
         nargs='+',
         help="Simulation configuration files",
@@ -301,7 +319,10 @@ def main(args, function=run_simulation):
         finally:
             fobj.close()
 
-        for kwargs in process_config(fobj.name, config, dryrun=args.dryrun, force=args.force, loglevel=args.loglevel):
+        for kwargs in process_config(
+                fobj.name, config, dryrun=args.dryrun,
+                force=args.force, loglevel=args.loglevel,
+                dsn=args.dsn):
             kwarg_list.append(deepcopy(kwargs))
 
     if len(kwarg_list) == 1 or args.single:

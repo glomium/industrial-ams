@@ -116,19 +116,21 @@ class Event(SchedulerEvent):
             )
 
         elif self.state is SchedulerState.ARRIVED:
-            data["eta"] = self._scheduler.convert_resolution(self.eta.get(now))
+            eta = self._scheduler.convert_resolution(self.eta.get(now))
+            data["eta"] = (eta, eta)
+            data["ranges"].add("eta")
             data["ranges"].add("start")
             data["ranges"].add("finish")
             data["ranges"].add("etd")
 
             data["etd"] = list(self.etd_constraints(now))
             if data["etd"][0] is None:
-                data["etd"][0] = data["eta"]
+                data["etd"][0] = eta
             data["etd"] = tuple(data["etd"])
-            data["makespan"] = data["eta"], data["etd"][1]
+            data["makespan"] = eta, data["etd"][1]
 
-            data["start"] = data["eta"], data["etd"][1]
-            data["finish"] = data["eta"], data["etd"][1]
+            data["start"] = eta, data["etd"][1]
+            data["finish"] = eta, data["etd"][1]
 
             data["interval_i"] = Interval(
                 start_name="eta",
@@ -151,15 +153,18 @@ class Event(SchedulerEvent):
             data["il"] = self.eta_lane
 
         elif self.state is SchedulerState.STARTED:
-            data["start"] = self._scheduler.convert_resolution(self.get_start(now))
-            data["finish"] = data["start"] + duration
+            start = self._scheduler.convert_resolution(self.get_start(now))
+            data["start"] = (start, start)
+            data["finish"] = (start + duration, start + duration)
+            data["ranges"].add("start")
+            data["ranges"].add("finish")
             data["ranges"].add("etd")
 
             data["etd"] = list(self.etd_constraints(now))
             if data["etd"][0] is None:
-                data["etd"][0] = data["start"]
+                data["etd"][0] = start
             data["etd"] = tuple(data["etd"])
-            data["makespan"] = data["start"], data["etd"][1]
+            data["makespan"] = start, data["etd"][1]
 
             data["interval_p"] = Interval(
                 start_name="start",
@@ -175,14 +180,16 @@ class Event(SchedulerEvent):
                 duration=None,
             )
         elif self.state is SchedulerState.FINISHED:
-            data["finish"] = self._scheduler.convert_resolution(self.get_finish(now))
+            finish = self._scheduler.convert_resolution(self.get_finish(now))
+            data["ranges"].add("finish")
             data["ranges"].add("etd")
+            data["finish"] = (finish, finish)
 
             data["etd"] = list(self.etd_constraints(now))
             if data["etd"][0] is None:
-                data["etd"][0] = data["finish"]
+                data["etd"][0] = finish
             data["etd"] = tuple(data["etd"])
-            data["makespan"] = data["finish"], data["etd"][1]
+            data["makespan"] = finish, data["etd"][1]
 
             data["interval_o"] = Interval(
                 start_name="finish",
@@ -387,18 +394,34 @@ class BufferScheduler(SchedulerInterface):
 
                 # load fixed values
                 if interval.start_name not in new_data:
-                    new_data[interval.start_name] = data.pop(interval.start_name) - offset
-                if interval.end_name not in new_data:
-                    new_data[interval.end_name] = data.pop(interval.end_name) - offset
+                    raise ValueError("Need to set %s" % interval.start_name)
 
+                if interval.end_name not in new_data:
+                    raise ValueError("Need to set %s" % interval.end_name)
+
+                # if interval.start_name not in new_data:
+                #     new_data[interval.start_name] = data.pop(interval.start_name) - offset
+                # if interval.end_name not in new_data:
+                #     new_data[interval.end_name] = data.pop(interval.end_name) - offset
                 if interval.duration_name not in new_data:
+                    # pylint: disable=protected-access
                     if interval.duration is None:
                         lower = new_data[interval.start_name]
-                        upper = new_data[interval.end_name]
-                        if not isinstance(lower, int):  # extract data from or-tools object
+                        # if not isinstance(lower, int):  # extract data from or-tools object
+                        if len(lower._IntVar__var.domain) == 2:
                             lower = lower._IntVar__var.domain[0]  # pylint: disable=protected-access
-                        if not isinstance(upper, int):  # extract data from or-tools object
+                        else:
+                            raise NotImplementedError("%r(%s) is an invalid variable (%s:%s)" % (
+                                interval, lower, type(lower._IntVar__var.domain), lower._IntVar__var.domain,
+                            ))
+                        upper = new_data[interval.end_name]
+                        # if not isinstance(upper, int):  # extract data from or-tools object
+                        if len(upper._IntVar__var.domain) == 2:
                             upper = upper._IntVar__var.domain[1]  # pylint: disable=protected-access
+                        else:
+                            raise NotImplementedError("%r(%s) is an invalid variable (%s:%s)" % (
+                                interval, upper, type(upper._IntVar__var.domain), upper._IntVar__var.domain,
+                            ))
                         duration = upper - lower
                     else:
                         duration = interval.duration

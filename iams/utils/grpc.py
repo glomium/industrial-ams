@@ -6,11 +6,15 @@ grpc helper
 
 from contextlib import ContextDecorator
 from contextlib import contextmanager
+from datetime import datetime
+from datetime import timedelta
 from functools import wraps
 from pathlib import Path
 import logging
 import os
 
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 import grpc
 
 from iams.constants import AGENT_PORT
@@ -44,6 +48,7 @@ class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
             ca_public = ca.get_root_cert()
             self.certificate, private_key = ca.get_agent_certificate(name)
             self._credentials = ca_public, private_key
+            self._certificate = x509.load_pem_x509_certificate(self.certificate, default_backend())
 
     def __call__(self, threadpool, port=None, insecure_port=None):
         self.server = grpc.server(threadpool)
@@ -61,6 +66,14 @@ class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
 
     def __exit__(self, exception_type, exception_value, traceback):
         self.stop()
+
+    def certificate_expire(self):
+        """
+        returns the time (in seconds) when the certificate expires
+        """
+        if self.secure:
+            return self._certificate.not_valid_after - datetime.utcnow()
+        return timedelta(7)
 
     def credentials_from_secrets(self):
         """
@@ -175,7 +188,7 @@ def credentials(function=None, optional=False):
         @wraps(func)
         def wrapped(self, request, context=None):
 
-            # internal request
+            # internal request - can be used in unittests
             if hasattr(context, "credentials") and isinstance(context.credentials, set):
                 logger.debug("Process request as it already as a credentials attribute (internal request)")
                 return func(self, request, context)

@@ -26,6 +26,19 @@ class RuntimeInterface(ABC):
         self.plugins = []
 
     @abstractmethod
+    def get_address(self):
+        """
+        returns a tuple containing the hostname and port of the runtime-interface
+        if the port is None it will be replaced with the default agent-port
+        """
+
+    @abstractmethod
+    def get_namespace(self):
+        """
+        returns the namespace of the runtime as a string
+        """
+
+    @abstractmethod
     def get_valid_agent_name(self, name):
         """
         returns the validated agent name, or raises an InvalidAgentName

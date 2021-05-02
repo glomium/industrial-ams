@@ -8,7 +8,7 @@ unittests for iams.interfaces.runtime
 import unittest
 
 from iams.interfaces.plugin import Plugin
-from iams.interfaces.runtime import RuntimeInterface
+from iams.tests.runtime import Runtime
 
 
 class TestPlugin(Plugin):
@@ -16,36 +16,6 @@ class TestPlugin(Plugin):
     @classmethod
     def label(cls):
         return None
-
-
-class Runtime(RuntimeInterface):
-
-    def get_valid_agent_name(self, name):
-        pass
-
-    def get_agent_plugins(self, name):
-        pass
-
-    def get_agent_config(self, name):
-        pass
-
-    def wake_agent(self, name):
-        pass
-
-    def sleep_agent(self, name):
-        pass
-
-    def delete_agent(self, name):
-        pass
-
-    def delete_agent_secrets(self, name):
-        pass
-
-    def delete_agent_configs(self, name):
-        pass
-
-    def update_agent(self, request, create=False, update=False):
-        pass
 
 
 class ImportTests(unittest.TestCase):

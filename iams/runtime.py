@@ -31,7 +31,7 @@ class DockerSwarmRuntime(RuntimeInterface):
 
     def __init__(self, ca) -> None:
         super().__init__()
-        self.ca = ca  # pylint: disable=invalid-name
+        self.ca = ca
         self.iams_namespace = "prod"
         self.label = "com.docker.stack.namespace"
 
@@ -51,6 +51,12 @@ class DockerSwarmRuntime(RuntimeInterface):
             service = self.container.attrs["Config"]["Labels"]["com.docker.swarm.service.name"]
             self.namespace = self.container.attrs["Config"]["Labels"][self.label]
             self.servername = "tasks." + service[len(self.namespace) + 1:]
+
+    def get_address(self):
+        return (self.servername, None)
+
+    def get_namespace(self):
+        return self.namespace
 
     def get_valid_agent_name(self, name):
         """

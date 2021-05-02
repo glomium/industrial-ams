@@ -228,7 +228,7 @@ def run_simulation(  # pylint: disable=invalid-name,too-many-arguments
     dictConfig(log_config)
     if dsn:
         logger.warning('Using sentry DSN %s', dsn)
-        sentry_sdk.init(dsn)
+        sentry_sdk.init(dsn)  # pylint: disable=abstract-class-instantiated
     logger.warning('Start simulation "%s"', name)
 
     with open(file_data or os.devnull, "w") as fobj:

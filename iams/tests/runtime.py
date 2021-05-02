@@ -17,6 +17,16 @@ class Runtime(RuntimeInterface):
         """
         """
 
+    @staticmethod
+    def get_address():
+        """
+        """
+        return ("localhost", 0)
+
+    @staticmethod
+    def get_namespace():
+        return "unittest"
+
     def get_valid_agent_name(self, name):
         """
         """

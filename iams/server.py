@@ -8,12 +8,9 @@ from concurrent.futures import ThreadPoolExecutor
 from logging.config import dictConfig
 from time import sleep
 import argparse
-import datetime
 import logging
 import os
 
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from iams.ca import CFSSL
 from iams.df import ArangoDF
 from iams.exceptions import SkipPlugin
@@ -78,11 +75,7 @@ def parse_command_line(argv=None):
     )
 
     args = parser.parse_args(argv)
-
-    if args.hosts:
-        args.hosts = args.hosts.split(',')
-    else:
-        args.host = []
+    args.hosts = args.hosts.split(',') if args.hosts else []
 
     return args
 
@@ -92,29 +85,46 @@ class Server:
     Iams Server
     """
 
-    def __init__(self, args):
+    def __init__(self, args, ca=None, df=None, runtime=None):
         self.args = args
+        self.ca = ca or CFSSL(self.args.cfssl, self.args.hosts)
+        self.df = df or ArangoDF()
+        self.runtime = runtime or DockerSwarmRuntime(self.ca)
+        self.server = None
 
-    def __call__(self, ca=None, df=None, runtime=None):
+    def __call__(self, executor, secure=True):
+        self.ca()
+        self.df()
+        self.runtime()
+        self.get_plugins()
 
-        if ca is None:
-            ca = CFSSL(self.args.cfssl, self.args.hosts)
-        ca()
+        hostname, port = self.runtime.get_address()
+        self.server = Grpc(hostname, self.ca, secure=secure)
 
-        if df is None:
-            df = ArangoDF()
-        df()
+        self.server(executor, port=port, insecure_port=self.args.insecure_port)
+        self.server.add(
+            add_CertificateAuthorityServicer_to_server,
+            CertificateAuthorityServicer(self.ca, self.runtime, executor),
+        )
+        self.server.add(
+            add_DirectoryFacilitatorServicer_to_server,
+            DirectoryFacilitatorServicer(self.df),
+        )
+        self.server.add(
+            add_FrameworkServicer_to_server,
+            FrameworkServicer(self.runtime, self.ca, self.df, executor),
+        )
+        return self.server
 
-        if runtime is None:
-            runtime = DockerSwarmRuntime(ca)
-        runtime()
-
-        # dynamically load services from environment
+    def get_plugins(self):
+        """
+        dynamically load services from environment
+        """
         for cls in get_plugins():
             try:
                 logger.info("Loaded plugin %s (usage label: %s)", cls.__qualname__, cls.label())
-                runtime.register_plugin(cls(
-                    namespace=runtime.namespace,
+                self.runtime.register_plugin(cls(
+                    namespace=self.runtime.get_namespace(),
                     simulation=False,
                 ))
             except SkipPlugin:
@@ -122,33 +132,6 @@ class Server:
             except Exception:  # pylint: disable=broad-except
                 logger.exception("Error loading plugin %s", cls.__qualname__)
                 continue
-
-        server = Grpc(runtime.servername, ca)
-        with ThreadPoolExecutor() as executor:
-            server(executor, insecure_port=self.args.insecure_port)
-            server.add(add_CertificateAuthorityServicer_to_server, CertificateAuthorityServicer(ca, runtime, executor))
-            server.add(add_DirectoryFacilitatorServicer_to_server, DirectoryFacilitatorServicer(df))
-            server.add(add_FrameworkServicer_to_server, FrameworkServicer(runtime, ca, df, executor))
-
-            # load certificate data (used to shutdown service after certificate became invalid)
-            cert = x509.load_pem_x509_certificate(server.certificate, default_backend())
-
-            with server:
-                try:
-                    while True:
-                        eta = cert.not_valid_after - datetime.datetime.now()
-                        logger.debug("certificate valid for %s days", eta.days)
-
-                        if eta.days > 1:
-                            sleep(86400)
-                            continue
-                        if runtime.container:
-                            logger.debug("restart container")
-                            runtime.container.reload()
-                            runtime.container.restart()
-                        break
-                except KeyboardInterrupt:
-                    pass
 
 
 def execute_command_line():  # pragma: no cover
@@ -158,7 +141,23 @@ def execute_command_line():  # pragma: no cover
     args = parse_command_line()
     dictConfig(get_logging_config(["iams"], args.loglevel))
     server = Server(args)
-    server()
+
+    with ThreadPoolExecutor() as executor, server(executor) as grpc_server:
+        try:
+            while True:
+                expire = grpc_server.certificate_expire()
+                logger.debug("certificate valid for %s days", expire.days)
+
+                if expire.days > 1:
+                    sleep(86400)
+                    continue
+                if hasattr(server.runtime, 'container'):
+                    logger.debug("restart container")
+                    server.runtime.container.reload()
+                    server.runtime.container.restart()
+                break
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":  # pragma: no cover

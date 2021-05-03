@@ -84,28 +84,6 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(event.get_finish(), 2)
         self.assertEqual(event.etd, 2)
         self.assertEqual(event.duration, 2)
-        # self.assertEqual(event.get_eta_min(), None)
-        # self.assertEqual(event.get_eta_max(), None)
-        # self.assertEqual(event.get_etd_min(), None)
-        # self.assertEqual(event.get_etd_max(), None)
-
-    @unittest.expectedFailure
-    def test_schedule_one_ranged_eta(self):
-        event = self.scheduler(eta=[0, 5], duration=2, callback=None)
-        result = self.scheduler.save(event)
-
-        #  self.scheduler.debug()
-
-        self.assertTrue(result)
-        self.assertEqual(event.eta, 5, "ETA")
-        self.assertEqual(event.get_start(), 5, "Start")
-        self.assertEqual(event.get_finish(), 7, "Finish")
-        self.assertEqual(event.etd, 7, "ETD")
-        self.assertEqual(event.duration, 2, "Duration")
-        # self.assertEqual(event.get_eta_min(), 0, "ETA-low")
-        # self.assertEqual(event.get_eta_max(), 5, "ETA-high")
-        # self.assertEqual(event.get_etd_min(), None, "ETD-low")
-        # self.assertEqual(event.get_etd_max(), None, "ETD-high")
 
     def test_schedule_horizon_shifted(self):
         event_data = [
@@ -124,13 +102,11 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(event1.eta, 106)
         self.assertEqual(event1.get_start(), 106)
         self.assertEqual(event1.get_finish(), 119)
-        # self.assertEqual(event1.get_etd_min(), None)
         self.assertEqual(event1.duration, 13)
 
         self.assertEqual(event2.eta, 127)
         self.assertEqual(event2.get_start(), 127)
         self.assertEqual(event2.get_finish(), 138)
-        # self.assertEqual(event2.get_etd_min(), None)
         self.assertEqual(event2.duration, 11)
 
     def test_schedule_independent_ordering(self):
@@ -149,14 +125,10 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
                     self.assertTrue(scheduler.can_schedule(event))
                     self.assertTrue(scheduler.save(event))
                     events.append(event)
-                # scheduler.debug()
 
                 # sort events (and validate sorting)
                 events = sorted(events)
                 for j in range(1, len(events)):
-                    # a = (events[j - 1].eta, events[j - 1].duration, events[j - 1].uid)
-                    # b = (events[j].eta, events[j].duration, events[j].uid)
-                    # print(a, b, a < b, a[0].constraint_low < b[0].constraint_low, a[0].time < b[0].time, a[0] < b[0])  # noqa
                     self.assertTrue(events[j - 1] < events[j])
 
                 if i == 0:
@@ -257,8 +229,28 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.assertTrue(scheduler.save(event1))
         self.assertTrue(scheduler.validate())
         event1.start(1)
-        # scheduler.debug()
         self.assertTrue(scheduler.validate(), "scheduler is invalid after start")
+
+    def test_failed_in_simulation3(self):
+        scheduler = BufferScheduler(agent="simulation", horizon=50000, buffer_input=2)
+
+        event1 = scheduler(eta=911068, duration=998, callback=None)
+        event1.start(912382)
+        self.assertTrue(scheduler.save(event1))
+        self.assertTrue(scheduler.validate())
+
+        event2 = scheduler(eta=911461, duration=1026, callback=None)
+        event2.arrive(911461)
+        self.assertTrue(scheduler.save(event2))
+        self.assertTrue(scheduler.validate())
+
+        event3 = scheduler(eta=915810, duration=830, callback=None)
+        self.assertTrue(scheduler.save(event3))
+        self.assertTrue(scheduler.validate())
+
+        event4 = scheduler(eta=917534, duration=1042, callback=None)
+        self.assertTrue(scheduler.save(event4))
+        self.assertTrue(scheduler.validate())
 
     def test_iteration(self):
         scheduler = BufferScheduler(agent="simulation", horizon=5, buffer_input=1)
@@ -300,19 +292,15 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(event1.state, SchedulerState.SCHEDULED)
 
         event1.arrive(3)
-        # scheduler.debug()
         self.assertTrue(scheduler.validate(), "arrive is invalid")
 
         event1.start(4)
-        # scheduler.debug()
         self.assertTrue(scheduler.validate(), "start is invalid")
 
         event1.finish(5)
-        # scheduler.debug()
         self.assertTrue(scheduler.validate(), "finish is invalid")
 
         event2 = self.scheduler(eta=(4, 5), duration=2, callback=None)
-        # scheduler.debug(event2)
         self.assertTrue(scheduler.save(event2))
 
         self.assertEqual(event2.eta, 4)
@@ -330,7 +318,3 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(event.get_finish(), 1)
         self.assertEqual(event.etd, 1)
         self.assertEqual(event.duration, 2)
-        # self.assertEqual(event.get_eta_min(), None)
-        # self.assertEqual(event.get_eta_max(), None)
-        # self.assertEqual(event.get_etd_min(), None)
-        # self.assertEqual(event.get_etd_max(), None)

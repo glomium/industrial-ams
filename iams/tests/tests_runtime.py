@@ -24,7 +24,7 @@ try:
         client.nodes.list(filters={'role': 'manager'})
         try:
             client.images.get("busybox:latest")
-        except docker.errors.ImageNotFound:
+        except docker.errors.ImageNotFound:  # pragma: no cover
             client.images.pull("busybox:latest")
 
     except Exception:  # pragma: no cover

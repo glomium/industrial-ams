@@ -363,6 +363,7 @@ class BufferScheduler(SchedulerInterface):
         horizon = makespan[1] - offset
 
         for event, data in events.items():
+            logger.debug("build model for %s", event)
             new_data = {}
             number = data.pop("number")
 
@@ -399,30 +400,29 @@ class BufferScheduler(SchedulerInterface):
                 if interval.end_name not in new_data:
                     raise ValueError("Need to set %s" % interval.end_name)
 
-                # if interval.start_name not in new_data:
-                #     new_data[interval.start_name] = data.pop(interval.start_name) - offset
-                # if interval.end_name not in new_data:
-                #     new_data[interval.end_name] = data.pop(interval.end_name) - offset
                 if interval.duration_name not in new_data:
                     # pylint: disable=protected-access
                     if interval.duration is None:
-                        lower = new_data[interval.start_name]
-                        # if not isinstance(lower, int):  # extract data from or-tools object
-                        if len(lower._IntVar__var.domain) == 2:
-                            lower = lower._IntVar__var.domain[0]  # pylint: disable=protected-access
-                        else:
-                            raise NotImplementedError("%r(%s) is an invalid variable (%s:%s)" % (
-                                interval, lower, type(lower._IntVar__var.domain), lower._IntVar__var.domain,
-                            ))
-                        upper = new_data[interval.end_name]
-                        # if not isinstance(upper, int):  # extract data from or-tools object
-                        if len(upper._IntVar__var.domain) == 2:
-                            upper = upper._IntVar__var.domain[1]  # pylint: disable=protected-access
-                        else:
-                            raise NotImplementedError("%r(%s) is an invalid variable (%s:%s)" % (
-                                interval, upper, type(upper._IntVar__var.domain), upper._IntVar__var.domain,
-                            ))
-                        duration = upper - lower
+                        # lower = new_data[interval.start_name]
+                        # # if not isinstance(lower, int):  # extract data from or-tools object
+                        # if len(lower._IntVar__var.domain) == 2:
+                        #     lower = lower._IntVar__var.domain[0]  # pylint: disable=protected-access
+                        # else:
+                        #     self.debug()
+                        #     raise NotImplementedError("%r(%s) is an invalid variable (%s:%s)" % (
+                        #         interval, lower, type(lower._IntVar__var.domain), lower._IntVar__var.domain,
+                        #     ))
+                        # upper = new_data[interval.end_name]
+                        # # if not isinstance(upper, int):  # extract data from or-tools object
+                        # if len(upper._IntVar__var.domain) == 2:
+                        #     upper = upper._IntVar__var.domain[1]  # pylint: disable=protected-access
+                        # else:
+                        #     self.debug()
+                        #     raise NotImplementedError("%r(%s) is an invalid variable (%s:%s)" % (
+                        #         interval, upper, type(upper._IntVar__var.domain), upper._IntVar__var.domain,
+                        #     ))
+                        # duration = upper - lower
+                        duration = horizon
                     else:
                         duration = interval.duration
 

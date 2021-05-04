@@ -398,7 +398,7 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
         """
         self.state = States.DEPARTED
         self.etd.set(time)
-        self.activity_finish = time
+        self.activity_end = time
 
     def finish(self, time):
         """
@@ -523,7 +523,7 @@ class SchedulerInterface(ABC):
         callback after event was removed
         """
 
-    def get_events(self, new_events=None):  # pylint: disable=too-many-branches
+    def get_events(self, new_events=None):
         """
         returns a list of registered events
         """
@@ -555,8 +555,8 @@ class SchedulerInterface(ABC):
             yield event
 
         for event in delete:
-            # print(event.activity_finish, time_max, event.activity_start, time_min)
-            if (time_max is not None and event.activity_finish < time_max) or \
+            print(event.activity_end, time_max, event.activity_start, time_min)
+            if (time_max is not None and event.activity_end < time_max) or \
                     (time_min is not None and event.activity_start > time_min):
                 yield event
                 continue

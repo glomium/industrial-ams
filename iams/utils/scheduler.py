@@ -153,9 +153,12 @@ class Event(SchedulerEvent):
             data["il"] = self.eta_lane
 
         elif self.state is SchedulerState.STARTED:
+            eta = self._scheduler.convert_resolution(self.eta.get(now))
             start = self._scheduler.convert_resolution(self.get_start(now))
+            data["eta"] = (eta, eta)
             data["start"] = (start, start)
             data["finish"] = (start + duration, start + duration)
+            data["ranges"].add("eta")
             data["ranges"].add("start")
             data["ranges"].add("finish")
             data["ranges"].add("etd")
@@ -164,8 +167,15 @@ class Event(SchedulerEvent):
             if data["etd"][0] is None:
                 data["etd"][0] = start
             data["etd"] = tuple(data["etd"])
-            data["makespan"] = start, data["etd"][1]
+            data["makespan"] = eta, data["etd"][1]
 
+            data["interval_i"] = Interval(
+                start_name="eta",
+                end_name="start",
+                duration_name="iqt",
+                duration=start - eta,
+                optional=False,
+            )
             data["interval_p"] = Interval(
                 start_name="start",
                 end_name="finish",
@@ -180,22 +190,61 @@ class Event(SchedulerEvent):
                 duration=None,
             )
         elif self.state is SchedulerState.FINISHED:
+            start = self._scheduler.convert_resolution(self.get_start(now))
             finish = self._scheduler.convert_resolution(self.get_finish(now))
+            data["ranges"].add("start")
             data["ranges"].add("finish")
             data["ranges"].add("etd")
+            data["start"] = (start, start)
             data["finish"] = (finish, finish)
 
             data["etd"] = list(self.etd_constraints(now))
             if data["etd"][0] is None:
                 data["etd"][0] = finish
             data["etd"] = tuple(data["etd"])
-            data["makespan"] = finish, data["etd"][1]
+            data["makespan"] = start, data["etd"][1]
 
+            data["interval_p"] = Interval(
+                start_name="start",
+                end_name="finish",
+                duration_name="duration",
+                duration=finish - start,
+                optional=False,
+            )
             data["interval_o"] = Interval(
                 start_name="finish",
                 end_name="etd",
                 duration_name="oqt",
                 duration=None,
+            )
+            data["ol"] = self.etd_lane
+
+        elif self.state is SchedulerState.DEPARTED:
+            start = self._scheduler.convert_resolution(self.get_start(now))
+            finish = self._scheduler.convert_resolution(self.get_finish(now))
+            etd = self._scheduler.convert_resolution(self.etd.get(now))
+
+            data["ranges"].add("start")
+            data["ranges"].add("finish")
+            data["ranges"].add("etd")
+            data["start"] = (start, start)
+            data["finish"] = (finish, finish)
+            data["etd"] = (etd, etd)
+            data["makespan"] = start, etd
+
+            data["interval_p"] = Interval(
+                start_name="start",
+                end_name="finish",
+                duration_name="duration",
+                duration=finish - start,
+                optional=False,
+            )
+            data["interval_o"] = Interval(
+                start_name="finish",
+                end_name="etd",
+                duration_name="oqt",
+                duration=etd - finish,
+                optional=False,
             )
             data["ol"] = self.etd_lane
 
@@ -221,6 +270,7 @@ class BufferScheduler(SchedulerInterface):
         self._resolution = resolution
 
         self.horizon = self.convert_resolution(horizon)
+        self.max_horizon = self.horizon
 
         if isinstance(buffer_input, int):  # pragma: no branch
             buffer_input = [buffer_input]
@@ -313,39 +363,52 @@ class BufferScheduler(SchedulerInterface):
         for the linear solver.
         """
         events_data = {}
+        events_max = []
+        events_min = []
+        none_max = False
+        none_min = False
         sim_max = None
         sim_min = None
+
         for event in self.get_events(events):
             data = event.get_variables(now)
             event_min, event_max = data.pop("makespan")
-
-            try:
-                if event_min is not None and event_min < sim_min:
-                    sim_min = event_min
-            except TypeError:
-                sim_min = event_min
-
-            try:
-                if event_max is not None and event_max > sim_max:
-                    sim_max = event_max
-            except TypeError:
-                sim_max = event_max
-
+            if event_min is None:
+                none_min = True
+            else:
+                events_min.append(event_min)
+            if event_max is None:
+                none_max = True
+            else:
+                events_max.append(event_max)
             events_data[event] = data
 
-        if sim_max is None and sim_min is None:
-            sim_min, sim_max = 0, self._horizon
-        elif sim_max is None:
-            sim_max = sim_min + self._horizon
-        elif sim_min is None:
-            sim_min = sim_max - self._horizon
+        if not events_max and not events_min:
+            sim_min, sim_max = 0, self.horizon
+        elif not events_max:
+            sim_max = max(events_min) + self.horizon
+            sim_min = min(events_min)
+        elif not events_min:
+            sim_max = max(events_max)
+            sim_min = min(events_max) - self.horizon
         else:
+            sim_max = max(events_max)
+            sim_min = min(events_min)
+
             diff = sim_max - sim_min
             if diff < self.horizon:
-                sim_max += round(diff / 2)
-                sim_min -= round(diff / 2)
+                if none_min and none_max:
+                    diff = round((self.horizon - diff) / 2)
+                    sim_max += diff
+                    sim_min -= diff
+                elif none_min:
+                    sim_min = sim_max - self.horizon
+                elif none_max:
+                    sim_max = sim_min + self.horizon
 
-        return events_data, (sim_min, sim_max)
+        self.max_horizon = max([self.max_horizon, sim_max])
+        # print(events_min, events_max, sim_min, sim_max, none_min, none_max)
+        return events_data, (sim_min, self.max_horizon)
 
     def build_model(self, events, makespan):
         """
@@ -494,18 +557,6 @@ class BufferScheduler(SchedulerInterface):
         # solver needs to be optimal to result in a match
         if solver.StatusName() not in ["OPTIMAL"]:
             raise CanNotSchedule('Solver returned %s' % solver.StatusName())
-
-        # print(len(events))
-        # print("status = ", solver.StatusName())
-        # for event, data in events.items():
-        #     print("e", event)
-
-        #     for name in ["eta", "iqt", "start", "duration", "finish", "oqt", "etd"]:
-        #         if name not in data:
-        #             print(name, data)
-        #             continue
-        #         print(name, data[name], '->', solver.Value(data[name]))
-        # print('*' * 80)
 
         for event, data in events.items():
             if event.state == SchedulerState.NEW:

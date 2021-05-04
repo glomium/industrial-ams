@@ -252,6 +252,8 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
 
     schedule_start: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
     schedule_finish: Union[int, float, datetime] = field(default=None, repr=True, init=False, compare=False)
+    activity_start: Union[int, float, datetime] = field(default=None, repr=False, init=False, compare=False)
+    activity_finish: Union[int, float, datetime] = field(default=None, repr=False, init=False, compare=False)
     eta_lane: int = field(default=None, repr=False, init=False, compare=False)
     etd_lane: int = field(default=None, repr=False, init=False, compare=False)
     use_datetime: bool = field(default=False, repr=False, init=False, compare=False)
@@ -268,6 +270,16 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
         if isinstance(other, Event):
             return self.uid == other.uid
         raise NotImplementedError
+
+    def __iter__(self):
+        if self.activity_start:
+            yield self.activity_start
+        if self.schedule_start:
+            yield self.schedule_start
+        if self.schedule_finish:
+            yield self.schedule_finish
+        if self.activity_finish:
+            yield self.activity_finish
 
     def __lt__(self, other):
         if isinstance(other, Event):
@@ -370,6 +382,7 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
 
         self.state = States.ARRIVED
         self.eta.set(time)
+        self.activity_start = time
 
     def cancel(self):
         """
@@ -385,6 +398,7 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
         """
         self.state = States.DEPARTED
         self.etd.set(time)
+        self.activity_finish = time
 
     def finish(self, time):
         """
@@ -472,6 +486,7 @@ class SchedulerInterface(ABC):
     def __call__(self, **kwargs):
         event = self.event_class(**kwargs)
         event.uid = self._counter
+        logger.debug("Event #%s created: %s", self._counter, event)
         self._counter += 1
         return event
 
@@ -508,16 +523,50 @@ class SchedulerInterface(ABC):
         callback after event was removed
         """
 
-    def get_events(self, new_events=None):
+    def get_events(self, new_events=None):  # pylint: disable=too-many-branches
         """
         returns a list of registered events
         """
         delete = []
+        time_min = None
+        time_max = None
+
         for event in self._events:
             if event.state in [States.DEPARTED, States.CANCELED]:
                 delete.append(event)
                 continue
+
+            try:
+                event_max = max(event)
+            except ValueError:
+                event_max = None
+            else:
+                if time_max is None and (event_max is not None or event_max < time_max):
+                    time_max = event_max
+
+            try:
+                event_min = min(event)
+            except ValueError:
+                event_min = None
+            else:
+                if time_min is None and (event_min is not None or event_min < time_min):
+                    time_min = event_min
+
             yield event
+
+        for event in delete:
+            # print(event.activity_finish, time_max, event.activity_start, time_min)
+            if (time_max is not None and event.activity_finish < time_max) or \
+                    (time_min is not None and event.activity_start > time_min):
+                yield event
+                continue
+
+            try:
+                self._events.remove(event)
+            except ValueError:
+                pass
+            else:
+                self.cleanup(event)
 
         if isinstance(new_events, self.event_class):
             new_events = [new_events]
@@ -526,14 +575,6 @@ class SchedulerInterface(ABC):
 
         for event in new_events:
             yield event
-
-        for event in delete:
-            try:
-                self._events.remove(event)
-            except ValueError:
-                pass
-            else:
-                self.cleanup(event)
 
     def save(self, event, now=None):
         """

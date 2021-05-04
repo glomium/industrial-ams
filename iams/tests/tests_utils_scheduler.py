@@ -61,10 +61,11 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
 
         with self.subTest("finish"):
             event.finish(1)
+            scheduler.validate()
             self.assertTrue(scheduler.validate())
             self.assertEqual(event.state, SchedulerState.FINISHED)
 
-        with self.subTest("depart"), self.assertRaises(NotImplementedError):
+        with self.subTest("depart"):
             event.depart(1)
             self.scheduler.can_schedule(event)
 
@@ -213,6 +214,15 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.assertEqual(event2.get_finish(), 5)
         self.assertEqual(event3.get_finish(), 8)
 
+    def test_extend_makespan(self):
+        scheduler = BufferScheduler(agent="simulation", horizon=3, buffer_input=2)
+        event1 = scheduler(eta=0, duration=1, callback=None)
+        self.assertTrue(scheduler.save(event1))
+        self.assertTrue(scheduler.validate())
+        event2 = scheduler(eta=4, duration=1, callback=None)
+        self.assertTrue(scheduler.save(event2))
+        self.assertTrue(scheduler.validate())
+
     def test_failed_in_simulation1(self):
         scheduler = BufferScheduler(agent="simulation", horizon=5, buffer_input=1)
         event1 = scheduler(eta=0, duration=1, callback=None)
@@ -232,24 +242,164 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         self.assertTrue(scheduler.validate(), "scheduler is invalid after start")
 
     def test_failed_in_simulation3(self):
-        scheduler = BufferScheduler(agent="simulation", horizon=50000, buffer_input=2)
+        scheduler = BufferScheduler(agent="simulation", horizon=600, buffer_input=2)
 
-        event1 = scheduler(eta=911068, duration=998, callback=None)
-        event1.start(912382)
-        self.assertTrue(scheduler.save(event1))
+        event = {
+            2: [None, 697, 104],
+            3: [None, 695, 98],
+            4: [None, 812, 91],
+            5: [None, 693, 116],
+            6: [None, 1039, 121],
+            7: [None, 1085, 96],
+            8: [None, 961, 88],
+        }
+
+        i = 2
+        event[i][0] = scheduler(eta=event[i][1], duration=event[i][2], callback=None)
+        self.assertTrue(scheduler.save(event[i][0]))
         self.assertTrue(scheduler.validate())
 
-        event2 = scheduler(eta=911461, duration=1026, callback=None)
-        event2.arrive(911461)
-        self.assertTrue(scheduler.save(event2))
+        self.assertEqual(event[2][0].schedule_start, event[2][1])
+
+        i = 3
+        event[i][0] = scheduler(eta=event[i][1], duration=event[i][2], callback=None)
+        self.assertTrue(scheduler.save(event[i][0]))
         self.assertTrue(scheduler.validate())
 
-        event3 = scheduler(eta=915810, duration=830, callback=None)
-        self.assertTrue(scheduler.save(event3))
+        self.assertEqual(event[3][0].schedule_start, event[3][1])
+        self.assertEqual(event[2][0].schedule_start, event[3][1] + event[3][2])
+
+        i = 4
+        event[i][0] = scheduler(eta=event[i][1], duration=event[i][2], callback=None)
+        self.assertTrue(scheduler.save(event[i][0]))
         self.assertTrue(scheduler.validate())
 
-        event4 = scheduler(eta=917534, duration=1042, callback=None)
-        self.assertTrue(scheduler.save(event4))
+        self.assertEqual(event[3][0].schedule_start, event[3][1])
+        self.assertEqual(event[2][0].schedule_start, event[3][1] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[3][1] + event[3][2] + event[2][2])
+
+        i = 5
+        event[i][0] = scheduler(eta=event[i][1], duration=event[i][2], callback=None)
+        self.assertTrue(scheduler.save(event[i][0]))
+        self.assertTrue(scheduler.validate())
+
+        self.assertEqual(event[5][0].schedule_start, event[5][1])
+        self.assertEqual(event[3][0].schedule_start, event[5][1] + event[5][2])
+        self.assertEqual(event[2][0].schedule_start, event[5][1] + event[5][2] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+
+        i = 6
+        event[i][0] = scheduler(eta=event[i][1], duration=event[i][2], callback=None)
+        self.assertTrue(scheduler.save(event[i][0]))
+        self.assertTrue(scheduler.validate())
+
+        self.assertEqual(event[5][0].schedule_start, event[5][1])
+        self.assertEqual(event[3][0].schedule_start, event[5][1] + event[5][2])
+        self.assertEqual(event[2][0].schedule_start, event[5][1] + event[5][2] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+        self.assertEqual(event[6][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2])  # noqa: E501
+
+        event[5][0].arrive(event[5][1])  # queue = 1
+        self.assertTrue(scheduler.validate())
+
+        self.assertEqual(event[3][0].schedule_start, event[5][1] + event[5][2])
+        self.assertEqual(event[2][0].schedule_start, event[5][1] + event[5][2] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+        self.assertEqual(event[6][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2])  # noqa: E501
+
+        event[5][0].start(event[5][1])  # queue = 0
+        self.assertTrue(scheduler.validate())
+
+        self.assertEqual(event[3][0].schedule_start, event[5][1] + event[5][2])
+        self.assertEqual(event[2][0].schedule_start, event[5][1] + event[5][2] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+        self.assertEqual(event[6][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2])  # noqa: E501
+
+        event[3][0].arrive(event[3][1])  # queue = 1
+        self.assertTrue(scheduler.validate())
+
+        self.assertEqual(event[3][0].schedule_start, event[5][1] + event[5][2])
+        self.assertEqual(event[2][0].schedule_start, event[5][1] + event[5][2] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+        self.assertEqual(event[6][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2])  # noqa: E501
+
+        event[2][0].arrive(event[2][1])  # queue = 2
+        self.assertTrue(scheduler.validate())
+
+        self.assertEqual(event[3][0].schedule_start, event[5][1] + event[5][2])
+        self.assertEqual(event[2][0].schedule_start, event[5][1] + event[5][2] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+        self.assertEqual(event[6][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2])  # noqa: E501
+
+        i = 7
+        event[i][0] = scheduler(eta=event[i][1], duration=event[i][2], callback=None)
+        self.assertTrue(scheduler.save(event[i][0]))
+        self.assertTrue(scheduler.validate())
+
+        self.assertEqual(event[3][0].schedule_start, event[5][1] + event[5][2])
+        self.assertEqual(event[2][0].schedule_start, event[5][1] + event[5][2] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+        self.assertEqual(event[6][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2])  # noqa: E501
+        self.assertEqual(event[7][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2] + event[6][2])  # noqa: E501
+
+        event[5][0].finish(event[5][1] + event[5][2])
+        self.assertTrue(scheduler.validate())
+
+        self.assertEqual(event[3][0].schedule_start, event[5][1] + event[5][2])
+        self.assertEqual(event[2][0].schedule_start, event[5][1] + event[5][2] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+        self.assertEqual(event[6][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2])  # noqa: E501
+        self.assertEqual(event[7][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2] + event[6][2])  # noqa: E501
+
+        event[5][0].depart(event[5][1] + event[5][2])
+        self.assertTrue(scheduler.validate())
+
+        self.assertEqual(event[3][0].schedule_start, event[5][1] + event[5][2])
+        self.assertEqual(event[2][0].schedule_start, event[5][1] + event[5][2] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+        self.assertEqual(event[6][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2])  # noqa: E501
+        self.assertEqual(event[7][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2] + event[6][2])  # noqa: E501
+
+        event[3][0].start(event[5][1] + event[5][2])  # queue = 1
+        self.assertTrue(scheduler.validate())
+
+        # after finishing up, the start times in queue should not be changed
+        self.assertEqual(event[3][0].schedule_start, event[5][1] + event[5][2])
+        self.assertEqual(event[2][0].schedule_start, event[5][1] + event[5][2] + event[3][2])
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+        self.assertEqual(event[6][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2])  # noqa: E501
+        self.assertEqual(event[7][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2] + event[6][2])  # noqa: E501
+
+        event[4][0].arrive(event[4][1])  # queue = 2
+        self.assertTrue(scheduler.validate())
+
+        self.assertEqual(event[4][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2])  # noqa: E501
+        self.assertEqual(event[6][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2])  # noqa: E501
+        self.assertEqual(event[7][0].schedule_start, event[5][1] + event[5][2] + event[3][2] + event[2][2] + event[4][2] + event[6][2])  # noqa: E501
+
+        i = 8
+        event[i][0] = scheduler(eta=event[i][1], duration=event[i][2], callback=None)
+        self.assertFalse(scheduler.save(event[i][0]))
+
+        event[3][0].finish(event[5][1] + event[5][2] + event[3][2])
+        self.assertTrue(scheduler.validate())
+
+        event[3][0].depart(event[5][1] + event[5][2] + event[3][2])
+        self.assertTrue(scheduler.validate())
+
+        event[2][0].start(event[5][1] + event[5][2] + event[3][2])
+        self.assertTrue(scheduler.validate())
+
+        event[8][0].arrive(event[8][1])  # queue = 2
+        self.assertTrue(scheduler.validate())
+
+        event[2][0].finish(event[5][1] + event[5][2] + event[3][2] + event[2][2])
+        self.assertTrue(scheduler.validate())
+
+        event[2][0].depart(event[5][1] + event[5][2] + event[3][2] + event[2][2])
+        self.assertTrue(scheduler.validate())
+
+        event[4][0].start(event[5][1] + event[5][2] + event[3][2] + event[2][2])  # queue = 1
         self.assertTrue(scheduler.validate())
 
     def test_iteration(self):
@@ -300,13 +450,19 @@ class BufferSchedulerTests(unittest.TestCase):  # pragma: no cover
         event1.finish(5)
         self.assertTrue(scheduler.validate(), "finish is invalid")
 
+        self.assertEqual(event1.eta, 3)
+        self.assertEqual(event1.get_start(), 4)
+        self.assertEqual(event1.get_finish(), 5)
+        self.assertEqual(event1.etd, 6)
+
         event2 = self.scheduler(eta=(4, 5), duration=2, callback=None)
+        scheduler.save(event2)
         self.assertTrue(scheduler.save(event2))
 
         self.assertEqual(event2.eta, 4)
-        self.assertEqual(event2.get_start(), 4)
-        self.assertEqual(event2.get_finish(), 6)
-        self.assertEqual(event2.etd, 6)
+        self.assertEqual(event2.get_start(), 5)
+        self.assertEqual(event2.get_finish(), 7)
+        self.assertEqual(event2.etd, 7)
 
     def test_event_negative_eta(self):
         event = self.scheduler(eta=-1, duration=2, callback=None)

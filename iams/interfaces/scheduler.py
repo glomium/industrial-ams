@@ -472,6 +472,7 @@ class SchedulerInterface(ABC):
     def __call__(self, **kwargs):
         event = self.event_class(**kwargs)
         event.uid = self._counter
+        logger.debug("Event #%s created: %s", self._counter, event)
         self._counter += 1
         return event
 

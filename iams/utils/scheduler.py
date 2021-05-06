@@ -426,7 +426,7 @@ class BufferScheduler(SchedulerInterface):
         horizon = makespan[1] - offset
 
         for event, data in events.items():
-            logger.debug("build model for %s", event)
+            # logger.debug("build model for %s", event)
             new_data = {}
             number = data.pop("number")
 
@@ -519,7 +519,7 @@ class BufferScheduler(SchedulerInterface):
         previous = None
         states_eta = {SchedulerState.NEW, SchedulerState.SCHEDULED, SchedulerState.ARRIVED}
         for event in sorted(events.keys()):
-            logger.debug("%s", event)
+            # logger.debug("%s", event)
             if previous:
                 if previous.state in states_eta and event.state in states_eta:
                     model.Add(events[previous]["eta"] <= events[event]["eta"])

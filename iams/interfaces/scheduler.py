@@ -339,8 +339,6 @@ class Event:  # pylint: disable=too-many-instance-attributes,too-many-public-met
 
         if not bool(self.eta):
             raise ValueError("ETA needs to be set")
-        # if not bool(self.eta) and not bool(etd):
-        #     raise ValueError("ETA or ETD need to be set")
 
         if bool(self.eta) and bool(self.etd):
             self.state = States.SCHEDULED
@@ -528,8 +526,8 @@ class SchedulerInterface(ABC):
         returns a list of registered events
         """
         delete = []
-        time_min = None
-        time_max = None
+        time_min = set()
+        time_max = set()
 
         for event in self._events:
             if event.state in [States.DEPARTED, States.CANCELED]:
@@ -540,24 +538,41 @@ class SchedulerInterface(ABC):
                 event_max = max(event)
             except ValueError:
                 event_max = None
+                time_max.add(None)
             else:
-                if time_max is None and (event_max is not None or event_max < time_max):
-                    time_max = event_max
+                time_max.add(event_max)
 
             try:
                 event_min = min(event)
             except ValueError:
                 event_min = None
+                time_min.add(None)
             else:
-                if time_min is None and (event_min is not None or event_min < time_min):
-                    time_min = event_min
+                time_min.add(event_min)
 
             yield event
 
+        if None in time_min or len(time_min) == 0:
+            time_min = None
+        else:
+            time_min = min(time_min)
+
+        if None in time_max or len(time_max) == 0:
+            time_max = None
+        else:
+            time_max = max(time_max)
+
         for event in delete:
-            # print(event.activity_finish, time_max, event.activity_start, time_min)
-            if (time_max is not None and event.activity_finish < time_max) or \
-                    (time_min is not None and event.activity_start > time_min):
+            # pylint: disable=too-many-boolean-expressions
+            if (time_min is not None and event.activity_finish is not None and event.activity_finish > time_min) and \
+                    (time_max is not None and event.activity_start is not None and event.activity_start < time_max):
+
+                logger.debug(
+                    "skip deletion of %s %s %s>%s %s<%s",
+                    event.uid, event.state,
+                    event.activity_finish, time_min,
+                    event.activity_start, time_max,
+                )
                 yield event
                 continue
 

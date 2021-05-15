@@ -407,7 +407,6 @@ class BufferScheduler(SchedulerInterface):
                     sim_max = sim_min + self.horizon
 
         self.max_horizon = max([self.max_horizon, sim_max])
-        # print(events_min, events_max, sim_min, sim_max, none_min, none_max)
         return events_data, (sim_min, self.max_horizon)
 
     def build_model(self, events, makespan):
@@ -466,25 +465,6 @@ class BufferScheduler(SchedulerInterface):
                 if interval.duration_name not in new_data:
                     # pylint: disable=protected-access
                     if interval.duration is None:
-                        # lower = new_data[interval.start_name]
-                        # # if not isinstance(lower, int):  # extract data from or-tools object
-                        # if len(lower._IntVar__var.domain) == 2:
-                        #     lower = lower._IntVar__var.domain[0]  # pylint: disable=protected-access
-                        # else:
-                        #     self.debug()
-                        #     raise NotImplementedError("%r(%s) is an invalid variable (%s:%s)" % (
-                        #         interval, lower, type(lower._IntVar__var.domain), lower._IntVar__var.domain,
-                        #     ))
-                        # upper = new_data[interval.end_name]
-                        # # if not isinstance(upper, int):  # extract data from or-tools object
-                        # if len(upper._IntVar__var.domain) == 2:
-                        #     upper = upper._IntVar__var.domain[1]  # pylint: disable=protected-access
-                        # else:
-                        #     self.debug()
-                        #     raise NotImplementedError("%r(%s) is an invalid variable (%s:%s)" % (
-                        #         interval, upper, type(upper._IntVar__var.domain), upper._IntVar__var.domain,
-                        #     ))
-                        # duration = upper - lower
                         duration = horizon
                     else:
                         duration = interval.duration
@@ -519,7 +499,6 @@ class BufferScheduler(SchedulerInterface):
         previous = None
         states_eta = {SchedulerState.NEW, SchedulerState.SCHEDULED, SchedulerState.ARRIVED}
         for event in sorted(events.keys()):
-            # logger.debug("%s", event)
             if previous:
                 if previous.state in states_eta and event.state in states_eta:
                     model.Add(events[previous]["eta"] <= events[event]["eta"])
@@ -632,10 +611,6 @@ class BufferScheduler(SchedulerInterface):
         if not save:
             return True
         return None
-
-        # # raise ValueError('\n'.join(["%s" % x for x in log]))
-        # dummy = None
-        # return dummy
 
     @staticmethod
     def optimize_eta(events, event):

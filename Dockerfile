@@ -1,5 +1,6 @@
-ARG UBUNTU=rolling
-FROM ubuntu:$UBUNTU as basestage
+# vim:set ft=dockerfile:
+ARG BASEIMAGE=ubuntu:rolling
+FROM $BASEIMAGE as basestage
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV LANG en_US.utf8

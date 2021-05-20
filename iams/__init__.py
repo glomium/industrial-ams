@@ -41,7 +41,6 @@ def get_version(dev=True, short=False):
             shell=True,
             cwd=repo_dir,
             universal_newlines=True,
-            branch = get_branch.communicate()[0].strip()
         ) as proc:
             branch = proc.communicate()[0].strip()
 

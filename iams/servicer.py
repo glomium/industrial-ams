@@ -125,7 +125,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         self.runtime.update_agent(framework_pb2.AgentData(name=request.name), update=True)  # noqa
         return Empty()
 
-    def get_agent_name(self, context, name):
+    def get_agent_name(self, context, name):  # pylint: disable=inconsistent-return-statements
         """
         get agent name
         """
@@ -141,10 +141,10 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
             return self.runtime.get_valid_agent_name(name)
         except InvalidAgentName:
             message = 'Given an invalid agent name (%s) in request' % name
-            raise context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
     @credentials
-    def destroy(self, request, context):
+    def destroy(self, request, context):  # pylint: disable=inconsistent-return-statements
         """
         destroy
         """
@@ -153,14 +153,14 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         try:
             request.name = self.get_agent_name(context, request.name)
         except docker_errors.NotFound as exception:
-            raise context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
         else:
             if self.runtime.delete_agent(request.name):
                 return Empty()
             return Empty()
 
     @credentials
-    def sleep(self, request, context):
+    def sleep(self, request, context):  # pylint: disable=inconsistent-return-statements
         """
         sleep
         """
@@ -169,14 +169,14 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         try:
             request.name = self.get_agent_name(context, request.name)
         except docker_errors.NotFound as exception:
-            raise context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
         else:
             if self.runtime.sleep_agent(request.name):
                 return Empty()
             return Empty()
 
     @credentials
-    def wake(self, request, context):
+    def wake(self, request, context):  # pylint: disable=inconsistent-return-statements
         """
         wake agent
         """
@@ -185,7 +185,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         try:
             request.name = self.get_agent_name(context, request.name)
         except docker_errors.NotFound as exception:
-            raise context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
+            context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
         else:
             if self.runtime.wake_agent(request.name):
                 return Empty()

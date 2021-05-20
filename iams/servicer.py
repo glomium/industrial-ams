@@ -141,7 +141,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
             return self.runtime.get_valid_agent_name(name)
         except InvalidAgentName:
             message = 'Given an invalid agent name (%s) in request' % name
-            return context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
+            raise context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
     @credentials
     def destroy(self, request, context):
@@ -153,7 +153,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         try:
             request.name = self.get_agent_name(context, request.name)
         except docker_errors.NotFound as exception:
-            return context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
+            raise context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
         else:
             if self.runtime.delete_agent(request.name):
                 return Empty()

@@ -71,7 +71,7 @@ class CFSSL(CertificateAuthorityInterface):
         return self._get_certificate(cn, hosts, profile, "ecdsa", 256)
 
     # pylint: disable=invalid-name,too-many-arguments
-    def _get_certificate(self, cn, hosts=None, profile="peer", algo="rsa", size=None):
+    def _get_certificate(self, cn, hosts, profile, algo, size):
         url = f'http://{self.service}/api/v1/cfssl/newcert'
         data = {
             "request": {

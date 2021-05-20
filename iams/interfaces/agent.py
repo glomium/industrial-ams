@@ -67,6 +67,7 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
     MAX_WORKERS = None
 
     def __init__(self) -> None:
+        # pylint: disable=consider-using-with
         self._executor = futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
 
         # agent servicer for iams

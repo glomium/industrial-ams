@@ -98,14 +98,17 @@ class Server:
     def __call__(self, ca=None, df=None, runtime=None):
 
         if ca is None:
+            logger.info("Using CFSSL(%s, %s) as CA", self.args.cfssl, self.args.hosts)
             ca = CFSSL(self.args.cfssl, self.args.hosts)
         ca()
 
         if df is None:
+            logger.info("Using ArangoDF() as DF")
             df = ArangoDF()
         df()
 
         if runtime is None:
+            logger.info("Using DockerSwarmRuntime(ca) as Runtime")
             runtime = DockerSwarmRuntime(ca)
         runtime()
 
@@ -125,6 +128,7 @@ class Server:
 
         server = Grpc(runtime.servername, ca)
         with ThreadPoolExecutor() as executor:
+            logger.info("Init gRPC services")
             server(executor, insecure_port=self.args.insecure_port)
             server.add(add_CertificateAuthorityServicer_to_server, CertificateAuthorityServicer(ca, runtime, executor))
             server.add(add_DirectoryFacilitatorServicer_to_server, DirectoryFacilitatorServicer(df))
@@ -132,8 +136,15 @@ class Server:
 
             # load certificate data (used to shutdown service after certificate became invalid)
             cert = x509.load_pem_x509_certificate(server.certificate, default_backend())
+            eta = cert.not_valid_after - datetime.datetime.now()
+            logger.info(
+                "%s is valid for %s days",
+                cert.signature_algorithm_oid,
+                eta.days,
+            )
 
             with server:
+                logger.info("Start gRPC services")
                 try:
                     while True:
                         eta = cert.not_valid_after - datetime.datetime.now()

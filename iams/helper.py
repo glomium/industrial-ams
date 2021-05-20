@@ -90,6 +90,7 @@ def get_logging_config(config=None, level=logging.INFO, main=True):  # pragma: n
 
     # SENTRY plugin
     if SENTRY and os.environ.get('SENTRY_DSN'):  # pragma: no branch
+        # pylint: disable=abstract-class-instantiated
         sentry_sdk.init(
             os.environ.get('SENTRY_DSN'),
             server_name=os.environ.get('IAMS_AGENT', None),

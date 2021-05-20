@@ -7,8 +7,11 @@ flake8==3.9.2
 pep8-naming==0.11.1
 pylint==2.8.2
 
+PyYAML==5.4.1
+docker==5.0.0
 networkx==2.5.1
 numpy==1.20.3
 opcua==0.98.13
 ortools==9.0.9048
 paho-mqtt==1.5.1
+python-arango==7.1.0

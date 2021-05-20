@@ -41,8 +41,9 @@ def get_version(dev=True, short=False):
             shell=True,
             cwd=repo_dir,
             universal_newlines=True,
-        ) as get_branch:
             branch = get_branch.communicate()[0].strip()
+        ) as proc:
+            branch = proc.communicate()[0].strip()
 
         if dev:
             with subprocess.Popen(
@@ -52,8 +53,8 @@ def get_version(dev=True, short=False):
                 shell=True,
                 cwd=repo_dir,
                 universal_newlines=True,
-            ) as get_time:
-                timestamp = get_time.communicate()[0]
+            ) as proc:
+                timestamp = proc.communicate()[0]
 
             try:
                 timestamp = datetime.datetime.utcfromtimestamp(int(timestamp))

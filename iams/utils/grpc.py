@@ -10,6 +10,7 @@ from datetime import datetime
 from datetime import timedelta
 from functools import wraps
 from pathlib import Path
+import asyncio
 import logging
 import os
 
@@ -50,8 +51,12 @@ class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
             self._credentials = ca_public, private_key
             self._certificate = x509.load_pem_x509_certificate(self.certificate, default_backend())
 
-    def __call__(self, threadpool, port=None, insecure_port=None):
-        self.server = grpc.server(threadpool)
+    def __call__(self, threadpool=None, port=None, insecure_port=None):
+        if threadpool is None:
+            self.server = grpc.aio.server()
+        else:
+            self.server = grpc.server(threadpool)
+
         if self.secure:
             port = AGENT_PORT if port is None else port
             self.port = self.server.add_secure_port(f'[::]:{port}', self.get_server_credentials())
@@ -66,6 +71,20 @@ class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
 
     def __exit__(self, exception_type, exception_value, traceback):
         self.stop()
+
+    async def coro(self):
+        """
+        start the server as a coroutine
+        """
+        self()
+        await self.server.start()
+        try:
+            await self.server.wait_for_termination()
+        except asyncio.CancelledError:
+            # Shuts down the server with 0 seconds of grace period. During the
+            # grace period, the server won't accept new connections and allow
+            # existing RPCs to continue within the grace period.
+            await self.server.stop(3)
 
     def certificate_expire(self):
         """
@@ -132,7 +151,7 @@ class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
         logger.debug("Stopped grpc-server")
 
     @contextmanager
-    def channel(self, hostname=None, proxy=None, port=None, secure=True):
+    async def channel(self, hostname=None, proxy=None, port=None, secure=True):
         """
         channel context manager
         """
@@ -140,12 +159,59 @@ class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
             channel_credentials = self.get_channel_credentials()
         else:
             channel_credentials = None
-        with framework_channel(hostname, channel_credentials, proxy, port, secure) as channel:
+        async with framework_channel(hostname, channel_credentials, proxy, port, secure) as channel:
+            return channel
+
+    @contextmanager
+    def sync_channel(self, hostname=None, proxy=None, port=None, secure=True):
+        """
+        channel context manager
+        """
+        if secure:
+            channel_credentials = self.get_channel_credentials()
+        else:
+            channel_credentials = None
+        with sync_framework_channel(hostname, channel_credentials, proxy, port, secure) as channel:
             yield channel
 
 
 @contextmanager
-def framework_channel(hostname=None, channel_credentials=None, proxy=None, port=None, secure=True):
+async def framework_channel(hostname=None, channel_credentials=None, proxy=None, port=None, secure=True):
+    """
+    framework channel context manager
+    """
+    server = proxy or hostname or os.environ.get("IAMS_SERVICE", None)
+    port = port or AGENT_PORT
+
+    if server is None:
+        raise ValueError("No Endpoint specified")
+
+    if proxy is None:
+        options = []
+    else:
+        options = [
+            ('grpc.default_authority', hostname),
+            ('grpc.ssl_target_name_override', hostname),
+        ]
+
+    logger.debug("connecting to %s:%s with options %s", server, port, options)
+    if secure:
+        async with grpc.aio.secure_channel(
+            f'{server!s}:{port!s}',
+            channel_credentials,
+            options=options,
+        ) as channel:
+            return channel
+    else:
+        async with grpc.aio.insecure_channel(
+            f'{server!s}:{port!s}',
+            options=options,
+        ) as channel:
+            return channel
+
+
+@contextmanager
+def sync_framework_channel(hostname=None, channel_credentials=None, proxy=None, port=None, secure=True):
     """
     framework channel context manager
     """

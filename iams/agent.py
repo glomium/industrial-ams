@@ -28,7 +28,7 @@ AgentData = framework_pb2.AgentData
 
 class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instance-attributes,empty-docstring
 
-    def __init__(self, parent, threadpool):
+    def __init__(self, parent):
         self.address = os.environ.get('IAMS_ADDRESS', None)
         self.agent = os.environ.get('IAMS_AGENT', None)
         self.config = os.environ.get('IAMS_CONFIG', None)
@@ -42,7 +42,6 @@ class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instan
         self.parent = parent
         self.position = None
         self.queue = None
-        self.threadpool = threadpool
 
         # caches
         self._topology = None

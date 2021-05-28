@@ -77,7 +77,7 @@ class InSecureGrpcTest(unittest.TestCase):  # pragma: no cover
             add_FrameworkServicer_to_server,
             servicer,
         )
-        with self.grpc as srv, srv.channel('localhost', port=srv.insecure_port, secure=False) as channel:
+        with self.grpc as srv, srv.sync_channel('localhost', port=srv.insecure_port, secure=False) as channel:
             self.assertIsNone(srv.port)
             self.assertNotEqual(srv.insecure_port, 0)
             stub = framework_pb2_grpc.FrameworkStub(channel)
@@ -92,7 +92,7 @@ class InSecureGrpcTest(unittest.TestCase):  # pragma: no cover
             add_FrameworkServicer_to_server,
             servicer,
         )
-        with self.assertRaises(grpc.RpcError), self.grpc as srv, srv.channel('localhost', port=srv.insecure_port, secure=False) as channel:  # noqa
+        with self.assertRaises(grpc.RpcError), self.grpc as srv, srv.sync_channel('localhost', port=srv.insecure_port, secure=False) as channel:  # noqa
             self.assertIsNone(srv.port)
             self.assertNotEqual(srv.insecure_port, 0)
             stub = framework_pb2_grpc.FrameworkStub(channel)
@@ -117,7 +117,7 @@ class SecureGrpcTest(unittest.TestCase):  # pragma: no cover
     def test_no_endpoint(self):
         self.grpc(self.threadpool, port=0)
         self.grpc.add(add_FrameworkServicer_to_server, Servicer1())
-        with self.assertRaises(ValueError), self.grpc as srv, srv.channel(port=srv.port):
+        with self.assertRaises(ValueError), self.grpc as srv, srv.sync_channel(port=srv.port):
             pass
 
     def test_servicer1(self):
@@ -128,7 +128,7 @@ class SecureGrpcTest(unittest.TestCase):  # pragma: no cover
             servicer,
         )
 
-        with self.grpc as srv, srv.channel('localhost', port=srv.port) as channel:
+        with self.grpc as srv, srv.sync_channel('localhost', port=srv.port) as channel:
             self.assertIsNone(srv.insecure_port)
             self.assertNotEqual(srv.port, 0)
             stub = framework_pb2_grpc.FrameworkStub(channel)
@@ -144,7 +144,7 @@ class SecureGrpcTest(unittest.TestCase):  # pragma: no cover
             servicer,
         )
 
-        with self.grpc as srv, srv.channel('localhost', port=srv.port, proxy="localhost") as channel:
+        with self.grpc as srv, srv.sync_channel('localhost', port=srv.port, proxy="localhost") as channel:
             self.assertIsNone(srv.insecure_port)
             self.assertNotEqual(srv.port, 0)
             stub = framework_pb2_grpc.FrameworkStub(channel)

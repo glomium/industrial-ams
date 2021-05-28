@@ -4,17 +4,12 @@
 iams agent interface definition
 """
 
+import asyncio
 import logging
-import signal
 import sys
 
 from abc import ABC
-from abc import abstractmethod
-from concurrent import futures
-# from contextlib import contextmanager
-from threading import Event
-from threading import Lock
-# from time import sleep
+# from abc import abstractmethod
 
 import grpc
 import yaml
@@ -40,14 +35,14 @@ class AgentCAMixin:
     Adds functionality to the agent to interact with certificate authorities
     """
 
-    def ca_renew(self, hard=True):
+    async def ca_renew(self, hard=True):
         """
         Ask CA for a new certificate
         """
         try:
             with self.grpc.channel as channel:
                 stub = CAStub(channel)
-                response = stub.renew(ca_pb2.RenewRequest(hard=hard), timeout=10)  # pylint: disable=no-member
+                response = await stub.renew(ca_pb2.RenewRequest(hard=hard), timeout=10)  # pylint: disable=no-member
             return response.private_key, response.certificate
         except grpc.RpcError:
             return None, None
@@ -67,12 +62,15 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
     MAX_WORKERS = None
 
     def __init__(self) -> None:
-        self._executor = futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)  # pylint: disable=consider-using-with  # noqa: E501
+        self._coro_run = {}
+        self._coro_setup = {}
+        self._loop = asyncio.get_event_loop()
+
+        self.agent_setup = self._loop.create_task(self._setup())
+        self.iams = Servicer(self)
+        self.grpc = Grpc(self.iams.agent)
 
         # agent servicer for iams
-        self.iams = Servicer(self, self._executor)
-        self.grpc = Grpc(self.iams.agent)
-        self.grpc(self._executor)
         self.grpc.add(add_AgentServicer_to_server, self.iams)
 
         # TODO make config configureable via environment variable
@@ -80,156 +78,67 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
             with open('/config', 'rb') as fobj:
                 self._config = yaml.load(fobj, Loader=yaml.SafeLoader)
             logger.debug('Loaded configuration from /config')
-
         except FileNotFoundError:
             logger.debug('Configuration at /config was not found')
             self._config = {}
-
-        self._lock = Lock()
-        self._loop_event = Event()
-        self._stop_event = Event()
-
-        # create signals to catch sigterm events
-        signal.signal(signal.SIGINT, self.__stop)
-        signal.signal(signal.SIGTERM, self.__stop)
 
     def __repr__(self):
         return self.__class__.__qualname__ + "()"
 
     def __call__(self):
-        # run setup methods for controlling machines
-        self._pre_setup()
-        self.setup()
-        self._post_setup()
+        self.agent_coro("grpc", self.grpc.coro())
 
-        # load and start gRPC service
-        self.grpc_setup()  # local module specification
-        self._grpc_setup()  # definition on mixins
-        self.grpc.start()
-
-        # run agent configuration
         try:
-            self.configure()  # local module specification
-            self._configure()  # definitions on mixins
-        except grpc.RpcError as exception:  # pragma: no cover
-            # pylint: disable=no-member
-            logger.debug(
-                "gRPC request failed in configure - resetting: %s - %s",
-                exception.code(),
-                exception.details(),
-            )
+            self._loop.run_until_complete(self.agent_setup)
+            tasks = [self._loop.create_task(coro, name=name) for name, coro in self._coro_run]
+
+            _, tasks = self._loop.run_until_complete(asyncio.wait(
+                tasks,
+                return_when=asyncio.FIRST_COMPLETED,
+            ))
+        except KeyboardInterrupt:
+            self._loop.close()
+        else:
+            for task in tasks:
+                task.cancel()
+            self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+            self._loop.close()
+        finally:
+            logger.info("Exit %s", self.iams.agent)
             sys.exit()
 
-        if not self._stop_event.is_set():
-            # control loop
-            logger.debug("Calling control loop")
-            self._start()
-            self.start()
-            try:
-                self._loop()
-            except Exception as exception:  # pylint: disable=broad-except # pragma: no cover
-                logger.exception(str(exception))
+    async def _setup(self) -> None:
+        await asyncio.wait(self._coro_setup.values())
 
-        logger.debug("Stopping gRPC service on %s", self.iams.agent)
-        self.grpc.stop()
+    @staticmethod
+    async def _shutdown(server) -> None:
+        await server.start()
+        try:
+            await server.wait_for_termination()
+        except asyncio.CancelledError:
+            await server.stop(0)
 
-        logger.debug("call self.teardown")
-        self.teardown()
-        logger.debug("call self._teardown")
-        self._teardown()
+    def agent_coro(self, name, coro, setup=None):
+        """
+        add a coro to the agent
+        """
+        self._coro_run[name] = coro
+        if setup is not None:
+            self._coro_setup[name] = setup
 
-        logger.info("Exit %s", self.iams.agent)
-        sys.exit()
-
-    def __stop(self, signum, frame):
-        logger.info("Exit requested with code %s (%s)", signum, frame)
-        self.stop()
-
-    def _grpc_setup(self):
-        """
-        this method can be overwritten by mixins
-        """
-
-    def _pre_setup(self):
-        """
-        this method can be overwritten by mixins
-        """
-
-    def _post_setup(self):
-        """
-        this method can be overwritten by mixins
-        """
-
-    def _start(self):
-        """
-        this method can be overwritten by mixins
-        """
-
-    def _teardown(self):
-        """
-        this method can be overwritten by mixins
-        """
-
-    @abstractmethod
-    def _loop(self):
-        """
-        this method can be overwritten by mixins
-        """
-
-    def _configure(self):
-        """
-        this method can be overwritten by mixins
-        """
-
-    def configure(self):
-        """
-        configure is called after the agent informed the AMS that its booted. this step can be used to load
-        additional information into the agent
-        """
-
-    def setup(self):
-        """
-        executed directly after the instance is called. user defined.
-        idea: setup communication to machine
-        """
-
-    def grpc_setup(self):
-        """
-        add user-defined servicers to the grpc server
-        """
-
-    def start(self):
-        """
-        executed directly before the loop runs
-        execute functions that require the connection to other agents here.
-        """
-
-    def stop(self):
-        """
-        stops the container
-        """
-        self._stop_event.set()
-        self._loop_event.set()
-
-    def teardown(self):
-        """
-        function that might be used to inform other agents or services that this agent is
-        about to shutdown
-        """
-
-    def callback_agent_upgrade(self):
+    async def callback_agent_upgrade(self):
         """
         This function can be called from the agents and services to suggest
         hat the agent should upgrate it's software (i.e. docker image)
         """
 
-    def callback_agent_update(self):
+    async def callback_agent_update(self):
         """
         This function can be called from the agents and services to suggest
         that the agent should update its configuration or state
         """
 
-    def callback_agent_reset(self):
+    async def callback_agent_reset(self):
         """
         This function can be called from the agents and services to suggest
         that the agent should reset its connected device

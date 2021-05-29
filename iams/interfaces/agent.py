@@ -4,12 +4,13 @@
 iams agent interface definition
 """
 
-import asyncio
+# import asyncio
 import logging
 # import sys
 
 from abc import ABC
 # from abc import abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 
 import grpc
 import yaml
@@ -82,18 +83,31 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
     def __repr__(self):
         return self.__class__.__qualname__ + "()"
 
+    def _pre_setup(self):
+        """
+        libraries can overwrite this function
+        """
+
+    def _post_setup(self):
+        """
+        libraries can overwrite this function
+        """
+
+    def setup(self):
+        """
+        overwrite this function
+        """
+
     def __call__(self):
         """
         """
-        # self.agent_coro("grpc", self.grpc.coro())
+        self._pre_setup()
+        self.setup()
+        self._post_setup()
 
-    @staticmethod
-    async def _shutdown(server) -> None:
-        await server.start()
-        try:
-            await server.wait_for_termination()
-        except asyncio.CancelledError:
-            await server.stop(0)
+        self.task_manager.register(self.grpc)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            self.task_manager(executor)
 
     async def callback_agent_upgrade(self):
         """

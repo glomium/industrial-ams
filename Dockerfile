@@ -12,14 +12,12 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
     python3-cryptography \
     python3-dev \
     python3-docker \
-    python3-grpc-tools \
-    python3-grpcio \
     python3-pip \
     python3-protobuf \
     python3-requests \
     python3-setuptools \
     python3-yaml \
-&& pip3 install -U --no-cache-dir python-arango sentry-sdk \
+&& pip3 install -U --no-cache-dir python-arango sentry-sdk grpcio-tools grpcio \
 && apt-get remove --purge --autoremove -y -q \
     build-essential \
     python3-dev \
@@ -27,6 +25,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
 && rm -rf /var/lib/apt/lists/*
 # curl is needed to upload coverage reports via ftp
 # grpc-tools are added to compile protofiles to python
+# python3-grpc-tools are to old in packages
+# python3-grpcio are to old in packages
 
 # === test stage ==============================================================
 FROM basestage as test

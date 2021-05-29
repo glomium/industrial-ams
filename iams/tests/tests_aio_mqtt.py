@@ -7,7 +7,7 @@ unittests for iams.mixins.mqtt
 
 import unittest
 
-from iams.mixins.mqtt import *  # noqa
+from iams.aio.mqtt import *  # noqa
 
 
 class ImportTests(unittest.TestCase):  # pragma: no cover

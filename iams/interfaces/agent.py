@@ -6,7 +6,7 @@ iams agent interface definition
 
 import asyncio
 import logging
-import sys
+# import sys
 
 from abc import ABC
 # from abc import abstractmethod
@@ -14,6 +14,7 @@ from abc import ABC
 import grpc
 import yaml
 
+from iams.aio.manager import Manager
 from iams.agent import Servicer
 from iams.proto import ca_pb2
 # from iams.proto import df_pb2
@@ -62,11 +63,7 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
     MAX_WORKERS = None
 
     def __init__(self) -> None:
-        self._coro_run = {}
-        self._coro_setup = {}
-        self._loop = asyncio.get_event_loop()
-
-        self.agent_setup = self._loop.create_task(self._setup())
+        self.task_manager = Manager()
         self.iams = Servicer(self)
         self.grpc = Grpc(self.iams.agent)
 
@@ -86,29 +83,9 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
         return self.__class__.__qualname__ + "()"
 
     def __call__(self):
-        self.agent_coro("grpc", self.grpc.coro())
-
-        try:
-            self._loop.run_until_complete(self.agent_setup)
-            tasks = [self._loop.create_task(coro, name=name) for name, coro in self._coro_run]
-
-            _, tasks = self._loop.run_until_complete(asyncio.wait(
-                tasks,
-                return_when=asyncio.FIRST_COMPLETED,
-            ))
-        except KeyboardInterrupt:
-            self._loop.close()
-        else:
-            for task in tasks:
-                task.cancel()
-            self._loop.run_until_complete(self._loop.shutdown_asyncgens())
-            self._loop.close()
-        finally:
-            logger.info("Exit %s", self.iams.agent)
-            sys.exit()
-
-    async def _setup(self) -> None:
-        await asyncio.wait(self._coro_setup.values())
+        """
+        """
+        # self.agent_coro("grpc", self.grpc.coro())
 
     @staticmethod
     async def _shutdown(server) -> None:
@@ -117,14 +94,6 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
             await server.wait_for_termination()
         except asyncio.CancelledError:
             await server.stop(0)
-
-    def agent_coro(self, name, coro, setup=None):
-        """
-        add a coro to the agent
-        """
-        self._coro_run[name] = coro
-        if setup is not None:
-            self._coro_setup[name] = setup
 
     async def callback_agent_upgrade(self):
         """

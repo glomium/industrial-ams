@@ -9,8 +9,8 @@ unittests for iams.interfaces.coro
 import asyncio
 import unittest
 
-from iams.interfaces.coro import Coroutine
-from iams.interfaces.coro import Manager
+from iams.aio.interfaces import Coroutine
+from iams.aio.manager import Manager
 
 
 class CR1(Coroutine):
@@ -33,7 +33,7 @@ class CR1(Coroutine):
         self.data.append("1wait")
         await asyncio.wait(setups.values())
 
-    async def setup(self):
+    async def setup(self, executor):
         self.data.append("1setup")
 
 
@@ -56,7 +56,7 @@ class CR2(Coroutine):
     async def wait(self, setups):
         self.data.append("2wait")
 
-    async def setup(self):
+    async def setup(self, executor):
         self.data.append("2setup")
 
 
@@ -85,4 +85,8 @@ class CoroTests(unittest.TestCase):  # pragma: no cover
         manager.register(cr2)
         manager()
 
-        self.assertEqual(data, ["1setup", "2setup", "2wait", "1wait", "1start", "1loop", "2stop"])
+        results = [
+            ["1setup", "2setup", "2wait", "1wait", "1start", "1loop", "2stop"],
+            ["1setup", "2setup", "1wait", "2wait", "1start", "1loop", "2stop"],
+        ]
+        self.assertTrue(data in results)

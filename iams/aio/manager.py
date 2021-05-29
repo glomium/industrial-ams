@@ -28,11 +28,11 @@ class Manager:
     def __call__(self, executor=None):
         setups = {}
         for name, coro in self.coros.items():
-            setups[name] = self.loop.create_task(coro.setup(executor))
+            setups[name] = self.loop.create_task(coro.setup(executor), name=f"{name}.setup")
 
         tasks = []
-        for coro in self.coros.values():
-            tasks.append(coro(setups))
+        for name, coro in self.coros.items():
+            tasks.append(self.loop.create_task(coro(setups), name=f"{name}.main"))
 
         try:
             done, tasks = self.loop.run_until_complete(asyncio.wait(

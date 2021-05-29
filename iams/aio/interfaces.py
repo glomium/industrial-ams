@@ -40,6 +40,12 @@ class Coroutine(ABC):
         setup method is awaited one at the start of the coroutines
         """
 
+    async def wait(self, setups):
+        """
+        The wait method can be used to delay the startup of a coroutine until preconditions are fulfilled
+        """
+        await asyncio.wait_for(setups[str(self)], timeout=None)
+
     @abstractmethod
     async def loop(self):
         """
@@ -56,10 +62,4 @@ class Coroutine(ABC):
     async def stop(self):
         """
         stop method is called after the coroutine was canceled
-        """
-
-    @abstractmethod
-    async def wait(self, setups):
-        """
-        The wait method can be used to delay the startup of a coroutine until preconditions are fulfilled
         """

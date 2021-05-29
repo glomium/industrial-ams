@@ -5,6 +5,7 @@
 Mixin to add MQTT functionality to agents
 """
 
+from functools import partial
 import asyncio
 import logging
 import os
@@ -59,46 +60,54 @@ class MQTTCoroutine(Coroutine):
         self._client.on_message = self._on_message
         self._connected = False
         self._executor = None
+        self._loop = parent.task_manager.loop
         self._parent = parent
-        self._stop: asyncio.Future()
+        self._stop = self._loop.create_future()
 
     def _on_connect(self, client, userdata, flags, return_code):
         logger.info("Connected to MQTT-Broker with result code %s", return_code)
         self._connected = True
-        asyncio.create_task(self._parent.mqtt_on_connect(client, userdata, flags, return_code))
+        self._loop.create_task(self._parent.mqtt_on_connect(client, userdata, flags, return_code))
 
     def _on_disconnect(self, client, userdata, return_code):
-        logger.info("Disconnected to MQTT-Broker with result code %s", return_code)
+        logger.info("Disconnected from MQTT-Broker with result code %s", return_code)
         self._connected = False
-        asyncio.create_task(self._parent.mqtt_on_disconnect(client, userdata, return_code))
+        self._loop.create_task(self._parent.mqtt_on_disconnect(client, userdata, return_code))
 
     def _on_message(self, client, userdata, message):
         logger.debug("Got message: %s", message)
-        asyncio.create_task(self._parent.mqtt_on_message(client, userdata, message))
+        self._loop.create_task(self._parent.mqtt_on_message(client, userdata, message))
 
     async def publish(self, payload, topic, qos, retain):
         """
         sends data to MQTT
         """
-        await asyncio.get_running_loop().run_in_executor(
-            self._executor, self._client.publish,
-            topic=topic, payload=payload, qos=qos, retain=retain,
-        )
+        await self._loop.run_in_executor(self._executor, partial(
+            self._client.publish,
+            topic=topic,
+            payload=payload,
+            qos=qos,
+            retain=retain,
+        ))
 
     async def setup(self, executor):
         """
         setup method is awaited one at the start of the coroutines
         """
         while True:
+            logger.debug("Try to establish MQTT connection with %s:%s", HOST, PORT)
             try:
-                await asyncio.get_running_loop().run_in_executor(
+                await self._loop.run_in_executor(
                     executor, self._client.connect,
                     HOST, PORT,
                 )
+                break
             except OSError:
                 pass
+            await asyncio.sleep(1)
+
         logger.info("MQTT initialized with %s:%s", HOST, PORT)
-        await asyncio.get_running_loop().run_in_executor(
+        await self._loop.run_in_executor(
             executor, self._client.loop_start,
         )
         self._executor = executor
@@ -121,16 +130,10 @@ class MQTTCoroutine(Coroutine):
 
         if not self._stop.done():
             self._stop.set_result(None)
-            await asyncio.get_running_loop().run_in_executor(
-                self._executor, self._client.loop_stop,
+            await self._loop.run_in_executor(self._executor, partial(
+                self._client.loop_stop,
                 force=True,
-            )
-
-    async def wait(self, setups):
-        """
-        The wait method can be used to delay the startup of a coroutine until preconditions are fulfilled
-        """
-        await asyncio.wait_for(setups[str(self)], timeout=None)
+            ))
 
 
 class MQTTMixin:

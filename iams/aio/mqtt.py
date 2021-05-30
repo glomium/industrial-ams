@@ -60,7 +60,6 @@ class MQTTCoroutine(Coroutine):
         self._client.on_message = self._on_message
         self._connected = False
         self._executor = None
-        self._loop = parent.task_manager.loop
         self._parent = parent
         self._stop = self._loop.create_future()
 

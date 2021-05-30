@@ -28,6 +28,7 @@ class Manager:
     def __call__(self, executor=None):
         setups = {}
         for name, coro in self.coros.items():
+            coro._loop = self.loop
             setups[name] = self.loop.create_task(coro.setup(executor), name=f"{name}.setup")
 
         tasks = []

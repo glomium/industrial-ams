@@ -35,6 +35,14 @@ class Coroutine(ABC):
     def __str__(self):
         return self.__class__.__qualname__
 
+    @property
+    def _loop(self):
+        return getattr(self, '__loop', asyncio.get_running_loop())
+
+    @_loop.setter
+    def _loop(self, loop):
+        self.__loop = loop
+
     async def setup(self, executor):
         """
         setup method is awaited one at the start of the coroutines

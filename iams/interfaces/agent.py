@@ -16,7 +16,7 @@ import grpc
 import yaml
 
 from iams.aio.manager import Manager
-from iams.agent import Servicer
+# from iams.agent import Servicer
 from iams.proto import ca_pb2
 # from iams.proto import df_pb2
 from iams.stub import CAStub
@@ -65,8 +65,7 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
 
     def __init__(self) -> None:
         self.task_manager = Manager()
-        self.iams = Servicer(self)
-        # self.grpc = Grpc(self.iams.agent)
+        # self.iams = Servicer(self)
 
         # agent servicer for iams
         # self.grpc.add(add_AgentServicer_to_server, self.iams)
@@ -105,8 +104,7 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
         self.setup()
         self._post_setup()
 
-        # self.task_manager.register(self.grpc)
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
             self.task_manager(executor)
 
     async def callback_agent_upgrade(self):

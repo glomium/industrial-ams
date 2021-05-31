@@ -162,11 +162,14 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         datachanges
         """
-        results = []
-        for node, val, data in notifications:
-            logger.debug("%s changed it's value to %s", node, val)
-            results.append(await self._parent.opcua_datachange(node, val, data))
-        await self._parent.opcua_datachanges(results)
+        try:
+            results = []
+            for node, val, data in notifications:
+                logger.debug("%s changed it's value to %s", node, val)
+                results.append(await self._parent.opcua_datachange(node, val, data))
+            await self._parent.opcua_datachanges(results)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("error evaluating datachanges")
 
     async def subscribe(self, nodes, interval):
         """

@@ -119,4 +119,10 @@ class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instan
     #     return context.abort(grpc.StatusCode.ALREADY_EXISTS, message)
 
 
+class Agent(AgentBase):
+    """
+    Iams Agent Class
+    """
+
+
 Servicer.__doc__ = agent_pb2_grpc.AgentServicer.__doc__

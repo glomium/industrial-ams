@@ -121,7 +121,11 @@ class DockerSwarmRuntime(RuntimeInterface):
             service.scale(0)
 
     def delete_agent(self, name):
-        service, name = self.get_service_and_name(name)
+        try:
+            service, name = self.get_service_and_name(name)
+        except docker.errors.NotFound:
+            return True
+
         logger.info("Delete agent: %s", name)
         service.remove()
         self.delete_agent_plugins(service)

@@ -14,6 +14,7 @@ import logging
 import grpc
 
 from iams.aio.interfaces import Coroutine
+from iams.constants import AGENT_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,9 @@ class GRPCCoroutine(Coroutine):
     gRPC Coroutine
     """
 
-    def __init__(self, credentials):
+    def __init__(self, parent, credentials):
         self.credentials = credentials
+        self.parent = parent
         self.server = None
 
     async def setup(self, executor):
@@ -32,6 +34,8 @@ class GRPCCoroutine(Coroutine):
         setup method is awaited one at the start of the coroutines
         """
         self.server = grpc.aio.server()
+        self.server.add_insecure_port(f'[::]:{AGENT_PORT}')
+        # self.server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
 
     async def loop(self):
         """
@@ -43,13 +47,14 @@ class GRPCCoroutine(Coroutine):
             # Shuts down the server with 0 seconds of grace period. During the
             # grace period, the server won't accept new connections and allow
             # existing RPCs to continue within the grace period.
-            await self.server.stop(3)
+            await self.server.stop(2)
 
     async def start(self):
         """
         start method is awaited once, after the setup were concluded
         """
         await self.server.start()
+        await self.parent.grpc_online()
 
     async def stop(self):
         """
@@ -69,9 +74,8 @@ class GRPCCoroutine(Coroutine):
         channel context manager
         """
         server = hostname or "localhost"
-        port = "1234"
 
-        async with grpc.aio.secure_channel(f'{server!s}:{port!s}', self.credentials) as channel:
+        async with grpc.aio.secure_channel(f'{server!s}:{AGENT_PORT}', self.credentials) as channel:
             return channel
 
 
@@ -83,11 +87,16 @@ class GRPCMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         credentials = None
-        self._grpc = GRPCCoroutine(credentials)
+        self._grpc = GRPCCoroutine(self, credentials)
 
     def _pre_setup(self):
         super()._pre_setup()
         self.aio_manager.register(self._grpc)
+
+    async def grpc_online(self):
+        """
+        this callback is fired when the grpc server was started
+        """
 
 
 _ = '''

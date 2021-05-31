@@ -22,7 +22,7 @@ class InfluxMixin:
 
     # def _pre_setup(self):
     #     super()._pre_setup()
-    #     self.task_manager.register(self._grpc)
+    #     self.aio_manager.register(self._grpc)
 
     def influxdb_write(self, data, time=None):
         """

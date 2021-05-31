@@ -227,7 +227,7 @@ class OPCUAMixin:
     def _pre_setup(self):
         super()._pre_setup()
         if OPCUA:
-            self.task_manager.register(self._opcua)
+            self.aio_manager.register(self._opcua)
 
     def opcua_kwargs(self):
         """

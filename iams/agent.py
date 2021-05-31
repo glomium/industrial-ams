@@ -4,6 +4,7 @@
 iams agent
 """
 
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
 
@@ -13,6 +14,7 @@ import grpc
 from google.protobuf.empty_pb2 import Empty
 
 # from iams.proto import agent_pb2
+from iams.aio.manager import Manager
 from iams.proto import agent_pb2_grpc
 from iams.proto import framework_pb2
 # from iams.stub import AgentStub
@@ -24,6 +26,44 @@ logger = logging.getLogger(__name__)
 
 
 AgentData = framework_pb2.AgentData
+
+
+class AgentBase:
+    """
+    Base class for agents
+    """
+
+    __hash__ = None
+    MAX_WORKERS = None
+
+    def __init__(self) -> None:
+        self.aio_manager = Manager()
+
+    def __repr__(self):
+        return self.__class__.__qualname__ + "()"
+
+    def _pre_setup(self):
+        """
+        libraries can overwrite this function
+        """
+
+    def _post_setup(self):
+        """
+        libraries can overwrite this function
+        """
+
+    def setup(self):
+        """
+        overwrite this function
+        """
+
+    def __call__(self):
+        self._pre_setup()
+        self.setup()
+        self._post_setup()
+
+        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
+            self.aio_manager(executor)
 
 
 class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instance-attributes,empty-docstring

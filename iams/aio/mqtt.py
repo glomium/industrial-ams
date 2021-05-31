@@ -148,7 +148,7 @@ class MQTTMixin:
     def _pre_setup(self):
         super()._pre_setup()
         if MQTT:
-            self.task_manager.register(self._mqtt)
+            self.aio_manager.register(self._mqtt)
 
     async def mqtt_on_connect(self, client, userdata, flags, return_code):
         """

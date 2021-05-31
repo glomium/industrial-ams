@@ -8,8 +8,6 @@ iams agent interface definition
 import logging
 # import sys
 
-from abc import ABC
-# from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 
 import grpc
@@ -30,6 +28,45 @@ from iams.stub import CAStub
 
 
 logger = logging.getLogger(__name__)
+
+
+class AgentBase:
+    """
+    Base class for agents
+    """
+
+    __hash__ = None
+    MAX_WORKERS = None
+
+    def __init__(self) -> None:
+        self.task_manager = Manager()
+        logger.warning("Please use iams.agent.AgentBase")
+
+    def __repr__(self):
+        return self.__class__.__qualname__ + "()"
+
+    def _pre_setup(self):
+        """
+        libraries can overwrite this function
+        """
+
+    def _post_setup(self):
+        """
+        libraries can overwrite this function
+        """
+
+    def setup(self):
+        """
+        overwrite this function
+        """
+
+    def __call__(self):
+        self._pre_setup()
+        self.setup()
+        self._post_setup()
+
+        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
+            self.task_manager(executor)
 
 
 class AgentCAMixin:
@@ -56,15 +93,13 @@ class AgentDFMixin:
     """
 
 
-class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instance-attributes
+class Agent(AgentCAMixin, AgentDFMixin, AgentBase):  # pylint: disable=too-many-instance-attributes
     """
     iams agents
     """
-    __hash__ = None
-    MAX_WORKERS = None
 
     def __init__(self) -> None:
-        self.task_manager = Manager()
+        super().__init__()
         # self.iams = Servicer(self)
 
         # agent servicer for iams
@@ -78,34 +113,6 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
         except FileNotFoundError:
             logger.debug('Configuration at /config was not found')
             self._config = {}
-
-    def __repr__(self):
-        return self.__class__.__qualname__ + "()"
-
-    def _pre_setup(self):
-        """
-        libraries can overwrite this function
-        """
-
-    def _post_setup(self):
-        """
-        libraries can overwrite this function
-        """
-
-    def setup(self):
-        """
-        overwrite this function
-        """
-
-    def __call__(self):
-        """
-        """
-        self._pre_setup()
-        self.setup()
-        self._post_setup()
-
-        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
-            self.task_manager(executor)
 
     async def callback_agent_upgrade(self):
         """

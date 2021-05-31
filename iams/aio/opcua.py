@@ -116,7 +116,8 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         loop method contains the business-code
         """
         if self._heartbeat:
-            while not self._stop.done() and self._client.uaclient._uasocket._thread.isAlive():
+            # pylint: disable=protected-access
+            while not self._stop.done() and self._client.uaclient._uasocket._thread.is_alive():
                 await asyncio.sleep(self._heartbeat)
                 logger.debug("OPCUA heartbeat")
                 result = await self._parent.opcua_heartbeat()

@@ -75,6 +75,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
     """
 
     def __init__(self, parent, host, port=4840, timeout=15, heartbeat=12.5):  # pylint: disable=too-many-arguments
+        logger.debug("Initialize OPCUA coroutine")
 
         self._address = f"opc.tcp://{host}:{port}/"
         self._client = None

@@ -22,20 +22,24 @@ class Manager:
     __hash__ = None
 
     def __init__(self):
+        logger.debug("Initialize asyncio manager")
         self.coros = {}
         self.loop = asyncio.new_event_loop()
 
     def __call__(self, executor=None):
+        logger.debug("Adding tasks for setup methods")
         setups = {}
         for name, coro in self.coros.items():
             coro._loop = self.loop
             setups[name] = self.loop.create_task(coro.setup(executor), name=f"{name}.setup")
 
+        logger.debug("Adding tasks for asyncio modules")
         tasks = []
         for name, coro in self.coros.items():
             tasks.append(self.loop.create_task(coro(setups), name=f"{name}.main"))
 
         try:
+            logger.debug("Start asyncio loop")
             done, tasks = self.loop.run_until_complete(asyncio.wait(
                 tasks,
                 return_when=asyncio.FIRST_COMPLETED,
@@ -56,4 +60,5 @@ class Manager:
         register coroutines with the manager
         """
         assert isinstance(coro, Coroutine)
+        logger.debug("Register coroutine %s", coro)
         self.coros[str(coro)] = coro

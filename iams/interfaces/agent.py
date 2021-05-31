@@ -21,12 +21,12 @@ from iams.proto import ca_pb2
 # from iams.proto import df_pb2
 from iams.stub import CAStub
 # from iams.stub import DFStub
-from iams.utils.grpc import Grpc
+# from iams.utils.grpc import Grpc
 # from iams.utils.grpc import framework_channel
 # from iams.utils.grpc import get_channel_credentials
 # from iams.utils.grpc import get_server_credentials
 # from iams.utils.ssl import validate_certificate
-from iams.proto.agent_pb2_grpc import add_AgentServicer_to_server
+# from iams.proto.agent_pb2_grpc import add_AgentServicer_to_server
 
 
 logger = logging.getLogger(__name__)
@@ -66,10 +66,10 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
     def __init__(self) -> None:
         self.task_manager = Manager()
         self.iams = Servicer(self)
-        self.grpc = Grpc(self.iams.agent)
+        # self.grpc = Grpc(self.iams.agent)
 
         # agent servicer for iams
-        self.grpc.add(add_AgentServicer_to_server, self.iams)
+        # self.grpc.add(add_AgentServicer_to_server, self.iams)
 
         # TODO make config configureable via environment variable
         try:
@@ -105,7 +105,7 @@ class Agent(ABC, AgentCAMixin, AgentDFMixin):  # pylint: disable=too-many-instan
         self.setup()
         self._post_setup()
 
-        self.task_manager.register(self.grpc)
+        # self.task_manager.register(self.grpc)
         with ThreadPoolExecutor(max_workers=1) as executor:
             self.task_manager(executor)
 

@@ -35,9 +35,11 @@ class Manager:
             setups[name] = self.loop.create_task(coro.setup(executor), name=f"{name}.setup")
 
         logger.debug("Adding tasks for asyncio modules")
-        tasks = []
+        tasks = set()
         for name, coro in self.coros.items():
-            tasks.append(self.loop.create_task(coro(setups), name=f"{name}.main"))
+            task = self.loop.create_task(coro(setups), name=f"{name}.main")
+            coro._task = task
+            tasks.add(task)
 
         try:
             logger.debug("Start asyncio loop")

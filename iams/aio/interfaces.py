@@ -48,6 +48,17 @@ class Coroutine(ABC):
     def _loop(self, loop):
         setattr(self, '__loop', loop)
 
+    @property
+    def _task(self):
+        if hasattr(self, '__task'):
+            return getattr(self, '__task')
+        logger.warning("%s._task should be set", self.__class__.__qualname__)
+        return None
+
+    @_task.setter
+    def _task(self, task):
+        setattr(self, '__task', task)
+
     async def setup(self, executor):
         """
         setup method is awaited one at the start of the coroutines

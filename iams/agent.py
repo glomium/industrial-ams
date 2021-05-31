@@ -63,7 +63,10 @@ class AgentBase:
         self._post_setup()
 
         with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
+            logger.debug("Starting execution")
             self.aio_manager(executor)
+            logger.debug("Stopping execution")
+            executor.shutdown(wait=False)
 
 
 class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instance-attributes,empty-docstring

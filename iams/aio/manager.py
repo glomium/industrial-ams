@@ -25,6 +25,7 @@ class Manager:
         logger.debug("Initialize asyncio manager")
         self.coros = {}
         self.loop = asyncio.new_event_loop()
+        self.loop.set_exception_handler(self.exception_handler)
 
     def __call__(self, executor=None):
         logger.debug("Adding tasks for setup methods")
@@ -54,6 +55,17 @@ class Manager:
             self.loop.close()
         finally:
             logger.debug("Exit Coroutine-Manager")
+
+    @staticmethod
+    def exception_handler(loop, context):  # pylint: disable=unused-argument
+        """
+        this handler logs all errors from asyncio
+        """
+        exception = context.get("exception", None)
+        logger.debug("Exception in asyncio: %s", context, stack_info=True)
+        if exception:
+            logger.exception("Exception in asyncio: %s", exception, stack_info=True)
+        # logger.exception("Exception in asyncio: %s", exception, stack_info=True)
 
     def register(self, coro):
         """

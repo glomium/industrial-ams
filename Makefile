@@ -70,5 +70,5 @@ grpc:
 
 
 pip:
-	.venv/bin/pip-upgrade requirements/dev.txt requirements/docs.txt requirements/test.txt --skip-package-installation
+	.venv/bin/pip-upgrade requirements.txt requirements/dev.txt requirements/docs.txt requirements/test.txt --skip-package-installation
 	.venv/bin/pip-upgrade publication/*/requirements.txt benchmark/*/requirements.txt --skip-package-installation

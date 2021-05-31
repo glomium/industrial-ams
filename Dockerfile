@@ -5,28 +5,21 @@ FROM $BASEIMAGE as basestage
 ENV DEBIAN_FRONTEND noninteractive
 ENV LANG en_US.utf8
 
+COPY requirements.txt /requirements.txt
 RUN apt-get update && apt-get install --no-install-recommends -y -q \
     build-essential \
     curl \
     python3 \
-    python3-cryptography \
     python3-dev \
-    python3-docker \
     python3-pip \
-    python3-protobuf \
-    python3-requests \
     python3-setuptools \
-    python3-yaml \
-&& pip3 install -U --no-cache-dir python-arango sentry-sdk grpcio-tools grpcio \
+&& pip3 install -U --no-cache-dir -r /requirements.txt  \
 && apt-get remove --purge --autoremove -y -q \
     build-essential \
     python3-dev \
 && apt-get clean \
-&& rm -rf /var/lib/apt/lists/*
+&& rm -rf /requirements.txt /var/lib/apt/lists/*
 # curl is needed to upload coverage reports via ftp
-# grpc-tools are added to compile protofiles to python
-# python3-grpc-tools are to old in packages
-# python3-grpcio are to old in packages
 
 # === test stage ==============================================================
 FROM basestage as test

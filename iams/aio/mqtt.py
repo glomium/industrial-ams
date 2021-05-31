@@ -62,7 +62,7 @@ class MQTTCoroutine(Coroutine):
         self._connected = False
         self._executor = None
         self._parent = parent
-        self._stop = self._loop.create_future()
+        self._stop = None
 
     def _on_connect(self, client, userdata, flags, return_code):
         logger.info("Connected to MQTT-Broker with result code %s", return_code)
@@ -106,11 +106,13 @@ class MQTTCoroutine(Coroutine):
                 pass
             await asyncio.sleep(1)
 
+        self._stop = self._loop.create_future()
+        self._executor = executor
+
         logger.info("MQTT initialized with %s:%s", HOST, PORT)
         await self._loop.run_in_executor(
             executor, self._client.loop_start,
         )
-        self._executor = executor
 
     async def loop(self):
         """

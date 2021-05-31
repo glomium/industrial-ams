@@ -37,11 +37,14 @@ class Coroutine(ABC):
 
     @property
     def _loop(self):
-        return getattr(self, '__loop', asyncio.get_running_loop())
+        if hasattr(self, '__loop'):
+            return getattr(self, '__loop')
+        logger.warning("%s._loop should be set", self.__class__.__qualname__)
+        return asyncio.get_running_loop()
 
     @_loop.setter
     def _loop(self, loop):
-        self.__loop = loop
+        setattr(self, '__loop', loop)
 
     async def setup(self, executor):
         """

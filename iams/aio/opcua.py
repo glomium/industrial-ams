@@ -62,15 +62,11 @@ class Handler(SubHandler):
         """
         packet datachange notifications
         """
-        tasks = []
-        for node, val, data in notifications:
-            tasks.append(self.coro.loop.create_task(
-                self.agent.opcua_datachange(node, val, data),
-            ))
-        done, tasks = self.coro.loop.run_until_complete(asyncio.wait(
-            tasks,
-        ))
-        self.coro.loop.create_task(self.agent.opcua_datachanges(done))
+        # pylint: disable=protected-access
+        asyncio.run_coroutine_threadsafe(
+            self.coro.datachanges(notifications),
+            self.coro._loop,
+        )
 
 
 class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
@@ -120,7 +116,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         loop method contains the business-code
         """
         if self._heartbeat:
-            while not self._stop.done():
+            while not self._stop.done() and self._client.uaclient._uasocket._thread.isAlive():
                 await asyncio.sleep(self._heartbeat)
                 logger.debug("OPCUA heartbeat")
                 result = await self._parent.opcua_heartbeat()
@@ -162,6 +158,16 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
             values,
         )
 
+    async def datachanges(self, notifications):
+        """
+        datachanges
+        """
+        results = []
+        for node, val, data in notifications:
+            logger.debug("%s changed it's value to %s", node, val)
+            results.append(await self._parent.opcua_datachange(node, val, data))
+        await self._parent.opcua_datachanges(results)
+
     async def subscribe(self, nodes, interval):
         """
         subscribe to variable
@@ -186,6 +192,22 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         except TypeError:
             self.handles[nodes] = (subscription, handle)
         return None
+
+    async def get_node(self, path):
+        """
+        get node object
+        """
+        if isinstance(path, (list, tuple)):
+            return await self._loop.run_in_executor(
+                self._executor,
+                self.objects.get_child,
+                path,
+            )
+        return await self._loop.run_in_executor(
+            self._executor,
+            self._client.get_node,
+            path,
+        )
 
 
 class OPCUAMixin:
@@ -226,21 +248,28 @@ class OPCUAMixin:
         write value to node on opcua-server
         """
         if OPCUA:
-            await self._opcua.write_many([node, value, datatype])
+            return await self._opcua.write_many([node, value, datatype])
 
     async def opcua_write_many(self, data):
         """
         data is a list or tuple of node, value and datatype
         """
         if OPCUA:
-            await self._opcua.write_many(data)
+            return await self._opcua.write_many(data)
 
     async def opcua_subscribe(self, nodes, interval):
         """
         subscribe to topic
         """
-        if not OPCUA:
-            await self._opcua.subscribe(nodes, interval)
+        if OPCUA:
+            return await self._opcua.subscribe(nodes, interval)
+
+    async def opcua_node(self, path):
+        """
+        gets the node object for a path
+        """
+        if OPCUA:
+            return await self._opcua.get_node(path)
 
     async def opcua_heartbeat(self):
         """

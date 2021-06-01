@@ -50,9 +50,18 @@ class Manager:
         except KeyboardInterrupt:  # pragma: no cover
             self.loop.close()
         else:
-            logger.info("These tasks finished and the agent closes: %s", done)
+            logger.info("A Coroutine stopped - shutdown agent")
+
             for task in tasks:
                 task.cancel()
+
+            for task in done:
+                exception = task.exception()
+                if exception is None:
+                    logger.warning("The task %s finished without an exception", task)
+                else:
+                    logger.error("Exception raised from task %s", task, exc_info=exception, stack_info=True)
+
             self.loop.run_until_complete(self.loop.shutdown_asyncgens())
             self.loop.close()
         finally:
@@ -64,10 +73,10 @@ class Manager:
         this handler logs all errors from asyncio
         """
         exception = context.get("exception", None)
-        logger.debug("Exception in asyncio: %s", context, stack_info=True)
         if exception:
-            logger.exception("Exception in asyncio: %s", exception, stack_info=True)
-        # logger.exception("Exception in asyncio: %s", exception, stack_info=True)
+            logger.info("Exception in asyncio", exc_info=exception, stack_info=True)
+        else:
+            logger.debug("Exception in asyncio", stack_info=True)
 
     def register(self, coro):
         """

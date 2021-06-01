@@ -69,7 +69,6 @@ class AgentBase:
                 logger.debug("Starting execution")
                 self.aio_manager(executor)
                 logger.debug("Stopping execution")
-                executor.shutdown(wait=False)
                 sleep(0.1)
                 raise StopExecution
         except StopExecution:

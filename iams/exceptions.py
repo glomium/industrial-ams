@@ -12,6 +12,12 @@ class SkipPlugin(AssertionError):
     """
 
 
+class StopExecution(Exception):
+    """
+    Raised to stop the threadpool executor in agents
+    """
+
+
 class StopSimulation(Exception):
     """
     Raised if the agent name is not compatible with the runtime

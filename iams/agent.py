@@ -5,6 +5,7 @@ iams agent
 """
 
 from concurrent.futures import ThreadPoolExecutor
+from time import sleep
 import logging
 import os
 
@@ -15,6 +16,7 @@ from google.protobuf.empty_pb2 import Empty
 
 # from iams.proto import agent_pb2
 from iams.aio.manager import Manager
+from iams.exceptions import StopExecution
 from iams.proto import agent_pb2_grpc
 from iams.proto import framework_pb2
 # from iams.stub import AgentStub
@@ -62,11 +64,16 @@ class AgentBase:
         self.setup()
         self._post_setup()
 
-        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
-            logger.debug("Starting execution")
-            self.aio_manager(executor)
-            logger.debug("Stopping execution")
-            executor.shutdown(wait=False)
+        try:
+            with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
+                logger.debug("Starting execution")
+                self.aio_manager(executor)
+                logger.debug("Stopping execution")
+                executor.shutdown(wait=False)
+                sleep(0.1)
+                raise StopExecution
+        except StopExecution:
+            pass
 
 
 class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instance-attributes,empty-docstring

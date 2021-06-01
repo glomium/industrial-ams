@@ -131,6 +131,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         start method is awaited once, after the setup were concluded
         """
+        await self._parent.opcua_start()
 
     async def stop(self):
         """
@@ -237,6 +238,11 @@ class OPCUAMixin:
         return {
             'host': self.iams.address,
         }
+
+    async def opcua_start(self):
+        """
+        Callback after opcua started
+        """
 
     async def opcua_datachange(self, node, val, data):
         """

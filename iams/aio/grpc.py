@@ -54,6 +54,7 @@ class GRPCCoroutine(Coroutine):
         start method is awaited once, after the setup were concluded
         """
         await self.server.start()
+        await self.parent.grpc_start()
 
     async def stop(self):
         """
@@ -91,6 +92,11 @@ class GRPCMixin:
     def _pre_setup(self):
         super()._pre_setup()
         self.aio_manager.register(self._grpc)
+
+    async def grpc_start(self):
+        """
+        callback when grpc started
+        """
 
 
 _ = '''

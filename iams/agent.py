@@ -7,7 +7,7 @@ iams agent
 from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
-import sys
+# import sys
 
 import grpc
 # import yaml
@@ -67,7 +67,9 @@ class AgentBase:
             logger.debug("Starting execution")
             self.aio_manager(executor)
             logger.debug("Stopping execution")
-            sys.exit()  # if a threads from the pool does not exit properly a hard exit is required
+            executor._threads.clear()
+            # logger.debug("Sys exit")
+            # sys.exit()  # if a threads from the pool does not exit properly a hard exit is required
 
 
 class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instance-attributes,empty-docstring

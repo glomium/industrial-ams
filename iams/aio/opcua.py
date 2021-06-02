@@ -225,8 +225,8 @@ class OPCUAMixin:
         if OPCUA:
             self._opcua = OPCUACoroutine(self, **self.opcua_kwargs())
 
-    def _pre_setup(self):
-        super()._pre_setup()
+    def _setup(self):
+        super()._setup()
         if OPCUA:
             self.aio_manager.register(self._opcua)
 

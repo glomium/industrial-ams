@@ -43,33 +43,23 @@ class AgentBase:
     def __repr__(self):
         return self.__class__.__qualname__ + "()"
 
-    def _pre_setup(self):
+    def _setup(self):
         """
         libraries can overwrite this function
-        """
-
-    def _post_setup(self):
-        """
-        libraries can overwrite this function
-        """
-
-    def setup(self):
-        """
-        overwrite this function
         """
 
     def __call__(self):
-        self._pre_setup()
-        self.setup()
-        self._post_setup()
-
+        self._setup()
         with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
             logger.debug("Starting execution")
-            self.aio_manager(executor)
+            self.aio_manager(self, executor)
             logger.debug("Stopping execution")
             executor._threads.clear()
-            # logger.debug("Sys exit")
-            # sys.exit()  # if a threads from the pool does not exit properly a hard exit is required
+
+    async def setup(self):
+        """
+        overwrite this function
+        """
 
 
 class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instance-attributes,empty-docstring

@@ -54,6 +54,7 @@ class MQTTCoroutine(ThreadCoroutine):
     """
 
     def __init__(self, parent):
+        super().__init__()
         logger.debug("Initialize MQTT coroutine")
         self._client = mqttclient.Client()
         self._client.on_connect = self._on_connect
@@ -61,9 +62,7 @@ class MQTTCoroutine(ThreadCoroutine):
         self._client.on_log = on_log
         self._client.on_message = self._on_message
         self._connected = False
-        self._executor = None
         self._parent = parent
-        self._stop = None
 
     def _on_connect(self, client, userdata, flags, return_code):
         logger.info("Connected to MQTT-Broker with result code %s", return_code)

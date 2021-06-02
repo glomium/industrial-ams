@@ -88,6 +88,13 @@ class Coroutine(ABC):
 
 
 class ThreadCoroutine(Coroutine):
+    """
+    Coroutine Abstract Base Class for threads
+    """
+
+    def __init__(self):
+        self._executor = None
+        self._stop = None
 
     async def setup(self, executor):
         """

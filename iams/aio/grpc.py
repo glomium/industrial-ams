@@ -63,11 +63,11 @@ class GRPCCoroutine(Coroutine):
         """
         await self.server.stop(3)
 
-    async def wait(self, setups):
+    async def wait(self, tasks):
         """
         stop method is called after the coroutine was canceled
         """
-        await asyncio.wait(setups.values(), timeout=None)
+        await asyncio.wait(tasks.values(), timeout=None)
 
     @asynccontextmanager
     async def channel(self, hostname=None):

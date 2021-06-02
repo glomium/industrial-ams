@@ -44,14 +44,14 @@ class Manager:
                 return None
 
         logger.debug("Adding tasks for start methods")
-        setups = {}
+        starts = {}
         for name, coro in self.coros.items():
-            setups[name] = self.loop.create_task(coro.start(executor), name=f"{name}.start")
+            starts[name] = self.loop.create_task(coro.start(), name=f"{name}.start")
 
         logger.debug("Adding tasks for asyncio modules")
         tasks = set()
         for name, coro in self.coros.items():
-            task = self.loop.create_task(coro(setups), name=f"{name}.main")
+            task = self.loop.create_task(coro(starts), name=f"{name}.main")
             coro._task = task
             tasks.add(task)
 

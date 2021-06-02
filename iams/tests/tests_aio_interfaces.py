@@ -72,7 +72,7 @@ class CoroTests(unittest.TestCase):  # pragma: no cover
 
         self.assertEqual(str(cr1), 'CR1')
         self.assertEqual(repr(cr1), 'CR1()')
-        self.assertEqual(data, ["1setup", "1wait", "1start", "1loop"])
+        self.assertEqual(data, ["1setup", "1start", "1wait", "1loop"])
 
     def test_two_coro(self):
         data = list()
@@ -86,7 +86,7 @@ class CoroTests(unittest.TestCase):  # pragma: no cover
         manager()
 
         results = [
-            ["1setup", "2setup", "2wait", "1wait", "1start", "1loop", "2stop"],
-            ["1setup", "2setup", "1wait", "2wait", "1start", "1loop", "2stop"],
+            ["1setup", "2setup", "1start", "2wait", "1wait", "1loop", "2stop"],
+            ["1setup", "2setup", "1start", "1wait", "2wait", "1loop", "2stop"],
         ]
         self.assertTrue(data in results)

@@ -129,7 +129,6 @@ class MQTTCoroutine(Coroutine):
         """
         stop method is called after the coroutine was canceled
         """
-
         if not self._stop.done():
             self._stop.set_result(None)
             await self._loop.run_in_executor(self._executor, partial(

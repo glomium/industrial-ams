@@ -5,9 +5,103 @@
 Mixin to add InfluxDB functionality to agents
 """
 
+from datetime import datetime
+from functools import partial
+import asyncio
 import logging
+import os
+
+
+from iams.aio.interfaces import Coroutine
+
 
 logger = logging.getLogger(__name__)
+
+
+try:
+    from influxdb_client import InfluxDBClient, Point
+    from influxdb_client.client.write_api import ASYNCHRONOUS
+    ENABLED = True
+except ImportError:
+    logger.info("Could not import influxdb_client library")
+    ENABLED = False
+
+
+CLOUD = os.environ.get('INFLUXDB_CLOUD', None)
+BUCKET = os.environ.get('INFLUXDB_BUCKET', None)
+TOKEN = os.environ.get('INFLUXDB_TOKEN', "my-token")
+ORG = os.environ.get('INFLUXDB_ORG', None)
+
+if CLOUD is None:
+    logger.debug("INFLUXDB_CLOUD is not specified")
+    INFLUXDB = False
+elif BUCKET is None:
+    logger.debug("INFLUXDB_BUCKET is not specified")
+    INFLUXDB = False
+
+
+class InfluxCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
+    """
+    InfluxDB Coroutine
+    """
+
+    def __init__(self, url, bucket, token=None, org=None):
+        self._executor = None
+        self._stop = None
+        self.bucket = bucket
+        self.client = None
+        self.org = org
+        self.token = token
+        self.url = url
+        self.write_api = None
+
+    async def setup(self, executor):
+        """
+        setup method is awaited one at the start of the coroutines
+        """
+        self.client = await self._loop.run_in_executor(executor, partial(
+            InfluxDBClient,
+            url=self.url,
+            token=self.token,
+        ))
+        self.write_api = await self._loop.run_in_executor(executor, partial(
+            self.client.write_api,
+            token=self.token,
+            write_options=ASYNCHRONOUS,
+            flush_interval=5000,
+        ))
+        self._stop = self._loop.create_future()
+
+    async def loop(self):
+        """
+        loop method contains the business-code
+        """
+        await asyncio.wait_for(self._stop, timeout=None)
+
+    async def start(self):
+        """
+        start method is awaited once, after the setup were concluded
+        """
+
+    async def stop(self):
+        """
+        stop method is called after the coroutine was canceled
+        """
+        if not self._stop.done():
+            self._stop.set_result(None)
+            await self._loop.run_in_executor(self._executor, self.write_api.close)
+            await self._loop.run_in_executor(self._executor, self.client.close)
+
+    async def write(self, data, precision):
+        """
+        stop method is called after the coroutine was canceled
+        """
+        await self._loop.run_in_executor(self._executor, partial(
+            self.write_api.write,
+            bucket=self.bucket,
+            record=[Point.from_dict(value) for value in data],
+            write_precision=precision,
+        ))
 
 
 class InfluxMixin:
@@ -15,88 +109,25 @@ class InfluxMixin:
     Mixin to add InfluxDB functionality to agents
     """
 
-    # def __init__(self, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-    #     credentials = None
-    #     self._grpc = GRPCCoroutine(credentials)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if ENABLED:
+            self._influx = InfluxCoroutine(CLOUD, BUCKET, token=TOKEN, org=ORG)
 
-    # def _pre_setup(self):
-    #     super()._pre_setup()
-    #     self.aio_manager.register(self._grpc)
+    def _pre_setup(self):
+        super()._pre_setup()
+        self.aio_manager.register(self._influx)
 
-    def influxdb_write(self, data, time=None):
+    async def influxdb_write(self, data, time=None, precision="ms"):
         """
         write data to influxdb
         """
+        if ENABLED:
+            if time is None:
+                time = datetime.utcnow()
 
-
-_ = '''
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-influxdb mixin
-"""
-
-import datetime
-import logging
-import os
-import socket
-
-logger = logging.getLogger(__name__)
-
-HOST = os.environ.get('INFLUXDB_HOST', None)
-DATABASE = os.environ.get('INFLUXDB_DATABASE', None)
-
-
-if HOST is None or DATABASE is None:
-    logger.debug("InfluxDB hostname or database not specified")
-    INFLUXDB = False
-
-try:
-    from influxdb import InfluxDBClient
-    INFLUXDB = True
-except ImportError:
-    logger.info("Could not import influxdb library")
-    INFLUXDB = False
-
-
-class InfluxDBMixin:
-    """
-    influxdb mixin
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        if INFLUXDB:
-            self._influxdb = InfluxDBClient(host=HOST, database=DATABASE, timeout=0.5)
-            logger.info("Influxdb initialized with host %s", HOST)
-
-    def influxdb_write(self, data, time=None):
-        """
-        sends data (list of dictionaries) to influx-database
-        """
-
-        if not INFLUXDB:
-            return None
-
-        if time is not None:
-            now = datetime.datetime.utcnow()
             for i, entry in enumerate(data):
                 if "time" not in entry:
-                    data[i]["time"] = now
+                    data[i]["time"] = time
 
-        try:
-            self._executor.submit(self._influxdb_write, data)
-        except RuntimeError:
-            pass
-
-        return None
-
-    def _influxdb_write(self, data):
-        try:
-            self._influxdb.write_points(data, time_precision="ms")
-        except socket.timeout:
-            pass
-'''
+            await self._influx.write(data, precision)

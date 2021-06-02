@@ -7,12 +7,10 @@ Mixin to add InfluxDB functionality to agents
 
 from datetime import datetime
 from functools import partial
-import asyncio
 import logging
 import os
 
-
-from iams.aio.interfaces import Coroutine
+from iams.aio.interfaces import ThreadCoroutine
 
 
 logger = logging.getLogger(__name__)
@@ -40,33 +38,19 @@ elif BUCKET is None:
     ENABLED = False
 
 
-class InfluxCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
+class InfluxCoroutine(ThreadCoroutine):  # pylint: disable=too-many-instance-attributes
     """
     InfluxDB Coroutine
     """
 
     def __init__(self, url, bucket, token=None, org=None):
-        self._executor = None
-        self._stop = None
+        super().__init__()
         self.bucket = bucket
         self.client = None
         self.org = org
         self.token = token
         self.url = url
         self.write_api = None
-
-    async def setup(self, executor):
-        """
-        setup method is awaited one at the start of the coroutines
-        """
-        self._executor = executor
-        self._stop = self._loop.create_future()
-
-    async def loop(self):
-        """
-        loop method contains the business-code
-        """
-        await asyncio.wait_for(self._stop, timeout=None)
 
     async def start(self):
         """
@@ -88,8 +72,7 @@ class InfluxCoroutine(Coroutine):  # pylint: disable=too-many-instance-attribute
         """
         stop method is called after the coroutine was canceled
         """
-        if not self._stop.done():
-            self._stop.set_result(None)
+        if super()._stop():
             await self._loop.run_in_executor(self._executor, self.write_api.close)
             await self._loop.run_in_executor(self._executor, self.client.close)
 
@@ -115,8 +98,8 @@ class InfluxMixin:
         if ENABLED:
             self._influx = InfluxCoroutine(CLOUD, BUCKET, token=TOKEN, org=ORG)
 
-    def _pre_setup(self):
-        super()._pre_setup()
+    def _setup(self):
+        super()._setup()
         if ENABLED:
             self.aio_manager.register(self._influx)
 

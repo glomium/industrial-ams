@@ -10,7 +10,8 @@ import asyncio
 import logging
 import os
 
-from iams.aio.interfaces import Coroutine
+from iams.aio.interfaces import ThreadCoroutine
+
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +48,13 @@ def on_log(client, userdata, level, buf):  # pylint: disable=unused-argument # p
     logger.log(LOG_MAP[level], buf)
 
 
-class MQTTCoroutine(Coroutine):
+class MQTTCoroutine(ThreadCoroutine):
     """
     MQTT Coroutine
     """
 
     def __init__(self, parent):
+        super().__init__()
         logger.debug("Initialize MQTT coroutine")
         self._client = mqttclient.Client()
         self._client.on_connect = self._on_connect
@@ -60,9 +62,7 @@ class MQTTCoroutine(Coroutine):
         self._client.on_log = on_log
         self._client.on_message = self._on_message
         self._connected = False
-        self._executor = None
         self._parent = parent
-        self._stop = None
 
     def _on_connect(self, client, userdata, flags, return_code):
         logger.info("Connected to MQTT-Broker with result code %s", return_code)
@@ -90,19 +90,6 @@ class MQTTCoroutine(Coroutine):
             retain=retain,
         ))
 
-    async def setup(self, executor):
-        """
-        setup method is awaited one at the start of the coroutines
-        """
-        self._executor = executor
-        self._stop = self._loop.create_future()
-
-    async def loop(self):
-        """
-        loop method contains the business-code
-        """
-        await asyncio.wait_for(self._stop, timeout=None)
-
     async def start(self):
         """
         start method is awaited once, after the setup were concluded
@@ -128,8 +115,7 @@ class MQTTCoroutine(Coroutine):
         """
         stop method is called after the coroutine was canceled
         """
-        if not self._stop.done():
-            self._stop.set_result(None)
+        if super()._stop():
             await self._loop.run_in_executor(self._executor, partial(
                 self._client.loop_stop,
                 force=True,
@@ -146,8 +132,8 @@ class MQTTMixin:
         if MQTT:
             self._mqtt = MQTTCoroutine(self)
 
-    def _pre_setup(self):
-        super()._pre_setup()
+    def _setup(self):
+        super()._setup()
         if MQTT:
             self.aio_manager.register(self._mqtt)
 

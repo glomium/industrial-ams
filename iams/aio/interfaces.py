@@ -85,3 +85,35 @@ class Coroutine(ABC):
         """
         stop method is called after the coroutine was canceled
         """
+
+
+class ThreadCoroutine(Coroutine):
+    """
+    Coroutine Abstract Base Class for threads
+    """
+
+    def __init__(self):
+        self._executor = None
+        self._stop = None
+
+    async def setup(self, executor):
+        """
+        setup method is awaited one at the start of the coroutines
+        """
+        self._executor = executor
+        self._stop = self._loop.create_future()
+
+    async def loop(self):
+        """
+        loop method contains the business-code
+        """
+        await asyncio.wait_for(self._stop, timeout=None)
+
+    async def stop(self):
+        """
+        stop method is called after the coroutine was canceled
+        """
+        if not self._stop.done():
+            self._stop.set_result(None)
+            return True
+        return False

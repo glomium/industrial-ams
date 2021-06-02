@@ -27,12 +27,13 @@ class Manager:
         self.loop = asyncio.new_event_loop()
         self.loop.set_exception_handler(self.exception_handler)
 
-    def __call__(self, executor=None):  # pylint: disable=too-many-branches
+    def __call__(self, parent=None, executor=None):  # pylint: disable=too-many-branches
         logger.debug("Adding tasks for setup methods")
         tasks = set()
         for name, coro in self.coros.items():
             coro._loop = self.loop
             tasks.add(self.loop.create_task(coro.setup(executor), name=f"{name}.setup"))
+        tasks.add(self.loop.create_task(parent.setup(executor), name="iams.agent.setup"))
 
         logger.debug("Start asyncio loop")
         done, _ = self.loop.run_until_complete(asyncio.wait(tasks))

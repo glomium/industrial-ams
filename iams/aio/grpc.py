@@ -90,9 +90,9 @@ class GRPCMixin:
         credentials = None
         self._grpc = GRPCCoroutine(self, credentials)
 
-    def _pre_setup(self):
-        super()._pre_setup()
+    def _setup(self):
         self.aio_manager.register(self._grpc)
+        super()._setup()
 
     def grpc_add(self, function, servicer):
         """

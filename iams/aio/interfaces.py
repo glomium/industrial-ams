@@ -24,7 +24,6 @@ class Coroutine(ABC):
     async def __call__(self, setups):
         logger.debug("Starting %s", self)
         await self.wait(setups)
-        await self.start()
         try:
             await self.loop()
         except asyncio.CancelledError:
@@ -64,22 +63,21 @@ class Coroutine(ABC):
         setup method is awaited one at the start of the coroutines
         """
 
-    async def wait(self, setups):
+    async def start(self):
+        """
+        start method is awaited once, after the setup were concluded
+        """
+
+    async def wait(self, tasks):
         """
         The wait method can be used to delay the startup of a coroutine until preconditions are fulfilled
         """
-        await asyncio.wait_for(setups[str(self)], timeout=None)
+        await asyncio.wait_for(tasks[str(self)], timeout=None)
 
     @abstractmethod
     async def loop(self):
         """
         loop method contains the business-code
-        """
-
-    @abstractmethod
-    async def start(self):
-        """
-        start method is awaited once, after the setup were concluded
         """
 
     @abstractmethod

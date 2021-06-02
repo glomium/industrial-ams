@@ -59,17 +59,7 @@ class InfluxCoroutine(Coroutine):  # pylint: disable=too-many-instance-attribute
         """
         setup method is awaited one at the start of the coroutines
         """
-        self.client = await self._loop.run_in_executor(executor, partial(
-            InfluxDBClient,
-            url=self.url,
-            token=self.token,
-        ))
-        self.write_api = await self._loop.run_in_executor(executor, partial(
-            self.client.write_api,
-            token=self.token,
-            write_options=ASYNCHRONOUS,
-            flush_interval=5000,
-        ))
+        self._executor = executor
         self._stop = self._loop.create_future()
 
     async def loop(self):
@@ -82,6 +72,17 @@ class InfluxCoroutine(Coroutine):  # pylint: disable=too-many-instance-attribute
         """
         start method is awaited once, after the setup were concluded
         """
+        self.client = await self._loop.run_in_executor(self._executor, partial(
+            InfluxDBClient,
+            url=self.url,
+            token=self.token,
+        ))
+        self.write_api = await self._loop.run_in_executor(self._executor, partial(
+            self.client.write_api,
+            token=self.token,
+            write_options=ASYNCHRONOUS,
+            flush_interval=5000,
+        ))
 
     async def stop(self):
         """

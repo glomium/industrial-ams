@@ -27,12 +27,13 @@ class GRPCCoroutine(Coroutine):
     def __init__(self, parent, credentials):
         self.credentials = credentials
         self.parent = parent
-        self.server = grpc.aio.server()
+        self.server = None
 
     async def setup(self, executor):
         """
         setup method is awaited one at the start of the coroutines
         """
+        self.server = grpc.aio.server()
         self.server.add_insecure_port(f'[::]:{AGENT_PORT}')
         # TODO
         # self.server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)

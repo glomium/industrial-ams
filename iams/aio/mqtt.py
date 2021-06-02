@@ -94,25 +94,8 @@ class MQTTCoroutine(Coroutine):
         """
         setup method is awaited one at the start of the coroutines
         """
-        while True:
-            logger.debug("Try to establish MQTT connection with %s:%s", HOST, PORT)
-            try:
-                await self._loop.run_in_executor(
-                    executor, self._client.connect,
-                    HOST, PORT,
-                )
-                break
-            except OSError:
-                pass
-            await asyncio.sleep(1)
-
-        self._stop = self._loop.create_future()
         self._executor = executor
-
-        logger.info("MQTT initialized with %s:%s", HOST, PORT)
-        await self._loop.run_in_executor(
-            executor, self._client.loop_start,
-        )
+        self._stop = self._loop.create_future()
 
     async def loop(self):
         """
@@ -124,6 +107,22 @@ class MQTTCoroutine(Coroutine):
         """
         start method is awaited once, after the setup were concluded
         """
+        while True:
+            logger.debug("Try to establish MQTT connection with %s:%s", HOST, PORT)
+            try:
+                await self._loop.run_in_executor(
+                    self._executor, self._client.connect,
+                    HOST, PORT,
+                )
+                break
+            except OSError:
+                pass
+            await asyncio.sleep(1)
+
+        logger.info("MQTT initialized with %s:%s", HOST, PORT)
+        await self._loop.run_in_executor(
+            self._executor, self._client.loop_start,
+        )
 
     async def stop(self):
         """

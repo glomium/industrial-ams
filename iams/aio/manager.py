@@ -27,12 +27,26 @@ class Manager:
         self.loop = asyncio.new_event_loop()
         self.loop.set_exception_handler(self.exception_handler)
 
-    def __call__(self, executor=None):
+    def __call__(self, executor=None):  # pylint: disable=too-many-branches
         logger.debug("Adding tasks for setup methods")
-        setups = {}
+        tasks = set()
         for name, coro in self.coros.items():
             coro._loop = self.loop
-            setups[name] = self.loop.create_task(coro.setup(executor), name=f"{name}.setup")
+            tasks.add(self.loop.create_task(coro.setup(executor), name=f"{name}.setup"))
+
+        logger.debug("Start asyncio loop")
+        done, _ = self.loop.run_until_complete(asyncio.wait(tasks))
+
+        for task in done:
+            exception = task.exception()
+            if exception is not None:
+                logger.error("Exception raised from task %s", task, exc_info=exception, stack_info=True)
+                return None
+
+        logger.debug("Adding tasks for start methods")
+        setups = {}
+        for name, coro in self.coros.items():
+            setups[name] = self.loop.create_task(coro.start(executor), name=f"{name}.start")
 
         logger.debug("Adding tasks for asyncio modules")
         tasks = set()
@@ -66,6 +80,7 @@ class Manager:
             self.loop.close()
         finally:
             logger.debug("Exit Coroutine-Manager")
+        return None
 
     @staticmethod
     def exception_handler(loop, context):  # pylint: disable=unused-argument

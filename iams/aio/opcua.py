@@ -95,22 +95,8 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         logger.debug("Try to establish OPCUA connection with %s", self._address)
         self._client = Client(self._address, timeout=self._timeout)
-        self._stop = self._loop.create_future()
-
-        wait = 0
-        while True:
-            try:
-                await self._loop.run_in_executor(executor, self._client.connect)
-                break
-            except (ConnectionRefusedError, OSError):
-                wait = min(60, wait + 1)
-                logger.info('Connection to %s refused (retry in %ss)', self._address, wait)
-                await asyncio.sleep(wait)
         self._executor = executor
-
-        logger.info("OPCUA connected to %s", self._address)
-        await self._loop.run_in_executor(executor, self._client.load_type_definitions)
-        self.objects = await self._loop.run_in_executor(executor, self._client.get_objects_node)
+        self._stop = self._loop.create_future()
 
     async def loop(self):
         """
@@ -131,6 +117,19 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         start method is awaited once, after the setup were concluded
         """
+        wait = 0
+        while True:
+            try:
+                await self._loop.run_in_executor(self._executor, self._client.connect)
+                break
+            except (ConnectionRefusedError, OSError):
+                wait = min(60, wait + 1)
+                logger.info('Connection to %s refused (retry in %ss)', self._address, wait)
+                await asyncio.sleep(wait)
+
+        logger.info("OPCUA connected to %s", self._address)
+        await self._loop.run_in_executor(self._executor, self._client.load_type_definitions)
+        self.objects = await self._loop.run_in_executor(self._executor, self._client.get_objects_node)
         await self._parent.opcua_start()
 
     async def stop(self):

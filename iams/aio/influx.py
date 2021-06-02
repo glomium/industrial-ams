@@ -34,10 +34,10 @@ ORG = os.environ.get('INFLUXDB_ORG', None)
 
 if CLOUD is None:
     logger.debug("INFLUXDB_CLOUD is not specified")
-    INFLUXDB = False
+    ENABLED = False
 elif BUCKET is None:
     logger.debug("INFLUXDB_BUCKET is not specified")
-    INFLUXDB = False
+    ENABLED = False
 
 
 class InfluxCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
@@ -116,7 +116,8 @@ class InfluxMixin:
 
     def _pre_setup(self):
         super()._pre_setup()
-        self.aio_manager.register(self._influx)
+        if ENABLED:
+            self.aio_manager.register(self._influx)
 
     async def influxdb_write(self, data, time=None, precision="ms"):
         """

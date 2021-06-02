@@ -93,7 +93,7 @@ class GRPCMixin:
         super()._pre_setup()
         self.aio_manager.register(self._grpc)
 
-    async def grpc_add(self, function, servicer):
+    def grpc_add(self, function, servicer):
         """
         add servicer
         """

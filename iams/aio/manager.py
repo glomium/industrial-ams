@@ -33,7 +33,8 @@ class Manager:
         for name, coro in self.coros.items():
             coro._loop = self.loop
             tasks.add(self.loop.create_task(coro.setup(executor), name=f"{name}.setup"))
-        tasks.add(self.loop.create_task(parent.setup(executor), name="iams.agent.setup"))
+        if hasattr(parent, "setup"):
+            tasks.add(self.loop.create_task(parent.setup(executor), name="iams.agent.setup"))
 
         logger.debug("Start asyncio loop")
         done, _ = self.loop.run_until_complete(asyncio.wait(tasks))

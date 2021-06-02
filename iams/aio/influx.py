@@ -72,7 +72,7 @@ class InfluxCoroutine(ThreadCoroutine):  # pylint: disable=too-many-instance-att
         """
         stop method is called after the coroutine was canceled
         """
-        if super()._stop():
+        if await super().stop():
             await self._loop.run_in_executor(self._executor, self.write_api.close)
             await self._loop.run_in_executor(self._executor, self.client.close)
 

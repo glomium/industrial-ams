@@ -25,16 +25,22 @@ except ImportError:
     ENABLED = False
 
 
-CLOUD = os.environ.get('INFLUXDB_CLOUD', None)
-BUCKET = os.environ.get('INFLUXDB_BUCKET', None)
-TOKEN = os.environ.get('INFLUXDB_TOKEN', "my-token")
-ORG = os.environ.get('INFLUXDB_ORG', None)
+BUCKET = os.environ.get('INFLUX_BUCKET', None)
+HOST = os.environ.get('INFLUX_CLOUD', None)
+ORG = os.environ.get('INFLUX_ORG', None)
+TOKEN = os.environ.get('INFLUX_TOKEN', None)
 
-if CLOUD is None:
-    logger.debug("INFLUXDB_CLOUD is not specified")
+if BUCKET is None:
+    logger.debug("INFLUX_BUCKET is not specified")
     ENABLED = False
-elif BUCKET is None:
-    logger.debug("INFLUXDB_BUCKET is not specified")
+elif HOST is None:
+    logger.debug("INFLUX_HOST is not specified")
+    ENABLED = False
+elif ORG is None:
+    logger.debug("INFLUX_ORG is not specified")
+    ENABLED = False
+elif TOKEN is None:
+    logger.debug("INFLUX_TOKEN is not specified")
     ENABLED = False
 
 
@@ -43,7 +49,7 @@ class InfluxCoroutine(ThreadCoroutine):  # pylint: disable=too-many-instance-att
     InfluxDB Coroutine
     """
 
-    def __init__(self, url, bucket, token=None, org=None):
+    def __init__(self, url, bucket, token, org):
         super().__init__()
         self.bucket = bucket
         self.client = None
@@ -58,14 +64,14 @@ class InfluxCoroutine(ThreadCoroutine):  # pylint: disable=too-many-instance-att
         """
         self.client = await self._loop.run_in_executor(self._executor, partial(
             InfluxDBClient,
-            url=self.url,
+            org=self.org,
             token=self.token,
+            url=self.url,
         ))
         self.write_api = await self._loop.run_in_executor(self._executor, partial(
             self.client.write_api,
-            token=self.token,
-            write_options=ASYNCHRONOUS,
             flush_interval=5000,
+            write_options=ASYNCHRONOUS,
         ))
 
     async def stop(self):
@@ -96,7 +102,7 @@ class InfluxMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if ENABLED:
-            self._influx = InfluxCoroutine(CLOUD, BUCKET, token=TOKEN, org=ORG)
+            self._influx = InfluxCoroutine(HOST, BUCKET, TOKEN, ORG)
 
     def _setup(self):
         super()._setup()

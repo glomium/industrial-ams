@@ -17,8 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 try:
-    from influxdb_client import InfluxDBClient, Point
-    from influxdb_client.client.write_api import ASYNCHRONOUS
+    from influxdb_client import InfluxDBClient
+    from influxdb_client import Point
+    from influxdb_client.client.write_api import PointSettings
+    from influxdb_client.client.write_api import WriteOptions
+    from influxdb_client.client.write_api import WriteType
     ENABLED = True
 except ImportError:
     logger.info("Could not import influxdb_client library")
@@ -70,8 +73,11 @@ class InfluxCoroutine(ThreadCoroutine):  # pylint: disable=too-many-instance-att
         ))
         self.write_api = await self._loop.run_in_executor(self._executor, partial(
             self.client.write_api,
-            flush_interval=5000,
-            write_options=ASYNCHRONOUS,
+            point_settings=PointSettings(),
+            write_options=WriteOptions(
+                flush_interval=5000,
+                write_type=WriteType.asynchronous,
+            ),
         ))
 
     async def stop(self):

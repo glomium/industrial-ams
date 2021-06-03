@@ -37,7 +37,7 @@ class GRPCCoroutine(Coroutine):
         except FileNotFoundError:
             self.credentials = None
         else:
-            self.credentials = grpc.ssl_channel_credentials(
+            self.credentials = grpc.ssl_server_credentials(
                 root_certificates=root_certificate,
                 private_key=private_key,
                 certificate_chain=certificate_chain,

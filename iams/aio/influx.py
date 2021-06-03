@@ -31,16 +31,16 @@ ORG = os.environ.get('INFLUX_ORG', None)
 TOKEN = os.environ.get('INFLUX_TOKEN', None)
 
 if BUCKET is None:
-    logger.debug("INFLUX_BUCKET is not specified")
+    logger.info("INFLUX_BUCKET is not specified")
     ENABLED = False
 elif HOST is None:
-    logger.debug("INFLUX_HOST is not specified")
+    logger.info("INFLUX_HOST is not specified")
     ENABLED = False
 elif ORG is None:
-    logger.debug("INFLUX_ORG is not specified")
+    logger.info("INFLUX_ORG is not specified")
     ENABLED = False
 elif TOKEN is None:
-    logger.debug("INFLUX_TOKEN is not specified")
+    logger.info("INFLUX_TOKEN is not specified")
     ENABLED = False
 
 
@@ -50,6 +50,7 @@ class InfluxCoroutine(ThreadCoroutine):  # pylint: disable=too-many-instance-att
     """
 
     def __init__(self, url, bucket, token, org):
+        logger.debug("Initialize Influx coroutine")
         super().__init__()
         self.bucket = bucket
         self.client = None
@@ -103,6 +104,8 @@ class InfluxMixin:
         super().__init__(*args, **kwargs)
         if ENABLED:
             self._influx = InfluxCoroutine(HOST, BUCKET, TOKEN, ORG)
+        else:
+            logger.debug("Influx is disabled")
 
     def _setup(self):
         super()._setup()

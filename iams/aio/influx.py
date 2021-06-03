@@ -24,9 +24,8 @@ except ImportError:
     logger.info("Could not import influxdb_client library")
     ENABLED = False
 
-
 BUCKET = os.environ.get('INFLUX_BUCKET', None)
-HOST = os.environ.get('INFLUX_CLOUD', None)
+HOST = os.environ.get('INFLUX_HOST', None)
 ORG = os.environ.get('INFLUX_ORG', None)
 TOKEN = os.environ.get('INFLUX_TOKEN', None)
 
@@ -105,7 +104,13 @@ class InfluxMixin:
         if ENABLED:
             self._influx = InfluxCoroutine(HOST, BUCKET, TOKEN, ORG)
         else:
-            logger.debug("Influx is disabled")
+            logger.debug(
+                "Influx is disabled, HOST=%s BUCKET=%s TOKEN=%s ORG=%s",
+                HOST,
+                BUCKET,
+                TOKEN,
+                ORG,
+            )
 
     def _setup(self):
         super()._setup()

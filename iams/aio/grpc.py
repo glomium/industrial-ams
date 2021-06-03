@@ -38,9 +38,9 @@ class GRPCCoroutine(Coroutine):
             self.credentials = None
         else:
             self.credentials = grpc.ssl_server_credentials(
+                ((private_key, certificate_chain),),
                 root_certificates=root_certificate,
-                private_key=private_key,
-                certificate_chain=certificate_chain,
+                require_client_auth=True,
             )
 
     def add(self, function, servicer):

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+'''
 """
 iams agent interface definition
 """
@@ -28,45 +29,6 @@ from iams.stub import CAStub
 
 
 logger = logging.getLogger(__name__)
-
-
-class AgentBase:
-    """
-    Base class for agents
-    """
-
-    __hash__ = None
-    MAX_WORKERS = None
-
-    def __init__(self) -> None:
-        self.task_manager = Manager()
-        logger.warning("Please use iams.agent.AgentBase")
-
-    def __repr__(self):
-        return self.__class__.__qualname__ + "()"
-
-    def _pre_setup(self):
-        """
-        libraries can overwrite this function
-        """
-
-    def _post_setup(self):
-        """
-        libraries can overwrite this function
-        """
-
-    def setup(self):
-        """
-        overwrite this function
-        """
-
-    def __call__(self):
-        self._pre_setup()
-        self.setup()
-        self._post_setup()
-
-        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
-            self.task_manager(executor)
 
 
 class AgentCAMixin:
@@ -131,3 +93,4 @@ class Agent(AgentCAMixin, AgentDFMixin, AgentBase):  # pylint: disable=too-many-
         This function can be called from the agents and services to suggest
         that the agent should reset its connected device
         """
+'''

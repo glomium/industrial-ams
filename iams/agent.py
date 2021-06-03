@@ -7,10 +7,9 @@ iams agent
 from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
-# import sys
 
 import grpc
-# import yaml
+import yaml
 
 from google.protobuf.empty_pb2 import Empty
 
@@ -50,6 +49,11 @@ class AgentBase:
 
     def __call__(self):
         self._setup()
+
+        if hasattr(self, 'grpc_add'):
+            # pylint: disable=no-member
+            self.grpc_add(agent_pb2_grpc.add_AgentServicer_to_server, Servicer(self))
+
         with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
             logger.debug("Starting execution")
             self.aio_manager(self, executor)
@@ -83,42 +87,65 @@ class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instan
         self._topology = None
 
     @credentials
-    def ping(self, request, context):
+    async def ping(self, request, context):  # pylint: disable=invalid-overridden-method
         return Empty()
 
     @credentials
-    def upgrade(self, request, context):
-        if self.parent.callback_agent_upgrade():
+    async def upgrade(self, request, context):  # pylint: disable=invalid-overridden-method
+        if await self.parent.callback_agent_upgrade():
             return Empty()
         message = 'Upgrade is not allowed'
         return context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
     @credentials
-    def update(self, request, context):
-        if self.parent.callback_agent_update():
+    async def update(self, request, context):  # pylint: disable=invalid-overridden-method
+        if await self.parent.callback_agent_update():
             return Empty()
         message = 'Update is not allowed'
         return context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
     @credentials
-    def reset(self, request, context):
-        if self.parent.callback_agent_reset():
+    async def reset(self, request, context):  # pylint: disable=invalid-overridden-method
+        if await self.parent.callback_agent_reset():
             return Empty()
         message = 'Reset is not allowed'
         return context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
-
-    # @credentials
-    # def position(self, request, context):
-    #     if self.update_position(context.credentials):  # pylint: disable=protected-access
-    #         return Empty()
-    #     message = 'Agent is already at requested position'
-    #     return context.abort(grpc.StatusCode.ALREADY_EXISTS, message)
 
 
 class Agent(AgentBase):
     """
     Iams Agent Class
     """
+    def __init__(self) -> None:
+        super().__init__()
+        self.iams = Servicer(self)
+
+        # TODO make config configureable via environment variable
+        try:
+            with open('/config', 'rb') as fobj:
+                self._config = yaml.load(fobj, Loader=yaml.SafeLoader)
+            logger.debug('Loaded configuration from /config')
+        except FileNotFoundError:
+            logger.debug('Configuration at /config was not found')
+            self._config = {}
+
+    async def callback_agent_upgrade(self):
+        """
+        This function can be called from the agents and services to suggest
+        hat the agent should upgrate it's software (i.e. docker image)
+        """
+
+    async def callback_agent_update(self):
+        """
+        This function can be called from the agents and services to suggest
+        that the agent should update its configuration or state
+        """
+
+    async def callback_agent_reset(self):
+        """
+        This function can be called from the agents and services to suggest
+        that the agent should reset its connected device
+        """
 
 
 Servicer.__doc__ = agent_pb2_grpc.AgentServicer.__doc__

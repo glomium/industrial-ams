@@ -5,11 +5,10 @@
 Mixin to add MQTT functionality to agents
 """
 
-# from functools import partial
 from contextlib import asynccontextmanager
+from pathlib import Path
 import asyncio
 import logging
-# import os
 
 import grpc
 
@@ -24,19 +23,35 @@ class GRPCCoroutine(Coroutine):
     gRPC Coroutine
     """
 
-    def __init__(self, parent, credentials):
-        self.credentials = credentials
+    def __init__(self, parent, secret_folder=Path("/run/secrets/")):
         self.parent = parent
         self.server = None
+        try:
+            with open(secret_folder / 'ca.crt', 'rb') as fobj:
+                root_certificate = fobj.read()
+            with open(secret_folder / 'peer.key', 'rb') as fobj:
+                private_key = fobj.read()
+            with open(secret_folder / 'peer.crt', 'rb') as fobj:
+                certificate_chain = fobj.read()
+        except FileNotFoundError:
+            self.credentials = None
+        else:
+            self.credentials = grpc.ssl_channel_credentials(
+                root_certificates=root_certificate,
+                private_key=private_key,
+                certificate_chain=certificate_chain,
+            )
 
     async def setup(self, executor):
         """
         setup method is awaited one at the start of the coroutines
         """
         self.server = grpc.aio.server()
-        self.server.add_insecure_port(f'[::]:{AGENT_PORT}')
-        # TODO
-        # self.server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
+        if self.credentials is None:
+            logger.warning("No credentials found - using insecure port")
+            self.server.add_insecure_port(f'[::]:{AGENT_PORT}')
+        else:
+            self.server.add_secure_port(f'[::]:{AGENT_PORT}', self.credentials)
 
     async def loop(self):
         """

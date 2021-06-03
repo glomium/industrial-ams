@@ -26,6 +26,7 @@ class GRPCCoroutine(Coroutine):
     def __init__(self, parent, secret_folder=Path("/run/secrets/")):
         self.parent = parent
         self.server = None
+        self.servicer = []
         try:
             with open(secret_folder / 'ca.crt', 'rb') as fobj:
                 root_certificate = fobj.read()
@@ -42,11 +43,24 @@ class GRPCCoroutine(Coroutine):
                 certificate_chain=certificate_chain,
             )
 
+    def add(self, function, servicer):
+        """
+        add servicer to server
+        """
+        if self.server is None:
+            self.servicer.append((function, servicer))
+        else:
+            function(servicer, self.server)
+
     async def setup(self, executor):
         """
         setup method is awaited one at the start of the coroutines
         """
         self.server = grpc.aio.server()
+        for function, servicer in self.servicer:
+            function(servicer, self.server)
+        self.servicer = []
+
         if self.credentials is None:
             logger.warning("No credentials found - using insecure port")
             self.server.add_insecure_port(f'[::]:{AGENT_PORT}')
@@ -112,7 +126,7 @@ class GRPCMixin:
         """
         add servicer
         """
-        function(servicer, self._grpc.server)
+        self._grpc.add(function, servicer)
 
     async def grpc_start(self):
         """

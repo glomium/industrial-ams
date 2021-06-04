@@ -57,8 +57,9 @@ class AgentBase:
         with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
             logger.debug("Starting execution")
             self.aio_manager(self, executor)
-            logger.debug("Stopping execution")
+            logger.debug("Clearing threadpool")
             executor._threads.clear()
+            logger.debug("Stopping execution")
 
     async def setup(self):
         """

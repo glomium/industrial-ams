@@ -24,6 +24,7 @@ class GRPCCoroutine(Coroutine):
     """
 
     def __init__(self, parent, secret_folder=Path("/run/secrets/")):
+        logger.debug("Initialize gRPC coroutine")
         self.parent = parent
         self.server = None
         self.servicer = []
@@ -83,6 +84,7 @@ class GRPCCoroutine(Coroutine):
         """
         start method is awaited once, after the setup were concluded
         """
+        logger.info("gRPC server initialized")
         await self.server.start()
         await self.parent.grpc_start()
 

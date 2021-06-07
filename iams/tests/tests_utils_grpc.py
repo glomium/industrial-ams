@@ -15,7 +15,7 @@ from iams.proto.framework_pb2_grpc import add_FrameworkServicer_to_server
 from iams.utils.grpc import Grpc
 from iams.proto import framework_pb2
 from iams.proto import framework_pb2_grpc
-from iams.utils.grpc import credentials
+from iams.utils.grpc import sync_credentials as credentials
 
 
 cfssl = CFSSL("localhost:8888")

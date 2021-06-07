@@ -186,6 +186,45 @@ def credentials(function=None, optional=False):
 
     def decorator(func):
         @wraps(func)
+        async def wrapped(self, request, context=None):
+
+            # internal request - can be used in unittests
+            if hasattr(context, "credentials") and isinstance(context.credentials, set):
+                logger.debug("Process request as it already as a credentials attribute (internal request)")
+                return await func(self, request, context)
+
+            # assign peer identities
+            try:
+                context.credentials = set(
+                    x.decode('utf-8') for x in context.peer_identities() if x not in [b'127.0.0.1', b'localhost']
+                )
+            except TypeError:
+                logger.debug("Could not assign the 'credentials' attribute")
+                if optional:
+                    context.credentials = set()
+                    return await func(self, request, context)
+            else:
+                return await func(self, request, context)
+
+            # abort unauthentifcated call
+            message = "Client needs to be authentifacted"
+            logger.debug(message)
+            return await context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+
+        return wrapped
+
+    if function:
+        return decorator(function)
+    return decorator
+
+
+def sync_credentials(function=None, optional=False):
+    """
+    credentials decorator (adds a "credentials" attribute to the grpc-context)
+    """
+
+    def decorator(func):
+        @wraps(func)
         def wrapped(self, request, context=None):
 
             # internal request - can be used in unittests

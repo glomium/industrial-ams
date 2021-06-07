@@ -15,7 +15,7 @@ from iams.proto.framework_pb2_grpc import add_FrameworkServicer_to_server
 from iams.utils.grpc import Grpc
 from iams.proto import framework_pb2
 from iams.proto import framework_pb2_grpc
-from iams.utils.grpc import sync_credentials as credentials
+from iams.utils.grpc import credentials
 
 
 cfssl = CFSSL("localhost:8888")
@@ -36,7 +36,7 @@ class BaseServicer(framework_pb2_grpc.FrameworkServicer):
 
 class Servicer1(BaseServicer):
 
-    @credentials(optional=True)
+    @sync_credentials(optional=True)
     def update(self, request, context):
         self.credentials = context.credentials
         return framework_pb2.AgentData(name="servicer1")
@@ -44,7 +44,7 @@ class Servicer1(BaseServicer):
 
 class Servicer2(BaseServicer):
 
-    @credentials
+    @sync_credentials
     def update(self, request, context):
         self.credentials = context.credentials
         return framework_pb2.AgentData(name="servicer2")
@@ -64,6 +64,7 @@ class InternalGrpcTest(unittest.TestCase):  # pragma: no cover
 class InSecureGrpcTest(unittest.TestCase):  # pragma: no cover
 
     def setUp(self):
+        # pylint: disable=consider-using-with
         self.threadpool = futures.ThreadPoolExecutor(max_workers=1)
         self.grpc = Grpc("testname", None, secure=False)
 
@@ -108,6 +109,7 @@ class InSecureGrpcTest(unittest.TestCase):  # pragma: no cover
 class SecureGrpcTest(unittest.TestCase):  # pragma: no cover
 
     def setUp(self):
+        # pylint: disable=consider-using-with
         self.threadpool = futures.ThreadPoolExecutor(max_workers=1)
         self.grpc = Grpc("testname", cfssl)
 

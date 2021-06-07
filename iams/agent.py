@@ -5,6 +5,7 @@ iams agent
 """
 
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 import logging
 import os
 
@@ -19,13 +20,42 @@ from iams.proto import agent_pb2_grpc
 from iams.proto import framework_pb2
 # from iams.stub import AgentStub
 # from iams.stub import FrameworkStub
-from iams.utils.grpc import credentials
 
 
 logger = logging.getLogger(__name__)
-
-
 AgentData = framework_pb2.AgentData
+
+
+def credentials():
+    """
+    credentials decorator (adds a "credentials" attribute to the grpc-context)
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapped(self, request, context=None):
+
+            # internal request - can be used in unittests
+            if hasattr(context, "credentials") and isinstance(context.credentials, set):
+                logger.debug("Process request as it already as a credentials attribute (internal request)")
+                return await func(self, request, context)
+
+            # assign peer identities
+            try:
+                context.credentials = set(
+                    x.decode('utf-8') for x in context.peer_identities() if x not in [b'127.0.0.1', b'localhost']
+                )
+            except TypeError:
+                logger.debug("Could not assign the 'credentials' attribute")
+            else:
+                return await func(self, request, context)
+
+            # abort unauthentifcated call
+            message = "Client needs to be authentifacted"
+            logger.debug(message)
+            return await context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
+
+        return wrapped
+    return decorator
 
 
 class AgentBase:
@@ -52,6 +82,7 @@ class AgentBase:
 
         if hasattr(self, 'grpc_add'):
             # pylint: disable=no-member
+            logger.debug("Adding agent servicer to grpc")
             self.grpc_add(agent_pb2_grpc.add_AgentServicer_to_server, Servicer(self))
 
         with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
@@ -96,21 +127,21 @@ class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instan
         if await self.parent.callback_agent_upgrade():
             return Empty()
         message = 'Upgrade is not allowed'
-        return context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        return await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
     @credentials
     async def update(self, request, context):  # pylint: disable=invalid-overridden-method
         if await self.parent.callback_agent_update():
             return Empty()
         message = 'Update is not allowed'
-        return context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        return await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
     @credentials
     async def reset(self, request, context):  # pylint: disable=invalid-overridden-method
         if await self.parent.callback_agent_reset():
             return Empty()
         message = 'Reset is not allowed'
-        return context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        return await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
 
 class Agent(AgentBase):

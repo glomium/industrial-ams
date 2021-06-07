@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 AgentData = framework_pb2.AgentData
 
 
-def credentials():
+def credentials(function):
     """
     credentials decorator (adds a "credentials" attribute to the grpc-context)
     """
@@ -55,7 +55,7 @@ def credentials():
             return await context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
 
         return wrapped
-    return decorator
+    return decorator(function)
 
 
 class AgentBase:

@@ -36,7 +36,7 @@ class BaseServicer(framework_pb2_grpc.FrameworkServicer):
 
 class Servicer1(BaseServicer):
 
-    @sync_credentials(optional=True)
+    @credentials(optional=True)
     def update(self, request, context):
         self.credentials = context.credentials
         return framework_pb2.AgentData(name="servicer1")
@@ -44,7 +44,7 @@ class Servicer1(BaseServicer):
 
 class Servicer2(BaseServicer):
 
-    @sync_credentials
+    @credentials
     def update(self, request, context):
         self.credentials = context.credentials
         return framework_pb2.AgentData(name="servicer2")

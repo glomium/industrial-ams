@@ -26,6 +26,21 @@ logger = logging.getLogger(__name__)
 AgentData = framework_pb2.AgentData
 
 
+class Context:
+    """
+    wrapper for grpc context
+    """
+    def __init__(self, client, identities):
+        self.client = client
+        self.credetials = identities
+
+    async def abort(self, *args, **kwargs):
+        """
+        wrapper for grpc context abort
+        """
+        return await self.client.abort(*args, **kwargs)
+
+
 def credentials(function):
     """
     credentials decorator (adds a "credentials" attribute to the grpc-context)
@@ -35,19 +50,18 @@ def credentials(function):
         async def wrapped(self, request, context=None):
 
             # internal request - can be used in unittests
-            if hasattr(context, "credentials") and isinstance(context.credentials, set):
+            if context is None:
                 logger.debug("Process request as it already as a credentials attribute (internal request)")
-                return await func(self, request, context)
+                return await func(self, request, Context(context, set()))
 
             # assign peer identities
+            ignore = set([b'127.0.0.1', b'localhost'])
             try:
-                context.credentials = set(
-                    x.decode('utf-8') for x in context.peer_identities() if x not in [b'127.0.0.1', b'localhost']
-                )
+                identities = set(x.decode('utf-8') for x in context.peer_identities() if x not in ignore)
             except TypeError:
                 logger.debug("Could not assign the 'credentials' attribute")
             else:
-                return await func(self, request, context)
+                return await func(self, request, Context(context, identities))
 
             # abort unauthentifcated call
             message = "Client needs to be authentifacted"
@@ -62,12 +76,12 @@ class AgentBase:
     """
     Base class for agents
     """
-
     __hash__ = None
     MAX_WORKERS = None
 
     def __init__(self) -> None:
         self.aio_manager = Manager()
+        self.iams = None
 
     def __repr__(self):
         return self.__class__.__qualname__ + "()"
@@ -80,10 +94,12 @@ class AgentBase:
     def __call__(self):
         self._setup()
 
-        if hasattr(self, 'grpc_add'):
+        if hasattr(self, 'grpc'):
             # pylint: disable=no-member
+            self.iams = Servicer(self)
+            self.grpc.manager = self.iams.service
             logger.debug("Adding agent servicer to grpc")
-            self.grpc_add(agent_pb2_grpc.add_AgentServicer_to_server, Servicer(self))
+            self.grpc.add(agent_pb2_grpc.add_AgentServicer_to_server, self.iams)
 
         with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
             logger.debug("Starting execution")
@@ -92,9 +108,27 @@ class AgentBase:
             executor._threads.clear()
             logger.debug("Stopping execution")
 
-    async def setup(self):
+    async def setup(self, executor):
         """
         overwrite this function
+        """
+
+    async def callback_agent_upgrade(self):
+        """
+        This function can be called from the agents and services to suggest
+        hat the agent should upgrate it's software (i.e. docker image)
+        """
+
+    async def callback_agent_update(self):
+        """
+        This function can be called from the agents and services to suggest
+        that the agent should update its configuration or state
+        """
+
+    async def callback_agent_reset(self):
+        """
+        This function can be called from the agents and services to suggest
+        that the agent should reset its connected device
         """
 
 
@@ -150,8 +184,6 @@ class Agent(AgentBase):
     """
     def __init__(self) -> None:
         super().__init__()
-        self.iams = Servicer(self)
-
         # TODO make config configureable via environment variable
         try:
             with open('/config', 'rb') as fobj:
@@ -160,24 +192,6 @@ class Agent(AgentBase):
         except FileNotFoundError:
             logger.debug('Configuration at /config was not found')
             self._config = {}
-
-    async def callback_agent_upgrade(self):
-        """
-        This function can be called from the agents and services to suggest
-        hat the agent should upgrate it's software (i.e. docker image)
-        """
-
-    async def callback_agent_update(self):
-        """
-        This function can be called from the agents and services to suggest
-        that the agent should update its configuration or state
-        """
-
-    async def callback_agent_reset(self):
-        """
-        This function can be called from the agents and services to suggest
-        that the agent should reset its connected device
-        """
 
 
 Servicer.__doc__ = agent_pb2_grpc.AgentServicer.__doc__

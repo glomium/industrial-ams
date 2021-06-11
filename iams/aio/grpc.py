@@ -7,6 +7,7 @@ Mixin to add MQTT functionality to agents
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import AsyncIterator
 import asyncio
 import logging
 
@@ -23,22 +24,38 @@ class GRPCCoroutine(Coroutine):
     gRPC Coroutine
     """
 
-    def __init__(self, parent, secret_folder=Path("/run/secrets/")):
+    def __init__(  # pylint: disable=too-many-arguments
+            self, parent,
+            root_certificate=None, private_key=None, certificate_chain=None,
+            secret_folder=Path("/run/secrets/"),
+            port=AGENT_PORT,
+    ):
         logger.debug("Initialize gRPC coroutine")
+        self.manager = "localhost"
         self.parent = parent
+        self.port = port
         self.server = None
         self.servicer = []
         try:
-            with open(secret_folder / 'ca.crt', 'rb') as fobj:
-                root_certificate = fobj.read()
-            with open(secret_folder / 'peer.key', 'rb') as fobj:
-                private_key = fobj.read()
-            with open(secret_folder / 'peer.crt', 'rb') as fobj:
-                certificate_chain = fobj.read()
-        except FileNotFoundError:
-            self.credentials = None
+            if root_certificate is None:
+                with open(secret_folder / 'ca.crt', 'rb') as fobj:
+                    root_certificate = fobj.read()
+            if private_key is None:
+                with open(secret_folder / 'peer.key', 'rb') as fobj:
+                    private_key = fobj.read()
+            if certificate_chain is None:
+                with open(secret_folder / 'peer.crt', 'rb') as fobj:
+                    certificate_chain = fobj.read()
+        except (FileNotFoundError, TypeError):
+            self.channel_credentials = None
+            self.server_credentials = None
         else:
-            self.credentials = grpc.ssl_server_credentials(
+            self.channel_credentials = grpc.ssl_channel_credentials(
+                root_certificates=root_certificate,
+                private_key=private_key,
+                certificate_chain=certificate_chain,
+            )
+            self.server_credentials = grpc.ssl_server_credentials(
                 ((private_key, certificate_chain),),
                 root_certificates=root_certificate,
                 require_client_auth=True,
@@ -62,11 +79,12 @@ class GRPCCoroutine(Coroutine):
             function(servicer, self.server)
         self.servicer = []
 
-        if self.credentials is None:
+        port = AGENT_PORT if self.port is None else self.port
+        if self.server_credentials is None:
             logger.warning("No credentials found - using insecure port")
-            self.server.add_insecure_port(f'[::]:{AGENT_PORT}')
+            self.port = self.server.add_insecure_port(f'[::]:{port}')
         else:
-            self.server.add_secure_port(f'[::]:{AGENT_PORT}', self.credentials)
+            self.port = self.server.add_secure_port(f'[::]:{port}', self.server_credentials)
 
     async def loop(self):
         """
@@ -101,14 +119,17 @@ class GRPCCoroutine(Coroutine):
         await asyncio.wait(tasks.values(), timeout=None)
 
     @asynccontextmanager
-    async def channel(self, hostname=None):
+    async def channel(self, hostname=None, port=AGENT_PORT) -> AsyncIterator:
         """
         channel context manager
         """
-        server = hostname or "localhost"
-
-        async with grpc.aio.secure_channel(f'{server!s}:{AGENT_PORT}', self.credentials) as channel:
-            return channel
+        server = hostname or self.manager
+        if self.channel_credentials is None:
+            async with grpc.aio.insecure_channel(f'{server!s}:{port!s}') as channel:
+                yield channel
+        else:
+            async with grpc.aio.secure_channel(f'{server!s}:{port!s}', self.channel_credentials) as channel:
+                yield channel
 
 
 class GRPCMixin:
@@ -118,17 +139,11 @@ class GRPCMixin:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._grpc = GRPCCoroutine(self)
+        self.grpc = GRPCCoroutine(self)
 
     def _setup(self):
-        self.aio_manager.register(self._grpc)
+        self.aio_manager.register(self.grpc)
         super()._setup()
-
-    def grpc_add(self, function, servicer):
-        """
-        add servicer
-        """
-        self._grpc.add(function, servicer)
 
     async def grpc_start(self):
         """

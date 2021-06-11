@@ -253,19 +253,27 @@ class OPCUAMixin:
         Datachanges callback (one per packet)
         """
 
-    async def opcua_write(self, node, value, datatype):
+    async def opcua_write(self, node, value, datatype, sync=False):
         """
         write value to node on opcua-server
         """
         if OPCUA:
-            return await self._opcua.write_many([node, value, datatype])
+            future = self._opcua.write_many([node, value, datatype])
+            if sync:
+                await future
+            else:
+                asyncio.create_task(future)
 
-    async def opcua_write_many(self, data):
+    async def opcua_write_many(self, data, sync=False):
         """
         data is a list or tuple of node, value and datatype
         """
         if OPCUA:
-            return await self._opcua.write_many(data)
+            future = self._opcua.write_many(data)
+            if sync:
+                await future
+            else:
+                asyncio.create_task(future)
 
     async def opcua_subscribe(self, nodes, interval):
         """

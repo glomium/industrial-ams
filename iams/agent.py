@@ -105,8 +105,10 @@ class AgentBase:
             self.aio_manager(self, executor)
             logger.debug("Clearing threadpool")
             executor._threads.clear()
-            logger.debug("Stopping execution")
-            raise SystemExit()
+            logger.debug("Shutdown")
+            executor.shutdown(wait=False)
+            logger.debug("SystemExit")
+            raise SystemExit(0)
 
     async def setup(self, executor):
         """

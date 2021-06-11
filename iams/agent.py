@@ -81,7 +81,7 @@ class AgentBase:
 
     def __init__(self) -> None:
         self.aio_manager = Manager()
-        self.iams = None
+        self.iams = Servicer(self)
 
     def __repr__(self):
         return self.__class__.__qualname__ + "()"
@@ -96,7 +96,6 @@ class AgentBase:
 
         if hasattr(self, 'grpc'):
             # pylint: disable=no-member
-            self.iams = Servicer(self)
             self.grpc.manager = self.iams.service
             logger.debug("Adding agent servicer to grpc")
             self.grpc.add(agent_pb2_grpc.add_AgentServicer_to_server, self.iams)

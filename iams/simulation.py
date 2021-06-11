@@ -1,43 +1,62 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# pylint: disable=too-many-locals
 
-import argparse
-import logging
-import yaml
-import sys
-import os
+"""
+Manages simulation configurations
+"""
 
-# from logging.config import dictConfig
-# from dataclasses import asdict
 from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures import wait
+from copy import deepcopy
 from importlib import import_module
 from itertools import product
+from logging.config import dictConfig
 from math import floor
 from math import log10
 
+import argparse
+import logging
+import os
+import yaml
 
-from iams.tests.df import TestDF
-from iams.interfaces.simulation import SimulationInterface
+try:
+    # try to import sentry so that it can be used to log errors
+    import sentry_sdk  # noqa
+    SENTRY = True
+except ImportError:
+    SENTRY = False
+
 # from iams.interfaces.df import DirectoryFacilitatorInterface
+
+from iams.interfaces.simulation import SimulationInterface
+from iams.tests.df import DF
 
 
 logger = logging.getLogger(__name__)
 
 
-def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING):
+def process_config(path, config, dryrun=False, force=False, loglevel=logging.WARNING, dsn=None):  # pylint: disable=too-many-arguments  # noqa: E501
+    """
+    processes a simulation config
+    """
     path = os.path.abspath(path)
-    folder = os.path.dirname(path)
+    folder = os.path.join(os.path.dirname(path), config.get("foldername", "results"))
     project = os.path.basename(path)[:-5]
 
-    permutations = []
+    if not SENTRY:
+        dsn = None
+
+    if not dryrun and not os.path.exists(folder):
+        os.mkdir(folder)
+
+    products = []
     length = 1
-    for key, values in config.get("permutations", {}).items():
+    for key, values in config.get("products", {}).items():
         length *= len(values)
         data = []
         for value in values:
             data.append((key, value))
-        permutations.append(data)
+        products.append(data)
 
     if length > 1:
         length = int(floor(log10(length)) + 1)
@@ -49,7 +68,7 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
         template = project
 
     count = 0
-    for run_config in product(*permutations):
+    for run_config in product(*products):
         run_config = dict(run_config)
         count += 1
 
@@ -58,41 +77,81 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
         if not dryrun and not force and os.path.exists(kwargs['file_data']):  # pragma: no cover
             continue
 
-        kwargs.update({'force': force, 'dryrun': dryrun, 'loglevel': loglevel})
+        if dryrun:
+            kwargs['file_data'] = None
+
+        log_config = {
+            'version': 1,
+            'disable_existing_loggers': False,
+            'formatters': {
+                'default': {
+                    'format': "%(levelname)s %(message)s",
+                },
+                'logfile': {
+                    'format': "%(message)s",
+                },
+                'debug': {
+                    'format': "%(levelname)s [%(name)s:%(lineno)s] %(message)s",
+                },
+            },
+            'handlers': {
+                'console': {
+                    'class': "logging.StreamHandler",
+                    'level': loglevel,
+                    'formatter': 'debug' if loglevel < logging.INFO else "default",
+                },
+                'file': {
+                    'class': "logging.FileHandler",
+                    'level': logging.DEBUG if loglevel < logging.INFO else logging.INFO,
+                    'formatter': 'debug' if loglevel < logging.INFO else "logfile",
+                    'filename': kwargs.pop("file_log"),
+                    'mode': 'w',
+                },
+            },
+            'root': {
+                'handlers': ['console'],
+                'level': logging.DEBUG if loglevel < logging.INFO else logging.INFO,
+            },
+        }
+        if dryrun is True:
+            del log_config['handlers']['file']
+        else:
+            log_config['root']['handlers'].append('file')
+            log_config['handlers']['console']['level'] = logging.WARNING
+            log_config['handlers']['console']['formatter'] = "logfile"
+        kwargs.update({'log_config': log_config, 'dryrun': dryrun, 'dsn': dsn})
 
         yield kwargs
 
 
 def prepare_run(count, folder, template, run_config, config):
+    """
+    prepare a single run
+    """
     name = template.format(count, **run_config)
-
-    seed = config.get('seed', name)
+    seed = config.get('seed', name).format(count, **run_config)
     start = config.get('start', 0)
     stop = config.get('stop', None)
 
     try:
         module_name, class_name = config["simulation-class"].rsplit('.', 1)
-    except (KeyError, AttributeError):
-        raise ValueError('The configuration-file needs a valid "simulation-class-setting')
+    except (KeyError, AttributeError) as exception:
+        raise ValueError('The configuration-file needs a valid "simulation-class-setting') from exception
     else:
         simcls = getattr(import_module(module_name), class_name)
 
         if not issubclass(simcls, SimulationInterface):
-            raise AssertionError(
-                "%s needs to be a subclass of %s",
-                simcls.__qualname__,
-                SimulationInterface.__qualname__,
-            )
+            raise AssertionError(f"{simcls.__qualname__} needs to be a subclass of {SimulationInterface.__qualname__}")
 
     try:
         module_name, class_name = config["directory-facilitator"].rsplit('.', 1)
     except (KeyError, AttributeError):
-        df = TestDF()
+        df = DF()  # pylint: disable=invalid-name
     else:
         raise NotImplementedError("the directory facilitator cannot be changed")
         # df = getattr(import_module(module_name), class_name)
         # if not issubclass(df, DierctoryFacilitatorInterface):
-        #     raise AssertionError(
+        #     raise TypeError(
         #         "%s needs to be a subclass of %s",
         #         df.__qualname__,
         #         DirectoryFacilitatorInterface.__qualname__,
@@ -101,18 +160,18 @@ def prepare_run(count, folder, template, run_config, config):
     settings = config.get('settings', {})
     settings.update(run_config)
 
-    for x in [
+    for key in [
         "formatter",
         "simulation-class",
         "directory-facilitator",
-        "permutations",
+        "products",
         "seed",
         "settings",
         "start",
         "stop",
     ]:
         try:
-            del config[x]
+            del config[key]
         except KeyError:
             pass
 
@@ -132,6 +191,9 @@ def prepare_run(count, folder, template, run_config, config):
 
 
 def load_agent(agents, global_settings):
+    """
+    generate agents from configuration
+    """
     for agent in agents:
         module_name, class_name = agent["class"].rsplit('.', 1)
         cls = getattr(import_module(module_name), class_name)
@@ -139,48 +201,37 @@ def load_agent(agents, global_settings):
         for name in agent.get('use_global', []):
             settings[name] = global_settings[name]
 
-        permutations = []
-        for key, values in agent.get("permutations", {}).items():
+        products = []
+        for key, values in agent.get("products", {}).items():
             data = []
             for value in values:
                 data.append((key, value))
-            permutations.append(sorted(data))
+            products.append(sorted(data))
 
-        for permutation in product(*permutations):
-            settings.update(dict(permutation))
+        for prod in product(*products):
+            settings.update(dict(prod))
             logger.debug("Create agent: %r with %s", cls, settings)
-            instance = cls(**settings)
+            try:
+                instance = cls(**settings)
+            except TypeError as exception:
+                raise TypeError('%s on %r' % (exception, cls)) from exception
             logger.info("Created agent: %s", instance)
             yield instance
 
 
-def run_simulation(
+def run_simulation(  # pylint: disable=invalid-name,too-many-arguments
         simcls, df, name, folder, settings, start, stop, seed, config,
-        dryrun, force, loglevel, file_data, file_log):
+        dryrun, log_config, file_data, dsn):
+    """
+    execute single simulation config
+    """
+    dictConfig(log_config)
+    if dsn:
+        logger.warning('Using sentry DSN %s', dsn)
+        sentry_sdk.init(dsn)  # pylint: disable=abstract-class-instantiated
+    logger.warning('Start simulation "%s"', name)
 
-    if loglevel == logging.DEBUG:
-        formatter = "%(levelname).1s [%(name)s:%(lineno)s] %(message)s"
-    else:
-        formatter = '%(message)s'
-
-    if dryrun:
-        # redirect output to null device
-        file_data = os.devnull
-        logging.basicConfig(
-            stream=sys.stdout,
-            level=loglevel,
-            format=formatter,
-        )
-    else:
-        logging.basicConfig(
-            filename=file_log,
-            filemode='w',
-            level=loglevel,
-            force=True,
-            format=formatter,
-        )
-
-    with open(file_data, "w") as fobj:
+    with open(file_data or os.devnull, "w") as fobj:
         # init simulation
         simulation = simcls(
             df=df,
@@ -200,6 +251,9 @@ def run_simulation(
 
 
 def parse_command_line(argv=None):
+    """
+    Parse command line arguments
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-q', '--quiet',
@@ -231,6 +285,19 @@ def parse_command_line(argv=None):
         help="Dry-run",
     )
     parser.add_argument(
+        '--single',
+        action='store_true',
+        default=False,
+        dest="single",
+        help="Only run one instance",
+    )
+    parser.add_argument(
+        '--dsn',
+        default=None,
+        dest="dsn",
+        help="Sentry DSN",
+    )
+    parser.add_argument(
         'configs',
         nargs='+',
         help="Simulation configuration files",
@@ -240,6 +307,9 @@ def parse_command_line(argv=None):
 
 
 def main(args, function=run_simulation):
+    """
+    main function
+    """
     kwarg_list = []
     for fobj in args.configs:
         try:
@@ -249,26 +319,34 @@ def main(args, function=run_simulation):
         finally:
             fobj.close()
 
-        for kwargs in process_config(fobj.name, config, dryrun=args.dryrun, force=args.force, loglevel=args.loglevel):
-            kwarg_list.append(kwargs)
+        for kwargs in process_config(
+                fobj.name, config, dryrun=args.dryrun,
+                force=args.force, loglevel=args.loglevel,
+                dsn=args.dsn):
+            kwarg_list.append(deepcopy(kwargs))
 
-    if len(kwarg_list) == 1:
+    if len(kwarg_list) == 1 or args.single:
         function(**kwarg_list.pop(0))
     elif len(kwarg_list) > 1:
         with ProcessPoolExecutor() as executor:
-            futures = []
-            while True:
-                try:
-                    futures.append(executor.submit(function, **kwarg_list.pop(0)))
-                except IndexError:
-                    break
+            for kwargs in kwarg_list:
+                executor.submit(function, **kwargs).add_done_callback(handler)
 
-            wait(futures)
-            for future in futures:
-                future.result()
+
+def handler(future):
+    """
+    the responde from the process pool exetutor is catched here
+    """
+    try:
+        future.result()
+    except Exception as exception:  # pylint: disable=broad-except
+        logger.exception(str(exception))
 
 
 def execute_command_line():  # pragma: no cover
+    """
+    Execute command line
+    """
     main(parse_command_line())
 
 

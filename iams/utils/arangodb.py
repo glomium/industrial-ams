@@ -1,37 +1,45 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+arangodb
+"""
+
 import logging
 import hashlib
 
 from arango import ArangoClient
 from arango import AQLQueryExecuteError
 
-from iams.proto.framework_pb2 import Edge
-from iams.proto.framework_pb2 import Node
-
 
 logger = logging.getLogger(__name__)
 
 
 def get_credentials(namespace, password=None):
+    """
+    get credentials
+    """
 
     if password is None:
         # TODO make this configurable
         # (specify environment variables or settings to make this configurable)
-        with open('/run/secrets/arango', 'r') as f:
-            password = f.read().strip()
+        with open('/run/secrets/arango', 'r') as fobj:
+            password = fobj.read().strip()
 
     database = "iams_" + namespace
     return database, password, hashlib.pbkdf2_hmac("sha1", database.encode(), password.encode(), 10000).hex()[:32]
 
 
-class Arango(object):
+class Arango:
+    """
+    argangodb
+    """
 
-    def __init__(self,
+    def __init__(self,  # pylint: disable=too-many-arguments,too-many-branches
                  namespace=None, username="root", password=None,
                  database=None,
                  hosts="http://tasks.arangodb:8529", docker=None):
+        # pylint: disable=invalid-name
 
         # namespace is set by AMS or left as None by agents
         logger.debug("Init: %s(%s, %s, %s, %s)", self.__class__.__qualname__, namespace, username, password, database)
@@ -125,6 +133,9 @@ class Arango(object):
                 }])
 
     def create_agent(self, name, node):
+        """
+        create agent
+        """
 
         data = {
             "_key": name,
@@ -196,6 +207,10 @@ class Arango(object):
         self.update_agents()
 
     def delete_agent(self, name, update=True):
+        """
+        delete agent
+        """
+
         query1 = """
         LET edge = (FOR t IN topology FILTER t.agent == @agent LIMIT 1 RETURN t._id)[0]
         LET related = (FOR v, e IN 0..100 OUTBOUND edge directed, ANY symmetric
@@ -223,19 +238,22 @@ class Arango(object):
         return True
 
     def update_agent(self, name, node):
+        """
+        update agent
+        """
         try:
             self.delete_agent(name, update=False)
         except AQLQueryExecuteError:
             pass
         self.create_agent(name, node)
 
-    def update_agents(self):
+    def update_agents(self):  # pylint: disable=too-many-branches,too-many-statements
         """
         iterates over all agents with update == true and updates their data
         """
         for data in self.db.collection('agent').find({"update": True}):
             # get neighbor agents
-            pk = data["_id"]
+            pk = data["_id"]  # pylint: disable=invalid-name
 
             # TODO use template system from arangodb
             query = f"""
@@ -286,7 +304,7 @@ class Arango(object):
 
             # add to automatically generated pool
             if update is False and "pool" in data:
-                pk = data["_id"]
+                pk = data["_id"]  # pylint: disable=invalid-name
                 pool = data["pool"]
 
                 # TODO use template sysetm from arangodb
@@ -300,7 +318,7 @@ class Arango(object):
                     RETURN v
                 """
                 pool = None
-                for i, p in enumerate(self.db.aql.execute(query)):
+                for i, p in enumerate(self.db.aql.execute(query)):  # pylint: disable=invalid-name
                     if i == 0:
                         pool = p
                         continue
@@ -317,7 +335,7 @@ class Arango(object):
                     # TODO delete pool agent - if docker is available
 
                 if pool is None:
-                    p = self.db.collection("agent").insert({})
+                    p = self.db.collection("agent").insert({})  # pylint: disable=invalid-name
                     pool = self.db.collection("agent").insert({
                         "_key": "pool-%s" % p["_key"],
                         "pool_cls": data["pool"],
@@ -368,217 +386,3 @@ class Arango(object):
                             "_to": pool["_id"],
                             "_from": node["_id"],
                         })
-
-
-if __name__ == "__main__":  # pragma: no cover
-
-    from random import choices
-    from random import shuffle
-
-    ABILITIES = ["A", "B", "C", "D", "E", "F", "G"]
-
-    class IMS(object):
-
-        def __init__(self, name, b1=None, b2=None):
-            self.name = name
-            self.b1 = b1
-            self.b2 = b2
-
-            abilities = list(set(choices(ABILITIES, k=3)))
-            edges = self.get_edges()
-
-            self.node = Node(
-                default="B1",
-                pools=["ims"],
-                abilities=abilities,
-                edges=edges,
-            )
-
-        def get_edges(self):
-            data = []
-            for edge in self.edges():
-                data.append(Edge(**edge))
-            return data
-
-        def edges(self):
-            yield {
-                "node_from": "B1",
-                "node_to": "B2",
-                "weight": 2.0,
-            }
-            yield {
-                "node_from": "B1",
-                "node_to": "P",
-                "weight": 1.2,
-            }
-            yield {
-                "node_from": "P",
-                "node_to": "B2",
-                "weight": 1.2,
-            }
-            yield {
-                "node_from": "P",
-                "node_to": "B1",
-                "weight": 1.2,
-            }
-            yield {
-                "node_from": "B2",
-                "node_to": "B1",
-                "weight": 2.0,
-            }
-
-            if self.b1:
-                a, e = self.b1.split(':')
-                yield {
-                    "node_from": "B1",
-                    "node_to": e,
-                    "agent": a,
-                    "weight": 1.0,
-                }
-            if self.b2:
-                a, e = self.b2.split(':')
-                yield {
-                    "node_from": "B2",
-                    "node_to": e,
-                    "agent": a,
-                    "weight": 1.0,
-                }
-
-    class UR(object):
-
-        def __init__(self, name, p1=None, p2=None, p3=None, p4=None):
-            self.p1 = p1
-            self.p2 = p2
-            self.p3 = p3
-            self.p4 = p4
-            self.name = name
-
-            self.node = Node(
-                default="T1",
-                edges=self.get_edges(),
-            )
-
-        def get_edges(self):
-            data = []
-            for edge in self.edges():
-                data.append(Edge(**edge))
-            return data
-
-        def edges(self):
-            yield {
-                "node_from": "P1",
-                "node_to": "T1",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-            yield {
-                "node_from": "P2",
-                "node_to": "T1",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-            yield {
-                "node_from": "P1",
-                "node_to": "P2",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-
-            yield {
-                "node_from": "T1",
-                "node_to": "T2",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-
-            yield {
-                "node_from": "P3",
-                "node_to": "T2",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-            yield {
-                "node_from": "P4",
-                "node_to": "T2",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-            yield {
-                "node_from": "P3",
-                "node_to": "P4",
-                "weight": 1.0,
-                "symmetric": True,
-            }
-
-            if self.p1:
-                a, e = self.p1.split(':')
-                yield {
-                    "node_from": "P1",
-                    "node_to": e,
-                    "agent": a,
-                    "weight": 1.0,
-                    "symmetric": True,
-                }
-            if self.p2:
-                a, e = self.p2.split(':')
-                yield {
-                    "node_from": "P2",
-                    "node_to": e,
-                    "agent": a,
-                    "weight": 1.0,
-                    "symmetric": True,
-                }
-            if self.p3:
-                a, e = self.p3.split(':')
-                yield {
-                    "node_from": "P3",
-                    "node_to": e,
-                    "agent": a,
-                    "weight": 1.0,
-                    "symmetric": True,
-                }
-            if self.p4:
-                a, e = self.p4.split(':')
-                yield {
-                    "node_from": "P4",
-                    "node_to": e,
-                    "agent": a,
-                    "weight": 1.0,
-                    "symmetric": True,
-                }
-
-    AGENTS = [
-        IMS("IMS11", "IMS17:B2", "IMS13A:B1"),
-        IMS("IMS13A", "IMS11:B2", "IMS13B:B1"),
-        IMS("IMS13B", "IMS13A:B2", "IMS14A:B1"),
-        IMS("IMS14A", "IMS13B:B2", "IMS14B:B1"),
-        IMS("IMS14B", "IMS14A:B2", "IMS15A:B1"),
-        IMS("IMS15A", "IMS14B:B2", "IMS15B:B1"),
-        IMS("IMS15B", "IMS15A:B2", "IMS17:B1"),
-        IMS("IMS17", "IMS15B:B2", "IMS11:B1"),
-        UR("UR3A", "IMS15B:B2", "IMS16:B1"),
-        IMS("IMS16"),
-
-        IMS("IMS23A", b2="IMS23B:B1"),
-        IMS("IMS23B", b1="IMS23A:B2"),
-        IMS("IMS24A", b2="IMS24B:B1"),
-        IMS("IMS24B", b1="IMS24A:B2"),
-        IMS("IMS25A", b2="IMS25B:B1"),
-        IMS("IMS25B", b1="IMS25A:B2"),
-        UR("UR3B", "IMS23B:B2", "IMS24B:B2", "IMS25A:B1", "IMS21:B1"),
-        IMS("IMS21", b2="IMS26:B1"),
-        IMS("IMS26", b2="IMS27A:B1"),
-        IMS("IMS27A", b2="IMS27B:B1"),
-        IMS("IMS27B", b2="IMS21:B1"),
-    ]
-    shuffle(AGENTS)
-
-    client = ArangoClient(hosts='http://localhost:8529')
-    db = client.db("_system", username="root", password="root", verify=True)
-    if db.has_database("iams_test"):
-        db.delete_database("iams_test")
-    instance = Arango("test", hosts="http://localhost:8529", password="root")
-
-    for agent in AGENTS:
-        instance.create_agent(agent.name, agent.node)
-    # instance.update_agent(agent.name, agent.node)

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+unittests for iams.simulation
+"""
+# pylint: disable=missing-function-docstring,missing-class-docstring,protected-access
 
 import unittest
 
@@ -44,7 +48,7 @@ class SimulationTests(unittest.TestCase):  # pragma: no cover
             agents=[{
                 'class': 'iams.tests.tests_simulation.Agent',
                 'use_global': ['g'],
-                'permutations': {
+                'products': {
                     'h': [2, 1],
                 },
             }],
@@ -63,40 +67,39 @@ class SimulationTests(unittest.TestCase):  # pragma: no cover
 
     def test_config_no_simulation_class(self):
         with self.assertRaises(ValueError):
-            list(process_config("/does/not/exist.yaml", {
-            }))
+            list(process_config("/does/not/exist.yaml", {}, dryrun=True))
 
     def test_config_invalid_simulation_class1(self):
         with self.assertRaises(ModuleNotFoundError):
             list(process_config("/does/not/exist.yaml", {
                 'simulation-class': 'iams.does_not_exist.Simulation',
-            }))
+            }, dryrun=True))
 
     def test_config_invalid_simulation_class2(self):
         with self.assertRaises(AssertionError):
             list(process_config("/does/not/exist.yaml", {
                 'simulation-class': 'iams.interfaces.simulation.Queue',
-            }))
+            }, dryrun=True))
 
     def test_config_invalid_df_class1(self):
         with self.assertRaises(NotImplementedError):
             list(process_config("/does/not/exist.yaml", {
                 'simulation-class': 'iams.tests.tests_interfaces_simulation.Simulation',
                 'directory-facilitator': 'iams.interfaces.simulation.Queue',
-            }))
+            }, dryrun=True))
 
     def test_config_single(self):
         result = list(process_config("/does/not/exist.yaml", {
             'simulation-class': 'iams.tests.tests_interfaces_simulation.Simulation',
-        }))
+        }, dryrun=True))
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["name"], "exist")
 
     def test_config_mulit1(self):
         result = list(process_config("/does/not/exist.yaml", {
             'simulation-class': 'iams.tests.tests_interfaces_simulation.Simulation',
-            'permutations': {'a': [1, 2]},
-        }))
+            'products': {'a': [1, 2]},
+        }, dryrun=True))
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["name"], "exist-1")
         self.assertEqual(result[1]["name"], "exist-2")
@@ -104,9 +107,9 @@ class SimulationTests(unittest.TestCase):  # pragma: no cover
     def test_config_mulit2(self):
         result = list(process_config("/does/not/exist.yaml", {
             'simulation-class': 'iams.tests.tests_interfaces_simulation.Simulation',
-            'permutations': {'a': [2, 1]},
+            'products': {'a': [2, 1]},
             'formatter': 'a-{a:d}',
-        }))
+        }, dryrun=True))
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["name"], "exist-a-2")
         self.assertEqual(result[1]["name"], "exist-a-1")

@@ -14,8 +14,7 @@
 /\.idea
 /\.venv
 
-/examples/*/*_pb2\.py
-/examples/*/*_pb2_grpc\.py
-/examples/*/iams
+/benchmark/*/results
+/publication/*/results
 
 /iams/proto

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Sentry
+"""
 
 import logging
 import os
@@ -12,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class Sentry(Plugin):
+    """
+    Sentry
+    """
 
     @classmethod
     def label(cls):

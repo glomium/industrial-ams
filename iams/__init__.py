@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Industrial agent management system
+"""
+
 from functools import lru_cache
 
-VERSION = ((0, 6, 0), ('final', 0))
+VERSION = ((0, 6, 1), ('final', 0))
 
 
 @lru_cache(maxsize=8)
@@ -23,33 +27,33 @@ def get_version(dev=True, short=False):
     version += VERSION[1][0] + str(VERSION[1][1])
 
     if VERSION[1][1] == 0 and (dev or short):  # pragma: no cover
-        import os
-        import subprocess
-        import datetime
+        import os  # pylint: disable=import-outside-toplevel
+        import subprocess  # pylint: disable=import-outside-toplevel
+        import datetime  # pylint: disable=import-outside-toplevel
 
         # get version information from git
         repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-        get_branch = subprocess.Popen(
+        with subprocess.Popen(
             'git rev-parse --abbrev-ref HEAD',
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             shell=True,
             cwd=repo_dir,
             universal_newlines=True,
-        )
-        branch = get_branch.communicate()[0].strip()
+        ) as proc:
+            branch = proc.communicate()[0].strip()
 
         if dev:
-            get_time = subprocess.Popen(
+            with subprocess.Popen(
                 'git log --pretty=format:%ct --quiet -1 HEAD',
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 shell=True,
                 cwd=repo_dir,
                 universal_newlines=True,
-            )
-            timestamp = get_time.communicate()[0]
+            ) as proc:
+                timestamp = proc.communicate()[0]
 
             try:
                 timestamp = datetime.datetime.utcfromtimestamp(int(timestamp))

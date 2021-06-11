@@ -1,31 +1,25 @@
-ARG UBUNTU=rolling
-FROM ubuntu:$UBUNTU as basestage
+# vim:set ft=dockerfile:
+ARG BASEIMAGE=ubuntu:rolling
+FROM $BASEIMAGE as basestage
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV LANG en_US.utf8
 
+COPY requirements.txt /requirements.txt
 RUN apt-get update && apt-get install --no-install-recommends -y -q \
     build-essential \
     curl \
     python3 \
-    python3-cryptography \
     python3-dev \
-    python3-docker \
-    python3-grpc-tools \
-    python3-grpcio \
     python3-pip \
-    python3-protobuf \
-    python3-requests \
     python3-setuptools \
-    python3-yaml \
-&& pip3 install -U --no-cache-dir python-arango sentry-sdk \
+&& pip3 install -U --no-cache-dir -r /requirements.txt  \
 && apt-get remove --purge --autoremove -y -q \
     build-essential \
     python3-dev \
 && apt-get clean \
-&& rm -rf /var/lib/apt/lists/*
+&& rm -rf /requirements.txt /var/lib/apt/lists/*
 # curl is needed to upload coverage reports via ftp
-# grpc-tools are added to compile protofiles to python
 
 # === test stage ==============================================================
 FROM basestage as test
@@ -46,19 +40,22 @@ RUN apt-get update && apt-get install --no-install-recommends -y -q \
 COPY requirements/dev.txt requirements/test.txt ./
 RUN pip3 install --no-cache-dir -r dev.txt -r test.txt
 
-COPY LICENSE setup.py setup.cfg .coveragerc run_tests.sh ./
-COPY iams ./iams
+COPY LICENSE setup.py setup.cfg .coveragerc .pylintrc ./
 COPY proto ./proto
+COPY iams ./iams
 
 RUN mkdir -p iams/proto \
- && python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto proto/agent.proto proto/framework.proto proto/market.proto \
- && sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
-
-COPY examples ./examples
-
-RUN doc8 iams examples
-RUN flake8 iams examples
-RUN python3 setup.py test
+ && python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto \
+    proto/agent.proto \
+    proto/ca.proto \
+    proto/df.proto \
+    proto/framework.proto \
+    proto/market.proto \
+ && sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py \
+ && doc8 iams \
+ && flake8 iams \
+ && pylint iams \
+ && python3 -m unittest
 
 # build wheel package
 RUN python3 setup.py bdist_wheel

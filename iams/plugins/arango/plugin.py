@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Arangodb
+"""
 
 import logging
 import os
@@ -12,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class Arango(Plugin):
+    """
+    Arangodb
+    """
 
     @classmethod
     def label(cls):

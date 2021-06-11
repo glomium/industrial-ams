@@ -1,82 +1,159 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+grpc helper
+"""
 
+from contextlib import ContextDecorator
+from contextlib import contextmanager
+from datetime import datetime
+from datetime import timedelta
+from functools import wraps
+from pathlib import Path
 import logging
 import os
-import time
 
-from contextlib import contextmanager
-from functools import wraps
-
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 import grpc
 
-from ..constants import AGENT_CLOUDLESS
-from ..constants import AGENT_PORT
-from ..proto.agent_pb2_grpc import add_AgentServicer_to_server
+from iams.constants import AGENT_PORT
 
 
 logger = logging.getLogger(__name__)
 
 
-def get_credentials():
+class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
+    """
+    grpc container class
+    """
 
-    with open('/run/secrets/ca.crt', 'rb') as f:
-        ca_public = f.read()
-    with open('/run/secrets/peer.key', 'rb') as f:
-        private_key = f.read()
-    with open('/run/secrets/peer.crt', 'rb') as f:
-        certificate = f.read()
+    __hash__ = None
 
-    return ca_public, private_key, certificate
+    def __init__(self, name, ca=None, secure=True, secret_folder=Path("/run/secrets/")):
 
+        self._certificate = None
+        self._credentials = None
+        self._secret_folder = secret_folder
+        self.certificate = None
+        self.insecure_port = None
+        self.port = None
+        self.secure = (secure is True)
+        self.server = None
 
-def get_channel_credentials():
-    ca_public, private_key, certificate = get_credentials()
+        if ca is None:
+            if secure:
+                self._credentials = self.credentials_from_secrets()
+        elif secure:  # pragma: no branch
+            ca_public = ca.get_root_cert()
+            self.certificate, private_key = ca.get_agent_certificate(name)
+            self._credentials = ca_public, private_key
+            self._certificate = x509.load_pem_x509_certificate(self.certificate, default_backend())
 
-    return grpc.ssl_channel_credentials(
-        root_certificates=ca_public,
-        private_key=private_key,
-        certificate_chain=certificate,
-    )
-
-
-def get_server_credentials():
-    ca_public, private_key, certificate = get_credentials()
-
-    return grpc.ssl_server_credentials(
-        ((private_key, certificate),),
-        root_certificates=ca_public,
-        require_client_auth=True,
-    )
-
-
-class Grpc(object):
-    def __init__(self, agent, threadpool, credentials):
+    def __call__(self, threadpool, port=None, insecure_port=None):
         self.server = grpc.server(threadpool)
-        if agent.cloud:
-            self.server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
-        else:
-            self.server.add_insecure_port(f'[::]:{AGENT_CLOUDLESS}')
+        if self.secure:
+            port = AGENT_PORT if port is None else port
+            self.port = self.server.add_secure_port(f'[::]:{port}', self.get_server_credentials())
+            logger.debug("Open secure server on port %s", port)
+        if insecure_port is not None:
+            self.insecure_port = self.server.add_insecure_port(f'[::]:{insecure_port}')
+            logger.debug("Open insecure server on port %s", insecure_port)
 
-        # directly add agent functionality to grpc interface
-        add_AgentServicer_to_server(agent, self.server)
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        self.stop()
+
+    def certificate_expire(self):
+        """
+        returns the time (in seconds) when the certificate expires
+        """
+        if self.secure:
+            return self._certificate.not_valid_after - datetime.utcnow()
+        return timedelta(7)
+
+    def credentials_from_secrets(self):
+        """
+        read credentials from secrets
+        """
+        with open(self._secret_folder / 'ca.crt', 'rb') as fobj:
+            ca_public = fobj.read()
+        with open(self._secret_folder / 'peer.key', 'rb') as fobj:
+            private_key = fobj.read()
+        with open(self._secret_folder / 'peer.crt', 'rb') as fobj:
+            self.certificate = fobj.read()
+        return ca_public, private_key
+
+    def get_channel_credentials(self):
+        """
+        get channel certificate
+        """
+        ca_public, private_key = self._credentials
+
+        return grpc.ssl_channel_credentials(
+            root_certificates=ca_public,
+            private_key=private_key,
+            certificate_chain=self.certificate,
+        )
+
+    def get_server_credentials(self):
+        """
+        get server certificate
+        """
+        ca_public, private_key = self._credentials
+
+        return grpc.ssl_server_credentials(
+            ((private_key, self.certificate),),
+            root_certificates=ca_public,
+            require_client_auth=True,
+        )
 
     def add(self, function, servicer):
+        """
+        add servicer
+        """
         function(servicer, self.server)
 
     def start(self):
+        """
+        start server
+        """
         logger.debug("Starting grpc-server")
         self.server.start()
 
     def stop(self):
-        self.server.stop(0)
+        """
+        stop server
+        """
+        self.server.stop(None)
         logger.debug("Stopped grpc-server")
+
+    @contextmanager
+    def channel(self, hostname=None, proxy=None, port=None, secure=True):
+        """
+        channel context manager
+        """
+        if secure:
+            channel_credentials = self.get_channel_credentials()
+        else:
+            channel_credentials = None
+        with framework_channel(hostname, channel_credentials, proxy, port, secure) as channel:
+            yield channel
 
 
 @contextmanager
-def framework_channel(hostname=None, credentials=None, proxy=None, port=None, secure=True):
+def framework_channel(hostname=None, channel_credentials=None, proxy=None, port=None, secure=True):
+    """
+    framework channel context manager
+    """
     server = proxy or hostname or os.environ.get("IAMS_SERVICE", None)
     port = port or AGENT_PORT
+
+    if server is None:
+        raise ValueError("No Endpoint specified")
 
     if proxy is None:
         options = []
@@ -87,65 +164,55 @@ def framework_channel(hostname=None, credentials=None, proxy=None, port=None, se
         ]
 
     logger.debug("connecting to %s:%s with options %s", server, port, options)
-
     if secure:
-        with grpc.secure_channel(f'{server!s}:{port!s}', credentials, options=options) as channel:
+        with grpc.secure_channel(
+            f'{server!s}:{port!s}',
+            channel_credentials,
+            options=options,
+        ) as channel:
             yield channel
     else:
-        with grpc.insecure_channel(f'{server!s}:{port!s}', options=options) as channel:
+        with grpc.insecure_channel(
+            f'{server!s}:{port!s}',
+            options=options,
+        ) as channel:
             yield channel
 
 
-def grpc_retry(f, transactional=False, internal=1, aborted=3, unavailable=10, deadline_exceeded=3, *args, **kwargs):
-    retry_codes = {
-        grpc.StatusCode.INTERNAL: os.environ.get("GRPC_RETRY_INTERNAL", internal),
-        grpc.StatusCode.ABORTED: os.environ.get("GRPC_RETRY_ABORTED", aborted),
-        grpc.StatusCode.UNAVAILABLE: os.environ.get("GRPC_RETRY_UNAVAILABLE", unavailable),
-        grpc.StatusCode.DEADLINE_EXCEEDED: os.environ.get("GRPC_RETRY_DEADLINE_EXCEEDED", deadline_exceeded),
-    }
+def credentials(function=None, optional=False):
+    """
+    credentials decorator (adds a "credentials" attribute to the grpc-context)
+    """
 
-    if isinstance(f, grpc.UnaryStreamMultiCallable):
+    def decorator(func):
+        @wraps(func)
+        def wrapped(self, request, context=None):
 
-        @wraps(f)
-        def wrapper_stream(*args, **kwargs):
-            retries = 0
+            # internal request - can be used in unittests
+            if hasattr(context, "credentials") and isinstance(context.credentials, set):
+                logger.debug("Process request as it already as a credentials attribute (internal request)")
+                return func(self, request, context)
 
-            while True:
-                try:
-                    for x in f(*args, **kwargs):
-                        yield x
-                    break
-                except grpc.RpcError as e:
-                    code = e.code()
-                    max_retries = retry_codes.get(code, 0)
+            # assign peer identities
+            try:
+                context.credentials = set(
+                    x.decode('utf-8') for x in context.peer_identities() if x not in [b'127.0.0.1', b'localhost']
+                )
+            except TypeError:
+                logger.debug("Could not assign the 'credentials' attribute")
+                if optional:
+                    context.credentials = set()
+                    return func(self, request, context)
+            else:
+                return func(self, request, context)
 
-                    retries += 1
-                    if retries > max_retries or transactional and code == grpc.StatusCode.ABORTED:
-                        raise
+            # abort unauthentifcated call
+            message = "Client needs to be authentifacted"
+            logger.debug(message)
+            return context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
 
-                    sleep = min(0.01 * retries ** 3, 1.0)
-                    logger.debug("retrying failed request (%s) in %s seconds", code, sleep)
-                    time.sleep(sleep)
-        return wrapper_stream
+        return wrapped
 
-    if isinstance(f, grpc.UnaryUnaryMultiCallable):
-        @wraps(f)
-        def wrapper_unary(*args, **kwargs):
-            retries = 0
-
-            while True:
-                try:
-                    return f(*args, **kwargs)
-                except grpc.RpcError as e:
-                    code = e.code()
-                    max_retries = retry_codes.get(code, 0)
-
-                    retries += 1
-                    if retries > max_retries or transactional and code == grpc.StatusCode.ABORTED:
-                        raise
-
-                    sleep = min(0.01 * retries ** 3, 1.0)
-                    logger.debug("retrying failed request (%s) in %s seconds", code, sleep)
-                    time.sleep(sleep)
-        return wrapper_unary
-    return f
+    if function:
+        return decorator(function)
+    return decorator

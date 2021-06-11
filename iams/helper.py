@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+helper functions
+"""
+
 import logging
 import os
 
 try:
-    import fluent  # noqa
+    import fluent  # noqa  # pylint: disable=unused-import
     FLUENTD = True
 except ImportError:
     FLUENTD = False
@@ -17,12 +21,15 @@ except ImportError:
     SENTRY = False
 
 
-def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no cover
+def get_logging_config(config=None, level=logging.INFO, main=True):  # pragma: no cover
+    """
+    generate a loggin config
+    """
 
     if isinstance(config, (list, tuple)):
         loggers = {}
-        for ln in config:
-            loggers[ln] = {}
+        for key in config:
+            loggers[key] = {}
     elif isinstance(config, dict):
         loggers = config
 
@@ -60,7 +67,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
     }
 
     # FLUENTD plugin
-    if FLUENTD and os.environ.get('FLUENTD_HOST') and os.environ.get('FLUENTD_TAG'):
+    if FLUENTD and os.environ.get('FLUENTD_HOST') and os.environ.get('FLUENTD_TAG'):  # pragma: no branch
         conf["formatters"]["fluentd"] = {
             '()': 'fluent.handler.FluentRecordFormatter',
             'format': {
@@ -71,7 +78,7 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
             },
         }
         conf["handlers"]["fluentd"] = {
-            'class': 'fluent.handler.FluentHandler',
+            'class': "fluent.handler.FluentHandler",
             'host': os.environ.get('FLUENTD_HOST'),
             'port': int(os.environ.get('FLUENTD_PORT', 24224)),
             'tag': os.environ.get('FLUENTD_TAG'),
@@ -82,7 +89,8 @@ def get_logging_config(config=[], level=logging.INFO, main=True):  # pragma: no 
         conf["root"]["handlers"].append("fluentd")
 
     # SENTRY plugin
-    if SENTRY and os.environ.get('SENTRY_DSN'):
+    if SENTRY and os.environ.get('SENTRY_DSN'):  # pragma: no branch
+        # pylint: disable=abstract-class-instantiated
         sentry_sdk.init(
             os.environ.get('SENTRY_DSN'),
             server_name=os.environ.get('IAMS_AGENT', None),

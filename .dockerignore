@@ -5,8 +5,8 @@
 .git
 .venv
 
-build
-dist
+benchmark
+publication
 
 *\.egg-info
 *\.whl

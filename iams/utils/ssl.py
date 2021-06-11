@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+ssl
+"""
 
 import logging
 import os
@@ -13,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 def validate_certificate(hostname=None, port=None):
+    """
+    validate certificate
+    """
     if hostname is None:
         hostname = os.environ.get('IAMS_SERVICE', None)
         if not hostname:

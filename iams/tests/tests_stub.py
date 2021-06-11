@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+unittests for iams.stub
+"""
+# pylint: disable=missing-function-docstring,missing-class-docstring,protected-access
 
 import unittest
 

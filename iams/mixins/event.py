@@ -1,19 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+Event mixin - usefull for gRPC-only agents
+"""
+
 import logging
+
+from abc import ABC
+from abc import abstractmethod
 
 
 logger = logging.getLogger(__name__)
 
 
-class EventMixin(object):
+class EventMixin(ABC):
     """
     Usefull for gRPC-only agents
     """
 
+    @abstractmethod
     def loop(self):
-        raise NotImplementedError("%s.loop is not implemented", self.__class__.__qualname__)
+        """
+        overwrite loop
+        """
 
     def _loop(self):
         logger.debug("Starting control loop")

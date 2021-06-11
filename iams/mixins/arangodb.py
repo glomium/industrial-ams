@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+mixin to add argangodb client to agent
+"""
 
 import logging
 import os
@@ -22,6 +25,7 @@ except ImportError:
 
 class ArangoDBMixin(ABC):
     """
+    ArangoDB mixin
     """
 
     def __init__(self, *args, **kwargs):
@@ -37,40 +41,43 @@ class ArangoDBMixin(ABC):
 
 
 class TopologyMixin(ArangoDBMixin, ABC):
+    """
+    Callbacks to manipulate toplogy (replaced by DF)
+    """
 
     def _configure(self):
         super()._configure()
         self.topology_update()
 
-    def topology_get_abilities(self):
+    def topology_get_abilities(self):  # pylint: disable=no-self-use
         """
+        get abilities
         """
         return {}
 
-    def topology_get_edges(self):
+    def topology_get_edges(self):  # pylint: disable=no-self-use
         """
         returns a list of all edges
         """
         return []
 
     @abstractmethod
-    def topology_default_edge(self):  # pragma: no cover
+    def topology_default_edge(self):
         """
+        get default edge
         """
-        pass
 
-    def topology_get_pools(self):
+    def topology_get_pools(self):  # pylint: disable=no-self-use
         """
+        get pools
         """
-        # TODO write docstring
         return []
 
-    # TODO
     def topology_update(self):
         """
         returns a list of all edges
         """
-        self._iams.update_topology(Node(
+        self.iams.update_topology(Node(
             default=self.topology_default_edge(),
             edges=self.topology_get_edges(),
             abilities=self.topology_get_abilities(),

@@ -1,37 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
-import argparse
-import datetime
-import logging
-import os
+"""
+iams server
+"""
 
 from concurrent.futures import ThreadPoolExecutor
 from logging.config import dictConfig
-from socket import gethostname
 from time import sleep
+import argparse
+import logging
+import os
 
-import docker
-import grpc
-
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-
-from .constants import AGENT_PORT
-# from .cloud.compose import Compose
-from .cloud.swarm import Swarm
-from .exceptions import SkipPlugin
-from .helper import get_logging_config
-from .proto.framework_pb2_grpc import add_FrameworkServicer_to_server
-from .servicer import FrameworkServicer
-from .utils.cfssl import CFSSL
-from .utils.plugins import get_plugins
+from iams.ca import CFSSL
+from iams.df import ArangoDF
+from iams.exceptions import SkipPlugin
+from iams.helper import get_logging_config
+from iams.proto.ca_pb2_grpc import add_CertificateAuthorityServicer_to_server
+from iams.proto.df_pb2_grpc import add_DirectoryFacilitatorServicer_to_server
+from iams.proto.framework_pb2_grpc import add_FrameworkServicer_to_server
+from iams.runtime import DockerSwarmRuntime
+from iams.servicer import CertificateAuthorityServicer
+from iams.servicer import DirectoryFacilitatorServicer
+from iams.servicer import FrameworkServicer
+from iams.utils.grpc import Grpc
+from iams.utils.plugins import get_plugins
 
 
 logger = logging.getLogger(__name__)
 
 
 def parse_command_line(argv=None):
+    """
+    Command line parser
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-q', '--quiet',
@@ -61,174 +62,103 @@ def parse_command_line(argv=None):
         default=80,
     )
     parser.add_argument(
-        '--rsa',
-        help="RSA key length",
-        dest="rsa",
-        type=int,
-    )
-    parser.add_argument(
         '--hosts',
         help="Comma seperated list of hostnames, which are used Hosts used in certificate creation",
         dest="hosts",
-    )
-    parser.add_argument(
-        '--simulation',
-        help="Run ams in simulation mode",
-        dest='simulation',
-        action='store_true',
-        default=False,
+        default=os.environ.get('IAMS_HOSTS', None),
     )
     parser.add_argument(
         '--namespace',
         help="stack namespace (default: simulation or production)",
         dest='namespace',
+        default=os.environ.get('IAMS_NAMESPACE', "prod"),
     )
 
-    return parser.parse_args()
+    args = parser.parse_args(argv)
+    args.hosts = args.hosts.split(',') if args.hosts else []
+
+    return args
 
 
-def main(args):
-    dictConfig(get_logging_config(["iams"], args.loglevel))
+class Server:
+    """
+    Iams Server
+    """
 
-    client = docker.DockerClient()
-    try:
-        container = client.containers.get(gethostname())
-        if "com.docker.stack.namespace" in container.attrs["Config"]["Labels"]:
-            cloud = Swarm(container.attrs["Config"]["Labels"])
-            runtests = (os.environ.get('IAMS_RUNTESTS', None) is not None)
-        # elif "com.docker.compose.project" in container.attrs["Config"]["Labels"]:
-        #     cloud = Compose(container.attrs["Config"]["Labels"])
-        #     runtests = True
-        else:
-            raise RuntimeError(
-                "Could not read namespace or servername labels - start iams-server with a cloud-runtime",
-            )
-    except docker.errors.NotFound:
-        raise RuntimeError(
-            "Could not connect to docker - start iams-server with a cloud-runtime",
+    def __init__(self, args, ca=None, df=None, runtime=None):
+        self.args = args
+        self.ca = ca or CFSSL(self.args.cfssl, self.args.hosts)
+        self.df = df or ArangoDF()
+        self.runtime = runtime or DockerSwarmRuntime(self.ca)
+        self.server = None
+
+    def __call__(self, executor, secure=True):
+        self.ca()
+        self.df()
+        self.runtime()
+        self.get_plugins()
+
+        hostname, port = self.runtime.get_address()
+        self.server = Grpc(hostname, self.ca, secure=secure)
+
+        self.server(executor, port=port, insecure_port=self.args.insecure_port)
+        self.server.add(
+            add_CertificateAuthorityServicer_to_server,
+            CertificateAuthorityServicer(self.ca, self.runtime, executor),
         )
+        self.server.add(
+            add_DirectoryFacilitatorServicer_to_server,
+            DirectoryFacilitatorServicer(self.df),
+        )
+        self.server.add(
+            add_FrameworkServicer_to_server,
+            FrameworkServicer(self.runtime, self.ca, self.df, executor),
+        )
+        return self.server
 
-    # read variables from environment
-    if not args.namespace:
-        args.namespace = os.environ.get('IAMS_NAMESPACE', None)
-    if not args.hosts:
-        args.hosts = os.environ.get('IAMS_HOSTS', None)
-
-    # manipulate user inputs
-    if not args.namespace:
-        if args.simulation:
-            args.namespace = "sim"
-        else:
-            args.namespace = "prod"
-        logger.info("setting namespace to %s", args.namespace)
-    else:
-        logger.info("reading namespace - %s", args.namespace)
-
-    if not args.rsa or args.rsa < 2048:
-        if args.simulation:
-            args.rsa = 2048
-        else:
-            args.rsa = 4096
-        logger.info("setting rsa key size to %s", args.rsa)
-    else:
-        logger.info("reading rsa key size - %s", args.rsa)
-
-    if args.hosts:
-        args.hosts = ["127.0.0.1", "localhost"] + args.hosts.split(',')
-    else:
-        args.hosts = ["127.0.0.1", "localhost"]
-
-    # dynamically load services from environment
-    plugins = []
-    for cls in get_plugins():
-        try:
-            plugins.append(cls(
-                namespace=cloud.namespace,
-                simulation=args.simulation,
-            ))
-            logger.info("Loaded plugin %s (usage label: %s)", cls.__qualname__, cls.label())
-        except SkipPlugin:
-            logger.info("Skipped plugin %s", cls.__qualname__)
-        except Exception:
-            logger.exception("Error loading plugin %s", cls.__qualname__)
-            continue
-
-    threadpool = ThreadPoolExecutor()
-    server = grpc.server(threadpool)
-
-    logger.info("Generating certificates")
-    cfssl = CFSSL(args.cfssl, args.rsa, args.hosts)
-    if cloud:
-        response = cfssl.get_certificate(cloud.servername, hosts=[cloud.servername], groups=["root"])
-    else:
-        # TODO: remove if running in cloud is required
-        response = cfssl.get_certificate("localhost", hosts=["localhost"], groups=["root"])
-
-    certificate = response["result"]["certificate"].encode()
-    private_key = response["result"]["private_key"].encode()
-
-    # load certificate data (used to shutdown service after certificate became invalid)
-    cert = x509.load_pem_x509_certificate(certificate, default_backend())
-
-    credentials = grpc.ssl_server_credentials(
-        ((private_key, certificate),),
-        root_certificates=cfssl.ca,
-        require_client_auth=True,
-    )
-    channel_credentials = grpc.ssl_channel_credentials(
-        root_certificates=cfssl.ca,
-        private_key=private_key,
-        certificate_chain=certificate,
-    )
-
-    server.add_insecure_port('[::]:%s' % args.insecure_port)
-    if cloud is None:
-        logger.debug("Open server on port %s", args.insecure_port)
-    else:
-        logger.debug("Open server on ports %s and %s", AGENT_PORT, args.insecure_port)
-        server.add_secure_port(f'[::]:{AGENT_PORT}', credentials)
-
-    servicer = FrameworkServicer(
-        client,
-        cfssl,
-        cloud,
-        args,
-        channel_credentials,
-        threadpool,
-        plugins,
-        runtests,
-    )
-    add_FrameworkServicer_to_server(servicer, server)
-
-    server.start()
-
-    # service running
-    logger.info("container manager running")
-    try:
-        while True:
-            eta = cert.not_valid_after - datetime.datetime.now()
-            logger.debug("certificate valid for %s days", eta.days)
-
-            if eta.days > 1:
-                # The following block can be used for maintenance tasks
-                if container is not None and not args.simulation:
-                    pass
-                sleep(86400)
-            else:
-                if container:
-                    logger.debug("restart container")
-                    container.reload()
-                    container.restart()
-                else:
-                    break
-                sleep(3600)
-    except KeyboardInterrupt:
-        pass
+    def get_plugins(self):
+        """
+        dynamically load services from environment
+        """
+        for cls in get_plugins():
+            try:
+                logger.info("Loaded plugin %s (usage label: %s)", cls.__qualname__, cls.label())
+                self.runtime.register_plugin(cls(
+                    namespace=self.runtime.get_namespace(),
+                    simulation=False,
+                ))
+            except SkipPlugin:
+                logger.info("Skipped plugin %s", cls.__qualname__)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("Error loading plugin %s", cls.__qualname__)
+                continue
 
 
 def execute_command_line():  # pragma: no cover
-    main(parse_command_line())
+    """
+    Execute command line
+    """
+    args = parse_command_line()
+    dictConfig(get_logging_config(["iams"], args.loglevel))
+    server = Server(args)
+
+    with ThreadPoolExecutor() as executor, server(executor) as grpc_server:
+        try:
+            while True:
+                expire = grpc_server.certificate_expire()
+                logger.debug("certificate valid for %s days", expire.days)
+
+                if expire.days > 1:
+                    sleep(86400)
+                    continue
+                if hasattr(server.runtime, 'container'):
+                    logger.debug("restart container")
+                    server.runtime.container.reload()
+                    server.runtime.container.restart()
+                break
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main(parse_command_line())
+    execute_command_line()

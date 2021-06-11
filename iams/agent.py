@@ -91,6 +91,7 @@ class AgentBase:
             logger.debug("Clearing threadpool")
             executor._threads.clear()
             logger.debug("Stopping execution")
+            raise SystemExit()
 
     async def setup(self):
         """

@@ -32,7 +32,7 @@ class Context:
     """
     def __init__(self, client, identities):
         self.client = client
-        self.credetials = identities
+        self.credentials = identities
 
     async def abort(self, *args, **kwargs):
         """

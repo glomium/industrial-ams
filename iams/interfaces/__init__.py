@@ -6,7 +6,6 @@ iams interfaces
 """
 
 __all__ = [
-    'Agent',
     'CertificateAuthorityInterface',
     'DirectoryFacilitatorInterface',
     'Plugin',
@@ -17,7 +16,6 @@ __all__ = [
     'SimulationInterface',
 ]
 
-from iams.interfaces.agent import Agent
 from iams.interfaces.ca import CertificateAuthorityInterface
 from iams.interfaces.df import DirectoryFacilitatorInterface
 from iams.interfaces.plugin import Plugin

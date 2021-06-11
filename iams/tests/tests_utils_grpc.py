@@ -64,6 +64,7 @@ class InternalGrpcTest(unittest.TestCase):  # pragma: no cover
 class InSecureGrpcTest(unittest.TestCase):  # pragma: no cover
 
     def setUp(self):
+        # pylint: disable=consider-using-with
         self.threadpool = futures.ThreadPoolExecutor(max_workers=1)
         self.grpc = Grpc("testname", None, secure=False)
 
@@ -108,6 +109,7 @@ class InSecureGrpcTest(unittest.TestCase):  # pragma: no cover
 class SecureGrpcTest(unittest.TestCase):  # pragma: no cover
 
     def setUp(self):
+        # pylint: disable=consider-using-with
         self.threadpool = futures.ThreadPoolExecutor(max_workers=1)
         self.grpc = Grpc("testname", cfssl)
 

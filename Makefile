@@ -1,6 +1,5 @@
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 HASH := $(shell git rev-parse HEAD)
-UBUNTU = rolling
 VENV_NAME? = .venv
 
 ifeq ($(BRANCH), master)
@@ -15,13 +14,13 @@ endif
 
 
 build:
-	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --pull --target basestage -t iams-base:local .
-	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
-	docker build --build-arg UBUNTU=$(UBUNTU) --cache-from iams-base:local --cache-from iams-test:local --cache-from iams-build:local --cache-from iams:local -t iams:local .
+	docker build --cache-from iams-base:local --pull --target basestage -t iams-base:local .
+	docker build --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
+	docker build --cache-from iams-base:local --cache-from iams-test:local --cache-from iams-build:local --cache-from iams:local -t iams:local .
 
 
 buildx:
-	docker buildx build --pull --platform linux/amd64,linux/arm64 --build-arg UBUNTU=$(UBUNTU) -t glomium/industrial-ams:$(TARGET) --push .
+	docker buildx build --pull --platform linux/amd64,linux/arm64 -t glomium/industrial-ams:$(TARGET) --push .
 
 
 test:
@@ -71,5 +70,5 @@ grpc:
 
 
 pip:
-	.venv/bin/pip-upgrade requirements/dev.txt requirements/docs.txt requirements/test.txt --skip-package-installation
+	.venv/bin/pip-upgrade requirements.txt requirements/dev.txt requirements/docs.txt requirements/test.txt --skip-package-installation
 	.venv/bin/pip-upgrade publication/*/requirements.txt benchmark/*/requirements.txt --skip-package-installation

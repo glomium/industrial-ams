@@ -17,8 +17,9 @@ logger = logging.getLogger(__name__)
 
 class InfluxDB(Plugin):
     """
-    INFLUXDB_HOST and INFLUXDB_DATABASE needs to be set as environment variables or the plugin wont load
-    Adds INFLUXDB_HOST and INFLUXDB_DATABASE to the agents environment variabled
+    INFLUX_BUCKET, INFLUX_HOST, INFLUX_ORG and INFLUX_TOKEN need to be set as environment variables
+    otherwise the plugin will not load
+    Adds these environmental variables to the agents environment variables
     Adds the agent to the network {stack-namespace}_influxdb
     """
     # pylint: disable=arguments-differ
@@ -28,14 +29,27 @@ class InfluxDB(Plugin):
         return "iams.plugins.influxdb"
 
     def __init__(self, **kwargs):
-        self.host = os.environ.get('INFLUXDB_HOST', None)
+        self.bucket = os.environ.get('INFLUX_BUCKET', None)
+        self.host = os.environ.get('INFLUX_HOST', None)
+        self.org = os.environ.get('INFLUX_ORG', None)
+        self.token = os.environ.get('INFLUX_TOKEN', None)
+
+        if self.bucket is None:
+            logger.debug("INFLUX_BUCKET is not defined - skip plugin")
+            raise SkipPlugin
+
         if self.host is None:
-            logger.debug("INFLUXDB_HOST is not defined - skip plugin")
+            logger.info("INFLUX_HOST is not defined - skip plugin")
             raise SkipPlugin
-        self.database = os.environ.get('INFLUXDB_DATABASE', None)
-        if self.database is None:
-            logger.info("INFLUXDB_DATABASE is not defined - skip plugin")
+
+        if self.org is None:
+            logger.info("INFLUX_ORG is not defined - skip plugin")
             raise SkipPlugin
+
+        if self.token is None:
+            logger.info("INFLUX_TOKEN is not defined - skip plugin")
+            raise SkipPlugin
+
         super().__init__(**kwargs)
 
     def get_networks(self, **kwargs):
@@ -43,6 +57,8 @@ class InfluxDB(Plugin):
 
     def get_env(self, **kwargs):
         return {
-            'INFLUXDB_HOST': self.host,
-            'INFLUXDB_DATABASE': self.database,
+            'INFLUX_HOST': self.host,
+            'INFLUX_BUCKET': self.bucket,
+            'INFLUX_ORG': self.org,
+            'INFLUX_TOKEN': self.token,
         }

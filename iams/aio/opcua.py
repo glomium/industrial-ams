@@ -109,7 +109,8 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
                 try:
                     await asyncio.wait_for(self._stop, timeout=self._heartbeat)
                 except asyncio.TimeoutError:
-                    pass
+                    # refresh self._stop as it got canceled by wait_for
+                    self._stop = self._loop.create_future()
                 else:
                     break
                 result = await self._parent.opcua_heartbeat()

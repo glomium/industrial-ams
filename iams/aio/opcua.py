@@ -105,7 +105,12 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         if self._heartbeat:
             # pylint: disable=protected-access
             while not self._stop.done() and self._client.uaclient._uasocket._thread.is_alive():
-                await asyncio.sleep(self._heartbeat)
+                try:
+                    await asyncio.wait_for(self._stop, timeout=self._heartbeat)
+                except asyncio.TimeoutError:
+                    pass
+                else:
+                    break
                 logger.debug("OPCUA heartbeat")
                 result = await self._parent.opcua_heartbeat()
                 if result in [None, False]:

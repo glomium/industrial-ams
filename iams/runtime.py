@@ -351,7 +351,7 @@ class DockerSwarmRuntime(RuntimeInterface):
                 name=request.name,
                 labels=labels,
                 mode=docker.types.ServiceMode("replicated", scale),
-                networks=networks,
+                # networks=networks,
             )
             return True
 
@@ -364,7 +364,7 @@ class DockerSwarmRuntime(RuntimeInterface):
                 name=request.name,
                 labels=labels,
                 mode=docker.types.ServiceMode("replicated", scale),
-                networks=networks,
+                # networks=networks,
             )
 
         # delete old screts

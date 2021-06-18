@@ -100,7 +100,10 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
         with mock.patch.dict(os.environ, {"IAMS_AGENT": "unittest", "IAMS_SERVICE": "localhost"}):
             # pylint: disable=attribute-defined-outside-init
             self.agent = Agent(self, root_certificate, private_key, certificate_chain)
-            self.agent()
+            try:
+                self.agent()
+            except SystemExit:
+                pass
 
     async def run_ping(self):
         async with self.agent.grpc.channel(self.agent.grpc.manager, port=self.agent.grpc.port) as channel:

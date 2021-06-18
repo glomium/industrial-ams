@@ -136,8 +136,9 @@ class DockerSwarmRuntimeTests(unittest.TestCase):
             autostart=False,
         )
         with mock.patch.dict(os.environ, {"IAMS_NETWORK": network1}):
-            self.instance.update_agent(request, create=True, skip_label_test=True)
+            created = self.instance.update_agent(request, create=True, skip_label_test=True)
 
+        self.assertEqual(created, True)
         sleep(0.1)
         service = client.services.get(service_name)
         self.assertEqual(service.name, service_name)
@@ -150,8 +151,9 @@ class DockerSwarmRuntimeTests(unittest.TestCase):
             autostart=False,
         )
         with mock.patch.dict(os.environ, {"IAMS_NETWORK": network2}):
-            self.instance.update_agent(request, skip_label_test=True)
+            created = self.instance.update_agent(request, skip_label_test=True)
 
+        self.assertEqual(created, False)
         sleep(0.1)
         service = client.services.get(service_name)
         self.assertEqual(service.name, service_name)
@@ -165,8 +167,9 @@ class DockerSwarmRuntimeTests(unittest.TestCase):
             port=5555,
             autostart=False,
         )
-        self.instance.update_agent(request, skip_label_test=True)
+        created = self.instance.update_agent(request, skip_label_test=True)
 
+        self.assertEqual(created, False)
         sleep(0.1)
         service = client.services.get(service_name)
         self.assertEqual(service.name, service_name)

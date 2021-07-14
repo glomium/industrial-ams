@@ -12,13 +12,13 @@ class SkipPlugin(AssertionError):
     """
 
 
-class StopExecution(Exception):
+class StopExecution(Exception):  # noqa: N818
     """
     Raised to stop the threadpool executor in agents
     """
 
 
-class StopSimulation(Exception):
+class StopSimulation(Exception):  # noqa: N818
     """
     Raised if the agent name is not compatible with the runtime
     """

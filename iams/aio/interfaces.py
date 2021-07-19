@@ -40,7 +40,7 @@ class Coroutine(ABC):
     def _loop(self):
         if hasattr(self, '__loop'):
             return getattr(self, '__loop')
-        logger.warning("%s._loop should be set", self.__class__.__qualname__)
+        logger.warning("%s._loop should be cached in start by asyncio.get_running_loop()", self.__class__.__qualname__)
         return asyncio.get_running_loop()
 
     @_loop.setter
@@ -60,7 +60,7 @@ class Coroutine(ABC):
 
     async def setup(self, executor):
         """
-        setup method is awaited one at the start of the coroutines
+        setup method is awaited once at the start of the coroutines
         """
 
     async def start(self):

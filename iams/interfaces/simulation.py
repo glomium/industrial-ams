@@ -144,6 +144,7 @@ class Queue:  # pylint: disable=too-many-instance-attributes
 
     def __post_init__(self):
         if isinstance(self.priority, str):
+            # pylint: disable=no-member
             try:
                 priority = Priority[self.priority.upper()]
             except KeyError:

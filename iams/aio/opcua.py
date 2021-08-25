@@ -5,11 +5,9 @@
 opc ua mixin for agents
 """
 
-# from functools import partial
 from types import MethodType
 import asyncio
 import logging
-# import os
 
 from iams.aio.interfaces import Coroutine
 

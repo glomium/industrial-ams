@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # ex:set fileencoding=utf-8:
+
 """
-Module description
+Helper to plot simulated data
 """
 
 from abc import ABC

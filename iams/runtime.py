@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# vim: set fileencoding=utf-8 :
+# -*- coding: utf-8 -*-
 """
 iams runtime
 """

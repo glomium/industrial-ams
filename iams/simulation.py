@@ -231,7 +231,7 @@ def run_simulation(  # pylint: disable=invalid-name,too-many-arguments
         sentry_sdk.init(dsn)  # pylint: disable=abstract-class-instantiated
     logger.warning('Start simulation "%s"', name)
 
-    with open(file_data or os.devnull, "w") as fobj:
+    with open(file_data or os.devnull, "w", encoding='utf-8') as fobj:
         # init simulation
         simulation = simcls(
             df=df,

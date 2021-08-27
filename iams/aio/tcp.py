@@ -72,9 +72,13 @@ class TCPCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
             if delay > 0:
                 await asyncio.sleep(delay)
             else:
-                response = await self._parent.tcp_heartbeat()
-                if response in {None, False}:
-                    self._last = datetime.now()
+                try:
+                    response = await self._parent.tcp_heartbeat()
+                except Exception:  # pylint: disable=broad-except
+                    logger.exception()
+                else:
+                    if response in {None, True}:
+                        self._last = datetime.now()
         self.stop()
 
     async def loop(self):
@@ -160,7 +164,7 @@ class TCPMixin:
             'port': self.iams.port or self.TCP_PORT,
         }
 
-    async def tcp_write(self, data, timeout=None, sync=True) -> bool:
+    async def tcp_write(self, data, timeout=None, sync=True) -> None:
         """
         write data over tcp
         """
@@ -177,3 +181,8 @@ class TCPMixin:
         this function needs to be implemented
         """
         raise NotImplementedError("tcp_process_data needs to be implemented on %s" % self.__class__.__qualname__)
+
+    async def tcp_heartbeat(self) -> None:
+        """
+        if a heartbeat is set this function is called regularly
+        """

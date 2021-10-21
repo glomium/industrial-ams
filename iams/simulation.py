@@ -63,7 +63,7 @@ def process_config(path, config, dryrun=False, force=False, loglevel=logging.WAR
         try:
             template = project + '-' + config['formatter']
         except KeyError:
-            template = project + '-{:0%dd}' % length
+            template = project + '-{:0%dd}' % length  # pylint: disable=consider-using-f-string
     else:
         template = project
 
@@ -214,7 +214,7 @@ def load_agent(agents, global_settings):
             try:
                 instance = cls(**settings)
             except TypeError as exception:
-                raise TypeError('%s on %r' % (exception, cls)) from exception
+                raise TypeError(f'{exception!s} on {cls!r}') from exception
             logger.info("Created agent: %s", instance)
             yield instance
 

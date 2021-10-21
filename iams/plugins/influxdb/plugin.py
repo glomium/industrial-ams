@@ -53,7 +53,7 @@ class InfluxDB(Plugin):
         super().__init__(**kwargs)
 
     def get_networks(self, **kwargs):
-        return ['%s_influxdb' % self.namespace]
+        return [f'{self.namespace}_influxdb']
 
     def get_env(self, **kwargs):
         return {

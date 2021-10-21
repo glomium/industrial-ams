@@ -42,7 +42,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         self.servername = None
 
     def __call__(self) -> None:
-        self.regex = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.iams_namespace[0:4])
+        self.regex = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.iams_namespace[0:4])  # pylint: disable=consider-using-f-string  # noqa: E501
         if self.client is None:  # pragma: no cover (during testing we've already established the client)
             self.client = docker.DockerClient()
 
@@ -65,7 +65,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         regex = self.regex.match(name)
         if regex:
             return self.iams_namespace[0:4] + '_' + regex.group(2)
-        raise InvalidAgentName("%s is not a valid agent-name" % name)
+        raise InvalidAgentName(f"{name} is not a valid agent-name")
 
     def get_service_and_name(self, name):
         """
@@ -163,7 +163,7 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         if len(services) == 1:
             return services[0]
-        raise docker.errors.NotFound('Could not find service %s' % name)
+        raise docker.errors.NotFound(f'Could not find service {name}')
 
     @staticmethod
     def get_image_version(service):

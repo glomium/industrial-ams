@@ -57,7 +57,7 @@ def get_version(dev=True, short=False):
 
             try:
                 timestamp = datetime.datetime.utcfromtimestamp(int(timestamp))
-                version += '.dev%s' % timestamp.strftime('%Y%m%d%H%M%S')
+                version += '.dev' + timestamp.strftime('%Y%m%d%H%M%S')
             except ValueError:  # pragma: no cover
                 pass
 

@@ -140,7 +140,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         try:
             return self.runtime.get_valid_agent_name(name)
         except InvalidAgentName:
-            message = 'Given an invalid agent name (%s) in request' % name
+            message = f'Given an invalid agent name ({name}) in request'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
     @credentials

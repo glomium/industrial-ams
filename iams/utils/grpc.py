@@ -132,7 +132,7 @@ class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
         logger.debug("Stopped grpc-server")
 
     @contextmanager
-    def channel(self, hostname=None, proxy=None, port=None, secure=True):
+    def channel(self, hostname=None, proxy=None, port=None, secure=True, **kwargs):
         """
         channel context manager
         """
@@ -140,12 +140,12 @@ class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
             channel_credentials = self.get_channel_credentials()
         else:
             channel_credentials = None
-        with framework_channel(hostname, channel_credentials, proxy, port, secure) as channel:
+        with framework_channel(hostname, channel_credentials, proxy, port, secure, **kwargs) as channel:
             yield channel
 
 
 @contextmanager
-def framework_channel(hostname=None, channel_credentials=None, proxy=None, port=None, secure=True):
+def framework_channel(hostname=None, channel_credentials=None, proxy=None, port=None, secure=True, **kwargs):
     """
     framework channel context manager
     """
@@ -155,13 +155,13 @@ def framework_channel(hostname=None, channel_credentials=None, proxy=None, port=
     if server is None:
         raise ValueError("No Endpoint specified")
 
-    if proxy is None:
-        options = []
-    else:
-        options = [
-            ('grpc.default_authority', hostname),
-            ('grpc.ssl_target_name_override', hostname),
-        ]
+    if proxy is not None:
+        kwargs.update({
+            'grpc.default_authority': hostname,
+            'grpc.ssl_target_name_override': hostname,
+        })
+
+    options = list(kwargs.items())
 
     logger.debug("connecting to %s:%s with options %s", server, port, options)
     if secure:

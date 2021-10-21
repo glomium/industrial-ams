@@ -25,7 +25,7 @@ class Plugin(ABC):
         self.simulation = simulation
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__qualname__, self.namespace)
+        return f"{self.__class__.__qualname__}({self.namespace})"
 
     def __call__(self, name, image, version, config):
         kwargs = self.get_kwargs(name, image, version, config)

@@ -337,7 +337,7 @@ class Arango:
                 if pool is None:
                     p = self.db.collection("agent").insert({})  # pylint: disable=invalid-name
                     pool = self.db.collection("agent").insert({
-                        "_key": "pool-%s" % p["_key"],
+                        "_key": f"pool-{p['_key']}",
                         "pool_cls": data["pool"],
                         "color": "#444444",
                     })

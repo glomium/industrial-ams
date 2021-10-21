@@ -142,7 +142,7 @@ class TCPMixin:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        assert self.TCP_PORT is not None, "TCP_PORT needs to be set on %s" % self.__class__.__qualname__
+        assert self.TCP_PORT is not None, f"TCP_PORT needs to be set on {self.__class__.__qualname__}"
         self._tcp = self.tcp_get_coroutine()
 
     def _setup(self):
@@ -180,7 +180,7 @@ class TCPMixin:
 
         this function needs to be implemented
         """
-        raise NotImplementedError("tcp_process_data needs to be implemented on %s" % self.__class__.__qualname__)
+        raise NotImplementedError(f"tcp_process_data needs to be implemented on {self.__class__.__qualname__}")
 
     async def tcp_heartbeat(self) -> None:
         """

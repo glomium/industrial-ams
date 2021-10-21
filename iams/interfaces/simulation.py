@@ -110,7 +110,7 @@ class Queue:  # pylint: disable=too-many-instance-attributes
     deleted: bool = field(compare=False, repr=False, hash=False, default=False)
 
     def __str__(self):
-        return "%.4f:%s:%s" % (self.time, self.obj, self.callback)
+        return "%.4f:%s:%s" % (self.time, self.obj, self.callback)  # pylint: disable=consider-using-f-string
 
     def __lt__(self, other):
         if isinstance(other, Queue):
@@ -244,11 +244,11 @@ class SimulationInterface(ABC):  # pylint: disable=too-many-instance-attributes
         timer = time() - timer
         eps = self._events / timer
         if timer < 90:  # pragma: no branch
-            timer = "%.3f seconds" % timer
+            timer = "%.3f seconds" % timer  # pylint: disable=consider-using-f-string
         elif timer < 7200:  # pragma: no cover
-            timer = "%.3f minutes" % (timer / 60)
+            timer = "%.3f minutes" % (timer / 60)  # pylint: disable=consider-using-f-string
         else:  # pragma: no cover
-            timer = "%.3f hours" % (timer / 3600)
+            timer = "%.3f hours" % (timer / 3600)  # pylint: disable=consider-using-f-string
         logger.info("=== End: %s", datetime.now())
         logger.info("=== Processed %s events in %s (%.2f per second)", self._events, timer, eps)
 

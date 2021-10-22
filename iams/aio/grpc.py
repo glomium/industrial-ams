@@ -205,7 +205,7 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         channel context manager
         """
-        channel = self._channel(hostname, port, persistent, **kwargs)
+        channel = await self._channel(hostname, port, persistent, **kwargs)
         channel.connections += 1
         yield channel.instance
         channel.connetions -= 1

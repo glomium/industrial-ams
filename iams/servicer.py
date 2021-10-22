@@ -23,7 +23,6 @@ from iams.proto import df_pb2_grpc
 from iams.proto import framework_pb2
 from iams.proto import framework_pb2_grpc
 from iams.utils.grpc import credentials
-# from .utils.grpc import framework_channel
 # from .utils.arangodb import Arango
 from iams.utils.ssl import validate_certificate
 

@@ -170,9 +170,9 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
 
         if channel.instance is None:
             if self.channel_credentials is None:
-                channel.instance = await grpc.aio.insecure_channel(channel.key)
+                channel.instance = grpc.aio.insecure_channel(channel.key)
             else:
-                channel.instance = await grpc.aio.secure_channel(channel.key, self.channel_credentials)
+                channel.instance = grpc.aio.secure_channel(channel.key, self.channel_credentials)
 
         return channel
 
@@ -208,7 +208,7 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         channel = await self._channel(hostname, port, persistent, **kwargs)
         channel.connections += 1
         yield channel.instance
-        channel.connetions -= 1
+        channel.connections -= 1
         if not channel.persistent and channel.connections <= 0:
             del self.channels[channel.key]
             await channel.instance.close()

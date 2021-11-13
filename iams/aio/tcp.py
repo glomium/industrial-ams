@@ -20,7 +20,7 @@ class TCPCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
     Coroutine to open a TCP writer and reader
     """
 
-    def __init__(self, parent, host, port, timeout=None, heartbeat=None, limit=None):  # pylint: disable=too-many-arguments  # noqa: E501
+    def __init__(self, parent, host, port, timeout=None, heartbeat=None, limit=8192):  # pylint: disable=too-many-arguments  # noqa: E501
         logger.debug("Initialize TCP coroutine")
 
         if isinstance(timeout, (list, tuple)) and len(timeout) == 2:
@@ -76,6 +76,7 @@ class TCPCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
                     response = await self._parent.tcp_heartbeat()
                 except Exception:  # pylint: disable=broad-except
                     logger.exception()
+                    break
                 else:
                     if response in {None, True}:
                         self._last = datetime.now()
@@ -91,9 +92,11 @@ class TCPCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
             try:
                 data = await asyncio.wait_for(self.read(), timeout=self._read_timeout)
             except asyncio.TimeoutError:
+                logger.info("TCP read timeout")
                 break
 
             if data == b'':
+                logger.info("TCP read connection broke")
                 break
 
             try:
@@ -104,11 +107,11 @@ class TCPCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
 
         logger.info("TCP reader stopped")
 
-    async def read(self):
+    async def read(self, limit=None):
         """
         read data from reader (might be overwritten by client)
         """
-        return await self._reader.read()
+        return await self._reader.read(limit or self._limit)
 
     async def write(self, data, timeout=None):
         """

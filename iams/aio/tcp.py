@@ -121,7 +121,7 @@ class TCPCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         self._writer.write(data)
         try:
-            await asyncio.wait_for(self._writer.drain, timeout=(timeout or self._write_timeout))
+            await asyncio.wait_for(self._writer.drain(), timeout=(timeout or self._write_timeout))
         except asyncio.TimeoutError:
             self.stop()
             return False

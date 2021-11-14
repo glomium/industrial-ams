@@ -58,9 +58,11 @@ class TCPCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
                 logger.info('Connection to %s:%s refused (retry in %ss)', self._host, self._port, wait)
                 await asyncio.sleep(wait)
 
+        await self._parent.tcp_connected()
+
+        self._stop = self._loop.create_future()
         if self._heartbeat:
             self._task = asyncio.create_task(self.heartbeat())
-        self._stop = self._loop.create_future()
 
     async def heartbeat(self):
         """
@@ -184,6 +186,11 @@ class TCPMixin:
         this function needs to be implemented
         """
         raise NotImplementedError(f"tcp_process_data needs to be implemented on {self.__class__.__qualname__}")
+
+    async def tcp_connected(self) -> None:
+        """
+        this is awaited once after the connection is established
+        """
 
     async def tcp_heartbeat(self) -> None:
         """

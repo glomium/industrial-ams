@@ -82,7 +82,7 @@ class TCPCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
                 else:
                     if response in {None, True}:
                         self._last = datetime.now()
-        self.stop()
+        await self.stop()
 
     async def loop(self):
         """

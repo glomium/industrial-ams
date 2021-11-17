@@ -193,7 +193,7 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         channel context manager
         """
-        async with self.channel(hostname, port, persistent, **kwargs) as channel:
+        async with self.__channel(hostname, port, persistent, **kwargs) as channel:
             try:
                 yield channel.stubs[stub.__qualname__]
             except KeyError:
@@ -201,17 +201,27 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
                 yield channel.stubs[stub.__qualname__]
 
     @asynccontextmanager
-    async def channel(self, hostname=None, port=AGENT_PORT, persistent=True, **kwargs) -> AsyncIterator:
+    async def __channel(self, hostname=None, port=AGENT_PORT, persistent=True, **kwargs) -> AsyncIterator:
         """
         channel context manager
         """
+        # TODO: rename to channel, if backwards compatability is resolved
         channel = await self._channel(hostname, port, persistent, **kwargs)
         channel.connections += 1
-        yield channel.instance
+        yield channel
         channel.connections -= 1
         if not channel.persistent and channel.connections <= 0:
             del self.channels[channel.key]
             await channel.instance.close()
+
+    @asynccontextmanager
+    async def channel(self, hostname=None, port=AGENT_PORT, persistent=True, **kwargs) -> AsyncIterator:
+        """
+        channel context manager
+        """
+        # Backwards compatability (TODO: add deprecationwarning)
+        async with self.__channel(hostname, port, persistent, **kwargs) as channel:
+            yield channel.instance
 
 
 class GRPCMixin:

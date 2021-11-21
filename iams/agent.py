@@ -115,19 +115,19 @@ class AgentBase:
         overwrite this function
         """
 
-    async def callback_agent_upgrade(self):
+    async def callback_agent_upgrade(self, context):
         """
         This function can be called from the agents and services to suggest
         hat the agent should upgrate it's software (i.e. docker image)
         """
 
-    async def callback_agent_update(self):
+    async def callback_agent_update(self, context):
         """
         This function can be called from the agents and services to suggest
         that the agent should update its configuration or state
         """
 
-    async def callback_agent_reset(self):
+    async def callback_agent_reset(self, context):
         """
         This function can be called from the agents and services to suggest
         that the agent should reset its connected device
@@ -160,21 +160,21 @@ class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instan
 
     @credentials
     async def upgrade(self, request, context):  # pylint: disable=invalid-overridden-method
-        if await self.parent.callback_agent_upgrade():
+        if await self.parent.callback_agent_upgrade(context):
             return Empty()
         message = 'Upgrade is not allowed'
         return await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
     @credentials
     async def update(self, request, context):  # pylint: disable=invalid-overridden-method
-        if await self.parent.callback_agent_update():
+        if await self.parent.callback_agent_update(context):
             return Empty()
         message = 'Update is not allowed'
         return await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
     @credentials
     async def reset(self, request, context):  # pylint: disable=invalid-overridden-method
-        if await self.parent.callback_agent_reset():
+        if await self.parent.callback_agent_reset(context):
             return Empty()
         message = 'Reset is not allowed'
         return await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)

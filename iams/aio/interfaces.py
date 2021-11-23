@@ -38,7 +38,16 @@ class Coroutine(ABC):
 
     @property
     def _loop(self):
-        return getattr(self, '__loop')
+        try:
+            return getattr(self, '__loop')
+        except AttributeError:
+            logger.warning(
+                "%s._loop should be cached in start by asyncio.get_running_loop()",
+                self.__class__.__qualname__,
+            )
+            loop = asyncio.get_running_loop()
+            setattr(self, '__loop', loop)
+            return loop
 
     @_loop.setter
     def _loop(self, loop):

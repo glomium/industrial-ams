@@ -31,8 +31,7 @@ class Manager:
         logger.debug("Adding tasks for setup methods")
         tasks = set()
         for name, coro in self.coros.items():
-            coro._loop = self.loop
-            tasks.add(self.loop.create_task(coro.setup(executor), name=f"{name}.setup"))
+            tasks.add(self.loop.create_task(coro._setup(executor), name=f"{name}.setup"))
         if hasattr(parent, "setup"):
             tasks.add(self.loop.create_task(parent.setup(executor), name="iams.agent.setup"))
 

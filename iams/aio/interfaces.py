@@ -53,17 +53,17 @@ class Coroutine(ABC):
     def _loop(self, loop):
         setattr(self, '__loop', loop)
 
-    async def _setup(self, executor):
-        """
-        _setup method is awaited once at the start of the coroutines
-        """
-        self._loop = asyncio.get_running_loop()
-        await self.setup(executor)
-
     async def setup(self, executor):
         """
         setup method is awaited once at the start of the coroutines
         """
+
+    async def _start(self):
+        """
+        start method is awaited once, after the setup were concluded
+        """
+        self._loop = asyncio.get_running_loop()
+        await self.start()
 
     async def start(self):
         """
@@ -132,11 +132,11 @@ class EventCoroutine(Coroutine, ABC):
         self._executor = None
         self._stop = None
 
-    async def _setup(self, executor):
+    async def _start(self):
         """
         setup method is awaited one at the start of the coroutines
         """
-        super()._setup(executor)
+        super()._start()
         self._event = asyncio.Event()
         self._stop = self._loop.create_future()
 

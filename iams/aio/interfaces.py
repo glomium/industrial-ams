@@ -136,7 +136,7 @@ class EventCoroutine(Coroutine, ABC):
         """
         setup method is awaited one at the start of the coroutines
         """
-        super()._start()
+        await super()._start()
         self._event = asyncio.Event()
         self._stop = self._loop.create_future()
 

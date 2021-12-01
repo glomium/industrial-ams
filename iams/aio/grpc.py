@@ -139,7 +139,7 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         await super().wait(tasks)
         await asyncio.wait(tasks.values(), timeout=None)
 
-    async def _channel(self, hostname, port, persistent, **kwargs):
+    async def _channel(self, hostname, port, persistent, options):
         """
         get channel
         """
@@ -159,20 +159,29 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
             channel.peristent = True
             recreate = True
 
-        for key, value in kwargs.items():
-            if channel.options.get(key, None) != value:
-                channel.options[key] = value
-                recreate = True
+        if isinstance(options, dict):
+            for key, value in options.items():
+                if channel.options.get(key, None) != value:
+                    channel.options[key] = value
+                    recreate = True
 
         if recreate and channel.instance:
             await channel.instance.close()
             channel.instance = None
 
         if channel.instance is None:
+            logger.debug("Create grpc-channel to %s with %s", channel.key, channel.options)
             if self.channel_credentials is None:
-                channel.instance = grpc.aio.insecure_channel(channel.key)
+                channel.instance = grpc.aio.insecure_channel(
+                    channel.key,
+                    options=tuple(channel.options.items()),
+                )
             else:
-                channel.instance = grpc.aio.secure_channel(channel.key, self.channel_credentials)
+                channel.instance = grpc.aio.secure_channel(
+                    channel.key,
+                    self.channel_credentials,
+                    options=tuple(channel.options.items()),
+                )
 
         return channel
 
@@ -189,11 +198,11 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         return channel.stubs[stub.__qualname__]
 
     @asynccontextmanager
-    async def stub(self, stub, hostname=None, port=AGENT_PORT, persistent=False, **kwargs) -> AsyncIterator:
+    async def stub(self, stub, hostname=None, port=AGENT_PORT, persistent=False, options=None) -> AsyncIterator:  # noqa: E501  # pylint: disable=too-many-arguments
         """
         channel context manager
         """
-        async with self.__channel(hostname, port, persistent, **kwargs) as channel:
+        async with self.channel(hostname=hostname, port=port, persistent=persistent, options=options) as channel:
             try:
                 yield channel.stubs[stub.__qualname__]
             except KeyError:
@@ -201,27 +210,17 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
                 yield channel.stubs[stub.__qualname__]
 
     @asynccontextmanager
-    async def __channel(self, hostname=None, port=AGENT_PORT, persistent=True, **kwargs) -> AsyncIterator:
+    async def channel(self, hostname=None, port=AGENT_PORT, persistent=True, options=None) -> AsyncIterator:
         """
         channel context manager
         """
-        # TODO: rename to channel, if backwards compatability is resolved
-        channel = await self._channel(hostname, port, persistent, **kwargs)
+        channel = await self._channel(hostname, port, persistent, options)
         channel.connections += 1
         yield channel
         channel.connections -= 1
         if not channel.persistent and channel.connections <= 0:
             del self.channels[channel.key]
             await channel.instance.close()
-
-    @asynccontextmanager
-    async def channel(self, hostname=None, port=AGENT_PORT, persistent=True, **kwargs) -> AsyncIterator:
-        """
-        channel context manager
-        """
-        # Backwards compatability (TODO: add deprecationwarning)
-        async with self.__channel(hostname, port, persistent, **kwargs) as channel:
-            yield channel.instance
 
 
 class GRPCMixin:

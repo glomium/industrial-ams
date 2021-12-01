@@ -65,6 +65,7 @@ class InfluxCoroutine(ThreadCoroutine):  # pylint: disable=too-many-instance-att
         """
         start method is awaited once, after the setup were concluded
         """
+        self._loop = asyncio.get_running_loop()
         self.client = await self._loop.run_in_executor(self._executor, partial(
             InfluxDBClient,
             org=self.org,

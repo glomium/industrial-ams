@@ -5,7 +5,6 @@ iams agent
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from functools import wraps
 import logging
 import os
 
@@ -26,50 +25,29 @@ logger = logging.getLogger(__name__)
 AgentData = framework_pb2.AgentData
 
 
-class Context:
-    """
-    wrapper for grpc context
-    """
-    def __init__(self, client, identities):
-        self.client = client
-        self.credentials = identities
-
-    async def abort(self, *args, **kwargs):
-        """
-        wrapper for grpc context abort
-        """
-        return await self.client.abort(*args, **kwargs)
-
-
-def credentials(function):
+async def credentials(context, optional=False):
     """
     credentials decorator (adds a "credentials" attribute to the grpc-context)
     """
-    def decorator(func):
-        @wraps(func)
-        async def wrapped(self, request, context=None):
+    # internal request - can be used in unittests
+    if context is None:
+        logger.debug("Process request as it already as a credentials attribute (internal request)")
+        return set()
 
-            # internal request - can be used in unittests
-            if context is None:
-                logger.debug("Process request as it already as a credentials attribute (internal request)")
-                return await func(self, request, Context(context, set()))
+    # assign peer identities
+    ignore = set([b'127.0.0.1', b'localhost'])
+    try:
+        return set(x.decode('utf-8') for x in context.peer_identities() if x not in ignore)
+    except TypeError:
+        logger.debug("Could not assign the 'credentials' attribute")
 
-            # assign peer identities
-            ignore = set([b'127.0.0.1', b'localhost'])
-            try:
-                identities = set(x.decode('utf-8') for x in context.peer_identities() if x not in ignore)
-            except TypeError:
-                logger.debug("Could not assign the 'credentials' attribute")
-            else:
-                return await func(self, request, Context(context, identities))
+    if optional:
+        return set()
 
-            # abort unauthentifcated call
-            message = "Client needs to be authentifacted"
-            logger.debug(message)
-            return await context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
-
-        return wrapped
-    return decorator(function)
+    # abort unauthentifcated call
+    message = "Client needs to be authentifacted"
+    logger.debug(message)
+    await context.abort(grpc.StatusCode.UNAUTHENTICATED, message)
 
 
 class AgentBase:
@@ -154,30 +132,31 @@ class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instan
         # caches
         self._topology = None
 
-    @credentials
     async def ping(self, request, context):  # pylint: disable=invalid-overridden-method
+        await credentials(context)
         return Empty()
 
-    @credentials
     async def upgrade(self, request, context):  # pylint: disable=invalid-overridden-method
-        if await self.parent.callback_agent_upgrade(context):
+        identities = await credentials(context)
+        if await self.parent.callback_agent_upgrade(identities, context):
             return Empty()
         message = 'Upgrade is not allowed'
-        return await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
-    @credentials
     async def update(self, request, context):  # pylint: disable=invalid-overridden-method
-        if await self.parent.callback_agent_update(context):
+        identities = await credentials(context)
+        if await self.parent.callback_agent_update(identities, context):
             return Empty()
         message = 'Update is not allowed'
-        return await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
-    @credentials
     async def reset(self, request, context):  # pylint: disable=invalid-overridden-method
-        if await self.parent.callback_agent_reset(context):
+        identities = await credentials(context)
+
+        if await self.parent.callback_agent_reset(identities, context):
             return Empty()
         message = 'Reset is not allowed'
-        return await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
 
 
 class Agent(AgentBase):

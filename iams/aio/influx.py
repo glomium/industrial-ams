@@ -7,6 +7,7 @@ Mixin to add InfluxDB functionality to agents
 
 from datetime import datetime
 from functools import partial
+import asyncio
 import logging
 import os
 

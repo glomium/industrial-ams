@@ -94,7 +94,10 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         setup method is awaited one at the start of the coroutines
         """
-        self.server = grpc.aio.server()
+        self.server = grpc.aio.server(
+            interceptors=self.parent.grpc_interceptors(),
+            options=self.parent.grpc_options(),
+        )
         for function, servicer in self.servicer:
             function(servicer, self.server)
         self.servicer = []
@@ -235,6 +238,16 @@ class GRPCMixin:
     def _setup(self):
         self.aio_manager.register(self.grpc)
         super()._setup()
+
+    def grpc_interceptors(self):
+        """
+        callback when grpc started
+        """
+
+    def grpc_options(self):
+        """
+        callback when grpc started
+        """
 
     async def grpc_start(self):
         """

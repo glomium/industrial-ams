@@ -96,7 +96,7 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         self.server = grpc.aio.server(
             interceptors=self.parent.grpc_interceptors(),
-            options=self.parent.grpc_options(),
+            options=tuple((self.parent.grpc_options() or {}).items()),
         )
         for function, servicer in self.servicer:
             function(servicer, self.server)

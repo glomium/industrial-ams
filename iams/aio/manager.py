@@ -77,8 +77,12 @@ class Manager:
                 else:
                     logger.error("Exception raised from task %s", task, exc_info=exception, stack_info=True)
 
-            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
-            self.loop.close()
+            try:
+                self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+            except RuntimeError:
+                pass
+            finally:
+                self.loop.close()
         finally:
             logger.debug("Exit Coroutine-Manager")
         return None

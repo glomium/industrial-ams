@@ -78,15 +78,14 @@ class AgentBase:
             logger.debug("Adding agent servicer to grpc")
             self.grpc.add(agent_pb2_grpc.add_AgentServicer_to_server, self.iams)
 
-        with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
+        executor = ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
+        try:
             logger.debug("Starting execution")
             self.aio_manager(self, executor)
-            logger.debug("Clearing threadpool")
-            executor._threads.clear()
-            logger.debug("Shutdown")
+        finally:
+            logger.debug("Shutdown Threads")
             executor.shutdown(wait=False)
-            logger.debug("SystemExit")
-            raise SystemExit(0)
+        logger.debug("Agent shutdown complete")
 
     async def setup(self, executor):
         """

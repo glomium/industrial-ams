@@ -5,8 +5,11 @@ iams agent
 """
 
 from concurrent.futures import ThreadPoolExecutor
+from time import sleep
 import logging
 import os
+import sys
+import threading
 
 import grpc
 import yaml
@@ -85,7 +88,13 @@ class AgentBase:
         finally:
             logger.debug("Shutdown Threads")
             executor.shutdown(wait=False)
+
+        for thread in threading.enumerate():
+            logger.debug("Thread: %r", thread)
+        logger.debug("Wait 2 seconds for threads to close")
+        time.sleep(2)
         logger.debug("Agent shutdown complete")
+        sys.exit(0)
 
     async def setup(self, executor):
         """

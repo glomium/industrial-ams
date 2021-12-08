@@ -79,11 +79,9 @@ class Manager:
 
             if self.loop.is_running:
                 try:
-                    self.loop.run_until_complete(self.loop.shutdown_asyncgens())
-                except RuntimeError:
-                    pass
-                finally:
                     self.loop.close()
+                except Exception:  # pylint: disable=broad-except
+                    pass
         finally:
             logger.debug("Exit Coroutine-Manager")
         return None

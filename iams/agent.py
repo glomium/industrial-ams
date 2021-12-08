@@ -6,6 +6,8 @@ iams agent
 
 from concurrent.futures import ThreadPoolExecutor
 from time import sleep
+from signal import SIGTERM
+from signal import pthread_kill
 import logging
 import os
 import sys
@@ -89,10 +91,14 @@ class AgentBase:
             logger.debug("Shutdown Threads")
             executor.shutdown(wait=False)
 
+        current = threading.current_thread()
         for thread in threading.enumerate():
-            logger.debug("Thread: %r", thread)
-        logger.debug("Wait 2 seconds for threads to close")
-        time.sleep(2)
+            if thread == current or thread.daemon:
+                continue
+            logger.debug("Sending SIGTERM to %r", thread)
+            pthread_kill(thread.ident, SIGTERM)
+        logger.debug("Wait 1 second for threads to close")
+        sleep(1.0)
         logger.debug("Agent shutdown complete")
         sys.exit(0)
 

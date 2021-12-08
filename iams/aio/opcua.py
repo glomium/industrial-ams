@@ -145,7 +145,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         if not self._stop.done():
             self._stop.set_result(None)
             try:
-                await self._loop.run_in_executor(self._executor, self._client.disconnet)
+                await self._loop.run_in_executor(self._executor, self._client.disconnect)
             except (TimeoutError, AttributeError):
                 pass
 

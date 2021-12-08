@@ -159,8 +159,6 @@ class EventCoroutine(Coroutine, ABC):
                 break
             else:
                 periodic = False
-
-            self._event.clear()
             await self.main(periodic=periodic)
 
     async def run(self):
@@ -168,6 +166,7 @@ class EventCoroutine(Coroutine, ABC):
         redirects loop to a seperate task
         """
         self._event.set()
+        self._event.clear()
 
     async def stop(self):
         """

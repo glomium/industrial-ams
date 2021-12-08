@@ -131,6 +131,7 @@ class EventCoroutine(Coroutine, ABC):
         self._event = None
         self._executor = None
         self._stop = None
+        self._lock = None
 
     async def _start(self):
         """
@@ -138,6 +139,7 @@ class EventCoroutine(Coroutine, ABC):
         """
         await super()._start()
         self._event = asyncio.Event()
+        self._lock = asyncio.Lock()
         self._stop = self._loop.create_future()
 
     @abstractmethod
@@ -159,7 +161,8 @@ class EventCoroutine(Coroutine, ABC):
                 break
             else:
                 periodic = False
-            await self.main(periodic=periodic)
+            async with self._lock:
+                await self.main(periodic=periodic)
 
     async def run(self):
         """

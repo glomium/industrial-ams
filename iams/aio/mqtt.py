@@ -62,6 +62,7 @@ class MQTTCoroutine(ThreadCoroutine):
         self._client.on_log = on_log
         self._client.on_message = self._on_message
         self._connected = False
+        self._loop = None
         self._parent = parent
 
     def _on_connect(self, client, userdata, flags, return_code):
@@ -94,6 +95,7 @@ class MQTTCoroutine(ThreadCoroutine):
         """
         start method is awaited once, after the setup were concluded
         """
+        self._loop = asyncio.get_running_loop()
         while True:
             logger.debug("Try to establish MQTT connection with %s:%s", HOST, PORT)
             try:

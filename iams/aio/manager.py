@@ -52,9 +52,7 @@ class Manager:
         logger.debug("Adding tasks for asyncio modules")
         tasks = set()
         for name, coro in self.coros.items():
-            task = self.loop.create_task(coro(starts), name=f"{name}.main")
-            coro._task = task
-            tasks.add(task)
+            tasks.add(self.loop.create_task(coro(starts), name=f"{name}.main"))
 
         try:
             logger.debug("Start asyncio loop")
@@ -63,7 +61,7 @@ class Manager:
                 return_when=asyncio.FIRST_COMPLETED,
             ))
         except KeyboardInterrupt:  # pragma: no cover
-            self.loop.close()
+            pass
         else:
             logger.info("A Coroutine stopped - shutdown agent")
 
@@ -76,14 +74,9 @@ class Manager:
                     logger.warning("The task %s finished without an exception", task)
                 else:
                     logger.error("Exception raised from task %s", task, exc_info=exception, stack_info=True)
-
-            if self.loop.is_running:
-                try:
-                    self.loop.close()
-                except Exception:  # pylint: disable=broad-except
-                    pass
         finally:
             logger.debug("Exit Coroutine-Manager")
+            self.loop.close()
         return None
 
     @staticmethod

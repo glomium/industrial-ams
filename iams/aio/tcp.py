@@ -60,7 +60,7 @@ class TCPCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
 
         await self._parent.tcp_connected()
 
-        self._stop = self._loop.create_future()
+        self._stop = asyncio.get_running_loop().create_future()
         if self._heartbeat:
             self._task = asyncio.create_task(self.heartbeat())
 

@@ -79,6 +79,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         self._client = None
         self._executor = None
         self._heartbeat = heartbeat
+        self._loop = None
         self._parent = parent
         self._stop = None
         self._timeout = timeout
@@ -94,6 +95,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         logger.debug("Try to establish OPCUA connection with %s", self._address)
         self._client = Client(self._address, timeout=self._timeout)
         self._executor = executor
+        self._loop = asyncio.get_running_loop()
         self._stop = self._loop.create_future()
 
     async def loop(self):

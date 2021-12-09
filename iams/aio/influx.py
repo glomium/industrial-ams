@@ -55,6 +55,7 @@ class InfluxCoroutine(ThreadCoroutine):  # pylint: disable=too-many-instance-att
     def __init__(self, url, bucket, token, org):
         logger.debug("Initialize Influx coroutine")
         super().__init__()
+        self._loop = None
         self.bucket = bucket
         self.client = None
         self.org = org

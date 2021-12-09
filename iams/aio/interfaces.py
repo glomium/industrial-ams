@@ -36,23 +36,6 @@ class Coroutine(ABC):
     def __str__(self):
         return self.__class__.__qualname__
 
-    @property
-    def _loop(self):
-        try:
-            return getattr(self, '__loop')
-        except AttributeError:
-            logger.warning(
-                "%s._loop should be cached in start by asyncio.get_running_loop()",
-                self.__class__.__qualname__,
-            )
-            loop = asyncio.get_running_loop()
-            setattr(self, '__loop', loop)
-            return loop
-
-    @_loop.setter
-    def _loop(self, loop):
-        setattr(self, '__loop', loop)
-
     async def setup(self, executor):
         """
         setup method is awaited once at the start of the coroutines
@@ -62,7 +45,6 @@ class Coroutine(ABC):
         """
         start method is awaited once, after the setup were concluded
         """
-        self._loop = asyncio.get_running_loop()
         await self.start()
 
     async def start(self):
@@ -103,7 +85,7 @@ class ThreadCoroutine(Coroutine):
         setup method is awaited one at the start of the coroutines
         """
         self._executor = executor
-        self._stop = self._loop.create_future()
+        self._stop = asyncio.get_running_loop().create_future()
 
     async def loop(self):
         """
@@ -140,7 +122,7 @@ class EventCoroutine(Coroutine, ABC):
         await super()._start()
         self._event = asyncio.Event()
         self._lock = asyncio.Lock()
-        self._stop = self._loop.create_future()
+        self._stop = asyncio.get_running_loop().create_future()
 
     @abstractmethod
     async def main(self, periodic):
@@ -163,6 +145,7 @@ class EventCoroutine(Coroutine, ABC):
                 periodic = False
             async with self._lock:
                 await self.main(periodic=periodic)
+        self.stop()
 
     async def run(self):
         """
@@ -175,7 +158,7 @@ class EventCoroutine(Coroutine, ABC):
         """
         stop method is called after the coroutine was canceled
         """
-        if self.stop is not None and not self._stop.done():
+        if self._stop is not None and not self._stop.done():
             self._stop.set_result(True)
         if self._event is not None:
             self._event.set()

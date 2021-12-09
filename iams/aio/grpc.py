@@ -116,10 +116,8 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         try:
             await self.server.wait_for_termination()
         except asyncio.CancelledError:
-            # Shuts down the server with 1 seconds of grace period. During the
-            # grace period, the server won't accept new connections and allow
-            # existing RPCs to continue within the grace period.
-            await self.server.stop(1)
+            await self.stop()
+        logger.debug("gRPC coroutine stopped")
 
     async def start(self):
         """
@@ -133,7 +131,16 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         stop method is called after the coroutine was canceled
         """
-        await self.server.stop(1)
+        logger.info("Gracefully stopping gRPC server")
+        # Shuts down the server with 1.0 seconds of grace period. During the
+        # grace period, the server won't accept new connections and allow
+        # existing RPCs to continue within the grace period.
+        # After the grace period all connections are closed
+        await self.server.stop(1.0)
+        if await self.server.wait_for_termination(1.0):
+            # Shuts down the server immediately without a grace period.
+            logger.info("Force shutdown of gRPC server")
+            await self.server.stop(None)
 
     async def wait(self, tasks):
         """

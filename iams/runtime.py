@@ -330,8 +330,9 @@ class DockerSwarmRuntime(RuntimeInterface):
         task_template = docker.types.TaskTemplate(
             container_spec=docker.types.ContainerSpec(
                 f'{request.image!s}:{request.version!s}',
-                env=env,
                 configs=new_configs,
+                env=env,
+                init=True,
                 secrets=new_secrets,
             ),
             log_driver=docker.types.DriverConfig("json-file", {"max-file": "10", "max-size": "1m"}),

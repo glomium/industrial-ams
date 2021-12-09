@@ -5,13 +5,9 @@ iams agent
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from time import sleep
 from signal import SIGTERM
-from signal import pthread_kill
 import logging
 import os
-import sys
-import threading
 
 import grpc
 import yaml
@@ -88,19 +84,11 @@ class AgentBase:
             logger.debug("Starting execution")
             self.aio_manager(self, executor)
         finally:
-            logger.debug("Shutdown Threads")
+            logger.debug("Shutdown ThreadPoolExecutor")
             executor.shutdown(wait=False)
 
-        current = threading.current_thread()
-        for thread in threading.enumerate():
-            if thread == current or thread.daemon:
-                continue
-            logger.debug("Sending SIGTERM to %r", thread)
-            pthread_kill(thread.ident, SIGTERM)
-        logger.debug("Wait 1 second for threads to close")
-        sleep(1.0)
-        logger.debug("Agent shutdown complete")
-        sys.exit(0)
+        # force exit via os.kill
+        os.kill(os.getpid(), SIGTERM)
 
     async def setup(self, executor):
         """

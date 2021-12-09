@@ -145,7 +145,7 @@ class EventCoroutine(Coroutine, ABC):
                 periodic = False
             async with self._lock:
                 await self.main(periodic=periodic)
-        self.stop()
+        await self.stop()
 
     async def run(self):
         """

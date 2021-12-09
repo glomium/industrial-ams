@@ -113,11 +113,7 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         loop method contains the business-code
         """
-        try:
-            await self.server.wait_for_termination()
-        except asyncio.CancelledError:
-            await self.stop()
-        logger.debug("gRPC coroutine stopped")
+        await self.server.wait_for_termination()
 
     async def start(self):
         """
@@ -137,10 +133,6 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         # existing RPCs to continue within the grace period.
         # After the grace period all connections are closed
         await self.server.stop(1.0)
-        if await self.server.wait_for_termination(1.0):
-            # Shuts down the server immediately without a grace period.
-            logger.info("Force shutdown of gRPC server")
-            await self.server.stop(None)
 
     async def wait(self, tasks):
         """

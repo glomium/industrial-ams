@@ -22,4 +22,4 @@ class Envoy(Plugin):
         return "iams.plugins.envoy"
 
     def get_networks(self, **kwargs):
-        return ['%s_envoy' % self.namespace]
+        return [f'{self.namespace}_envoy']

@@ -3,7 +3,7 @@ ARG BASEIMAGE=ubuntu:rolling
 FROM $BASEIMAGE as basestage
 
 ENV DEBIAN_FRONTEND noninteractive
-ENV LANG en_US.utf8
+ENV LC_ALL C
 
 COPY requirements.txt /requirements.txt
 RUN apt-get update && apt-get install --no-install-recommends -y -q \

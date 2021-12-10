@@ -249,7 +249,7 @@ class Event(SchedulerEvent):
             data["ol"] = self.etd_lane
 
         else:  # pragma: no cover
-            raise NotImplementedError("Implementation of state %s is missing" % self.state)
+            raise NotImplementedError(f"Implementation of state {self.state} is missing")
 
         return data
 
@@ -285,6 +285,7 @@ class BufferScheduler(SchedulerInterface):
         return super().__call__(**kwargs)
 
     def __repr__(self):
+        # pylint: disable=consider-using-f-string
         return "<%s(horizon=%s, buffer_input=%s, buffer_output=%s)>" % (
             self.__class__.__qualname__,
             self._horizon,
@@ -457,10 +458,10 @@ class BufferScheduler(SchedulerInterface):
 
                 # load fixed values
                 if interval.start_name not in new_data:
-                    raise ValueError("Need to set %s" % interval.start_name)
+                    raise ValueError(f"Need to set {interval.start_name}")
 
                 if interval.end_name not in new_data:
-                    raise ValueError("Need to set %s" % interval.end_name)
+                    raise ValueError(f"Need to set {interval.end_name}")
 
                 if interval.duration_name not in new_data:
                     # pylint: disable=protected-access
@@ -535,7 +536,7 @@ class BufferScheduler(SchedulerInterface):
 
         # solver needs to be optimal to result in a match
         if solver.StatusName() not in ["OPTIMAL"]:
-            raise CanNotSchedule('Solver returned %s' % solver.StatusName())
+            raise CanNotSchedule(f'Solver returned {solver.StatusName()}')
 
         for event, data in events.items():
             if event.state == SchedulerState.NEW:

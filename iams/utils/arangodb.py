@@ -23,7 +23,7 @@ def get_credentials(namespace, password=None):
     if password is None:
         # TODO make this configurable
         # (specify environment variables or settings to make this configurable)
-        with open('/run/secrets/arango', 'r') as fobj:
+        with open('/run/secrets/arango', 'r', encoding='utf-8') as fobj:
             password = fobj.read().strip()
 
     database = "iams_" + namespace
@@ -337,7 +337,7 @@ class Arango:
                 if pool is None:
                     p = self.db.collection("agent").insert({})  # pylint: disable=invalid-name
                     pool = self.db.collection("agent").insert({
-                        "_key": "pool-%s" % p["_key"],
+                        "_key": f"pool-{p['_key']}",
                         "pool_cls": data["pool"],
                         "color": "#444444",
                     })

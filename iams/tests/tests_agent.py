@@ -78,15 +78,15 @@ class Agent(GRPCMixin, AgentBase):
         self.data = []
         self.aio_manager.register(TestCoroutine(self.grpc, case))
 
-    async def callback_agent_upgrade(self):
+    async def callback_agent_upgrade(self, context):
         self.response_upgrade = not self.response_upgrade
         return self.response_upgrade
 
-    async def callback_agent_update(self):
+    async def callback_agent_update(self, context):
         self.response_update = not self.response_update
         return self.response_update
 
-    async def callback_agent_reset(self):
+    async def callback_agent_reset(self, context):
         self.response_reset = not self.response_reset
         return self.response_reset
 
@@ -100,7 +100,10 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
         with mock.patch.dict(os.environ, {"IAMS_AGENT": "unittest", "IAMS_SERVICE": "localhost"}):
             # pylint: disable=attribute-defined-outside-init
             self.agent = Agent(self, root_certificate, private_key, certificate_chain)
-            self.agent()
+            try:
+                self.agent()
+            except SystemExit:
+                pass
 
     async def run_ping(self):
         async with self.agent.grpc.channel(self.agent.grpc.manager, port=self.agent.grpc.port) as channel:

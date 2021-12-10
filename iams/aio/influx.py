@@ -7,6 +7,7 @@ Mixin to add InfluxDB functionality to agents
 
 from datetime import datetime
 from functools import partial
+import asyncio
 import logging
 import os
 
@@ -54,6 +55,7 @@ class InfluxCoroutine(ThreadCoroutine):  # pylint: disable=too-many-instance-att
     def __init__(self, url, bucket, token, org):
         logger.debug("Initialize Influx coroutine")
         super().__init__()
+        self._loop = None
         self.bucket = bucket
         self.client = None
         self.org = org
@@ -65,6 +67,7 @@ class InfluxCoroutine(ThreadCoroutine):  # pylint: disable=too-many-instance-att
         """
         start method is awaited once, after the setup were concluded
         """
+        self._loop = asyncio.get_running_loop()
         self.client = await self._loop.run_in_executor(self._executor, partial(
             InfluxDBClient,
             org=self.org,

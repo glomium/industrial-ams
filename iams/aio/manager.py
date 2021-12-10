@@ -24,64 +24,89 @@ class Manager:
     def __init__(self):
         logger.debug("Initialize asyncio manager")
         self.coros = {}
-        self.loop = asyncio.new_event_loop()
-        self.loop.set_exception_handler(self.exception_handler)
 
-    def __call__(self, parent=None, executor=None):  # pylint: disable=too-many-branches
+    def __call__(self, parent=None, executor=None):
+        loop = asyncio.new_event_loop()
+        loop.set_exception_handler(self.exception_handler)
+        logger.debug("Start Coroutine-Manager")
+        loop.run_until_complete(self.main(parent, executor))
+        logger.debug("Exit Coroutine-Manager")
+        loop.close()
+
+    async def main(self, parent, executor):  # pylint: disable=too-many-branches
+        """
+        main coroutine, providing a common eventloop for all related coroutines
+        """
         logger.debug("Adding tasks for setup methods")
         tasks = set()
         for name, coro in self.coros.items():
-            coro._loop = self.loop
-            tasks.add(self.loop.create_task(coro.setup(executor), name=f"{name}.setup"))
+            tasks.add(asyncio.create_task(coro.setup(executor), name=f"{name}.setup"))
         if hasattr(parent, "setup"):
-            tasks.add(self.loop.create_task(parent.setup(executor), name="iams.agent.setup"))
+            tasks.add(asyncio.create_task(parent.setup(executor), name="iams.agent.setup"))
 
         logger.debug("Start asyncio loop")
-        done, _ = self.loop.run_until_complete(asyncio.wait(tasks))
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
 
-        for task in done:
-            exception = task.exception()
-            if exception is not None:
-                logger.error("Exception raised from task %s", task, exc_info=exception, stack_info=True)
-                return None
+        if pending:
+            for task in pending:
+                task.cancel()
+            for task in done:
+                exception = task.exception()
+                if exception is not None:
+                    logger.error("Exception raised from %r", task, exc_info=exception, stack_info=True)
+            return None
 
         logger.debug("Adding tasks for start methods")
         starts = {}
         for name, coro in self.coros.items():
-            starts[name] = self.loop.create_task(coro.start(), name=f"{name}.start")
+            starts[name] = asyncio.create_task(coro._start(), name=f"{name}.start")  # pylint: disable=protected-access
 
         logger.debug("Adding tasks for asyncio modules")
         tasks = set()
         for name, coro in self.coros.items():
-            task = self.loop.create_task(coro(starts), name=f"{name}.main")
-            coro._task = task
-            tasks.add(task)
+            tasks.add(asyncio.create_task(coro(starts), name=f"{name}.call"))
 
         try:
             logger.debug("Start asyncio loop")
-            done, tasks = self.loop.run_until_complete(asyncio.wait(
-                tasks,
-                return_when=asyncio.FIRST_COMPLETED,
-            ))
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         except KeyboardInterrupt:  # pragma: no cover
-            self.loop.close()
+            pending = tasks
+            done = []
         else:
             logger.info("A Coroutine stopped - shutdown agent")
 
-            for task in tasks:
-                task.cancel()
+        # log the event that was closing the loop
+        for task in done:
+            exception = task.exception()
+            if exception is None:
+                logger.warning("%r finished without an exception", task)
+            else:
+                logger.error("Exception raised from task %r", task, exc_info=exception, stack_info=True)
 
-            for task in done:
-                exception = task.exception()
-                if exception is None:
-                    logger.warning("The task %s finished without an exception", task)
-                else:
-                    logger.error("Exception raised from task %s", task, exc_info=exception, stack_info=True)
+        # send cancel events to all pending tasks
+        for task in pending:
+            logger.debug("Cancel %r", task)
+            task.cancel()
 
-            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
-            self.loop.close()
-        finally:
-            logger.debug("Exit Coroutine-Manager")
+        if pending:
+            while True:
+                logger.debug("Wait for %s coroutine(s) to be canceled", len(pending))
+                done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+
+                for task in done:
+                    name = task.get_name()
+                    try:
+                        task.exception()
+                    except asyncio.CancelledError as exception:  # pylint: disable=broad-except
+                        logger.info(
+                            "Exception raised during cancel of task %r",
+                            name, exc_info=exception, stack_info=True,
+                        )
+                    else:
+                        logger.debug("%r cancelled without an exception", name)
+
+                if not pending:
+                    break
         return None
 
     @staticmethod

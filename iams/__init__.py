@@ -7,7 +7,7 @@ Industrial agent management system
 
 from functools import lru_cache
 
-VERSION = ((0, 6, 1), ('final', 0))
+VERSION = ((0, 6, 2), ('final', 0))
 
 
 @lru_cache(maxsize=8)
@@ -57,7 +57,7 @@ def get_version(dev=True, short=False):
 
             try:
                 timestamp = datetime.datetime.utcfromtimestamp(int(timestamp))
-                version += '.dev%s' % timestamp.strftime('%Y%m%d%H%M%S')
+                version += '.dev' + timestamp.strftime('%Y%m%d%H%M%S')
             except ValueError:  # pragma: no cover
                 pass
 

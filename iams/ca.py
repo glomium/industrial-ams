@@ -32,7 +32,7 @@ class CFSSL(CertificateAuthorityInterface):
         self.root_ca = response["result"]["certificate"].encode()
 
     def get_ca_secret(self, data, namespace):
-        data["%s_ca.crt" % namespace] = "ca.crt"
+        data[f"{namespace}_ca.crt"] = "ca.crt"
         return data
 
     def get_root_cert(self):

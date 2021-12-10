@@ -23,7 +23,6 @@ from iams.proto import df_pb2_grpc
 from iams.proto import framework_pb2
 from iams.proto import framework_pb2_grpc
 from iams.utils.grpc import credentials
-# from .utils.grpc import framework_channel
 # from .utils.arangodb import Arango
 from iams.utils.ssl import validate_certificate
 
@@ -45,14 +44,14 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         self.event.set()
 
     # RPC
-    @credentials
     def update(self, request, context):
         """
         update
         """
         # pylint: disable=protected-access
-        logger.debug('Update called from %s', context.credentials)
-        request.name = self.get_agent_name(context, request.name)
+        identities = credentials(context)
+        logger.debug('Update called from %s', identities)
+        request.name = self.get_agent_name(context, identities, request.name)
 
         try:
             created = self.runtime.update_agent(request)
@@ -69,13 +68,14 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
 
         return framework_pb2.AgentData(name=request.name)
 
-    @credentials
+    # RPC
     def create(self, request, context):
         """
         create
         """
         # pylint: disable=protected-access
-        logger.debug('create called from %s', context.credentials)
+        identities = credentials(context)
+        logger.debug('Create called from %s', identities)
         raise NotImplementedError()
 
         # regex = self.RE_NAME.match(request.name)
@@ -115,43 +115,45 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
 
         # return framework_pb2.AgentData(name=request.name)
 
-    @credentials
+    # RPC
     def upgrade(self, request, context):
         """
         upgrade
         """
         # pylint: disable=protected-access
-        logger.debug('upgrade called from %s', context.credentials)
+        identities = credentials(context)
+        logger.debug('Update called from %s', identities)
         self.runtime.update_agent(framework_pb2.AgentData(name=request.name), update=True)  # noqa
         return Empty()
 
-    def get_agent_name(self, context, name):  # pylint: disable=inconsistent-return-statements
+    def get_agent_name(self, identities, context, name):  # pylint: disable=inconsistent-return-statements
         """
         get agent name
         """
         # pylint: disable=protected-access
-        if context.credentials is None and name is None:
+        if identities is None and name is None:
             message = 'Need to give agent name in request'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        if name is None and context.credentials:
-            return context.credentials
+        if name is None and identities:
+            return identities
 
         try:
             return self.runtime.get_valid_agent_name(name)
         except InvalidAgentName:
-            message = 'Given an invalid agent name (%s) in request' % name
+            message = f'Given an invalid agent name ({name}) in request'
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-    @credentials
+    # RPC
     def destroy(self, request, context):  # pylint: disable=inconsistent-return-statements
         """
         destroy
         """
         # pylint: disable=protected-access
-        logger.debug('Destroy called from %s', context.credentials)
+        identities = credentials(context)
+        logger.debug('Destroy called from %s', identities)
         try:
-            request.name = self.get_agent_name(context, request.name)
+            request.name = self.get_agent_name(context, identities, request.name)
         except docker_errors.NotFound as exception:
             context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
         else:
@@ -159,15 +161,16 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
                 return Empty()
             return Empty()
 
-    @credentials
+    # RPC
     def sleep(self, request, context):  # pylint: disable=inconsistent-return-statements
         """
         sleep
         """
         # pylint: disable=protected-access
-        logger.debug('sleep called from %s', context.credentials)
+        identities = credentials(context)
+        logger.debug('Sleep called from %s', identities)
         try:
-            request.name = self.get_agent_name(context, request.name)
+            request.name = self.get_agent_name(context, identities, request.name)
         except docker_errors.NotFound as exception:
             context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
         else:
@@ -175,15 +178,16 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
                 return Empty()
             return Empty()
 
-    @credentials
+    # RPC
     def wake(self, request, context):  # pylint: disable=inconsistent-return-statements
         """
         wake agent
         """
         # pylint: disable=protected-access
-        logger.debug('wake called from %s', context.credentials)
+        identities = credentials(context)
+        logger.debug('Wake called from %s', identities)
         try:
-            request.name = self.get_agent_name(context, request.name)
+            request.name = self.get_agent_name(context, identities, request.name)
         except docker_errors.NotFound as exception:
             context.abort(grpc.StatusCode.NOT_FOUND, f'{exception!s}')
         else:
@@ -203,10 +207,12 @@ class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):  #
         self.runtime = runtime
         self.threadpool = threadpool
 
-    @credentials(optional=True)
     def renew(self, request, context):
 
-        if context.credentials is not None:  # pylint: disable=protected-access
+        identities = credentials(context, optional=True)
+        logger.debug('Wake called from %s', identities)
+
+        if identities is not None:  # pylint: disable=protected-access
             request.name = context.credentials  # pylint: disable=protected-access
         else:
 

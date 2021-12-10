@@ -36,32 +36,16 @@ class Coroutine(ABC):
     def __str__(self):
         return self.__class__.__qualname__
 
-    @property
-    def _loop(self):
-        if hasattr(self, '__loop'):
-            return getattr(self, '__loop')
-        logger.warning("%s._loop should be set", self.__class__.__qualname__)
-        return asyncio.get_running_loop()
-
-    @_loop.setter
-    def _loop(self, loop):
-        setattr(self, '__loop', loop)
-
-    @property
-    def _task(self):
-        if hasattr(self, '__task'):
-            return getattr(self, '__task')
-        logger.warning("%s._task should be set", self.__class__.__qualname__)
-        return None
-
-    @_task.setter
-    def _task(self, task):
-        setattr(self, '__task', task)
-
     async def setup(self, executor):
         """
-        setup method is awaited one at the start of the coroutines
+        setup method is awaited once at the start of the coroutines
         """
+
+    async def _start(self):
+        """
+        start method is awaited once, after the setup were concluded
+        """
+        await self.start()
 
     async def start(self):
         """
@@ -101,7 +85,7 @@ class ThreadCoroutine(Coroutine):
         setup method is awaited one at the start of the coroutines
         """
         self._executor = executor
-        self._stop = self._loop.create_future()
+        self._stop = asyncio.get_running_loop().create_future()
 
     async def loop(self):
         """
@@ -117,3 +101,64 @@ class ThreadCoroutine(Coroutine):
             self._stop.set_result(None)
             return True
         return False
+
+
+class EventCoroutine(Coroutine, ABC):
+    """
+    Coroutine Abstract Base Class for threads
+    """
+    INTERVAL = None
+
+    def __init__(self):
+        self._event = None
+        self._executor = None
+        self._stop = None
+        self._lock = None
+
+    async def _start(self):
+        """
+        setup method is awaited one at the start of the coroutines
+        """
+        await super()._start()
+        self._event = asyncio.Event()
+        self._lock = asyncio.Lock()
+        self._stop = asyncio.get_running_loop().create_future()
+
+    @abstractmethod
+    async def main(self, periodic):
+        """
+        stop method is called after the coroutine was canceled
+        """
+
+    async def loop(self):
+        """
+        loop method contains the business-code
+        """
+        while not self._stop.done():
+            try:
+                await asyncio.wait_for(self._event.wait(), timeout=self.INTERVAL)
+            except asyncio.TimeoutError:
+                periodic = True
+            except asyncio.CancelledError:
+                break
+            else:
+                periodic = False
+            async with self._lock:
+                await self.main(periodic=periodic)
+        await self.stop()
+
+    async def run(self):
+        """
+        redirects loop to a seperate task
+        """
+        self._event.set()
+        self._event.clear()
+
+    async def stop(self):
+        """
+        stop method is called after the coroutine was canceled
+        """
+        if self._stop is not None and not self._stop.done():
+            self._stop.set_result(True)
+        if self._event is not None:
+            self._event.set()

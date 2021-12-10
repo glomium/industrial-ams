@@ -24,7 +24,7 @@ class Arango(Plugin):
         return "iams.plugins.arango"
 
     def get_networks(self, **kwargs):
-        return ['%s_arango' % self.namespace]
+        return [f'{self.namespace}_arango']
 
     def get_env(self, **kwargs):
         database, unused, password = get_credentials(self.namespace)

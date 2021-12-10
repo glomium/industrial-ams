@@ -5,6 +5,9 @@ unittests for iams.runtime
 """
 # pylint: disable=missing-function-docstring,missing-class-docstring,protected-access
 
+from time import sleep
+from unittest import mock
+import os
 import unittest
 
 from iams.tests.ca import CA
@@ -101,44 +104,84 @@ class DockerSwarmRuntimeTests(unittest.TestCase):
 
     def test_agent_create_update_delete(self):
         # delete (in case an error ocured earlier)
+        service_name = "iams-unittests"
+        network1 = "iams-unittests1"
+        network2 = "iams-unittests2"
+
+        # cleanup if previous runs failed
         try:
-            self.instance.delete_agent("doesnotexist")
+            client.services.get(service_name).remove()
+        except docker.errors.NotFound:
+            pass
+        try:
+            client.networks.get(network1).remove()
+        except docker.errors.NotFound:
+            pass
+        try:
+            client.networks.get(network2).remove()
         except docker.errors.NotFound:
             pass
 
+        client.networks.create(network1, driver="overlay")
+        client.networks.create(network2, driver="overlay")
+        sleep(0.1)
+
         # create
         request = framework_pb2.AgentData(
-            name="doesnotexist",
+            name=service_name,
             image="busybox",
             version="latest",
             address="localhost",
             port=5555,
             autostart=False,
         )
-        self.instance.update_agent(request, create=True, skip_label_test=True)
+        with mock.patch.dict(os.environ, {"IAMS_NETWORK": network1}):
+            created = self.instance.update_agent(request, create=True, skip_label_test=True)
+
+        self.assertEqual(created, True)
+        sleep(0.1)
+        service = client.services.get(service_name)
+        self.assertEqual(service.name, service_name)
 
         # update
         request = framework_pb2.AgentData(
-            name="doesnotexist",
+            name=service_name,
             image="busybox",
             version="latest",
             autostart=False,
         )
-        self.instance.update_agent(request, skip_label_test=True)
+        with mock.patch.dict(os.environ, {"IAMS_NETWORK": network2}):
+            created = self.instance.update_agent(request, skip_label_test=True)
+
+        self.assertEqual(created, False)
+        sleep(0.1)
+        service = client.services.get(service_name)
+        self.assertEqual(service.name, service_name)
 
         # update
         request = framework_pb2.AgentData(
-            name="doesnotexist",
+            name=service_name,
             image="busybox",
             version="latest",
             address="localhost",
             port=5555,
             autostart=False,
         )
-        self.instance.update_agent(request, skip_label_test=True)
+        created = self.instance.update_agent(request, skip_label_test=True)
+
+        self.assertEqual(created, False)
+        sleep(0.1)
+        service = client.services.get(service_name)
+        self.assertEqual(service.name, service_name)
 
         # delete
-        self.instance.delete_agent("doesnotexist")
+        self.instance.delete_agent(service_name)
+        with self.assertRaises(docker.errors.NotFound):
+            client.services.get(service_name)
+
+        # cleanup
+        client.networks.get(network1).remove()
+        client.networks.get(network2).remove()
 
     def test_image_has_no_label(self):
         request = framework_pb2.AgentData(

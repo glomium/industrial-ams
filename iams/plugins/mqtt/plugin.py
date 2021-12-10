@@ -32,7 +32,7 @@ class Mqtt(Plugin):
         super().__init__(**kwargs)
 
     def get_networks(self, **kwargs):
-        return ['%s_mqtt' % self.namespace]
+        return [f'{self.namespace}_mqtt']
 
     def get_kwargs(self, name, image, version, config):
         return {"name": name.split('_', 1)[1]}

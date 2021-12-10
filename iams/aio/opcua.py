@@ -5,11 +5,9 @@
 opc ua mixin for agents
 """
 
-# from functools import partial
 from types import MethodType
 import asyncio
 import logging
-# import os
 
 from iams.aio.interfaces import Coroutine
 
@@ -81,6 +79,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         self._client = None
         self._executor = None
         self._heartbeat = heartbeat
+        self._loop = None
         self._parent = parent
         self._stop = None
         self._timeout = timeout
@@ -96,6 +95,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         logger.debug("Try to establish OPCUA connection with %s", self._address)
         self._client = Client(self._address, timeout=self._timeout)
         self._executor = executor
+        self._loop = asyncio.get_running_loop()
         self._stop = self._loop.create_future()
 
     async def loop(self):
@@ -105,10 +105,18 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         if self._heartbeat:
             # pylint: disable=protected-access
             while not self._stop.done() and self._client.uaclient._uasocket._thread.is_alive():
-                await asyncio.sleep(self._heartbeat)
-                logger.debug("OPCUA heartbeat")
+                logger.debug("OPCUA for heartbeat")
+                try:
+                    await asyncio.wait_for(self._stop, timeout=self._heartbeat)
+                except asyncio.TimeoutError:
+                    # refresh self._stop as it got canceled by wait_for
+                    self._stop = self._loop.create_future()
+                else:
+                    break
                 result = await self._parent.opcua_heartbeat()
+                logger.debug("OPCUA heartbeat returned %s", result)
                 if result in [None, False]:
+                    logger.debug("OPCUA: get_objects_node()")
                     await self._loop.run_in_executor(self._executor, self._client.get_objects_node)
         else:
             await asyncio.wait_for(self._stop, timeout=None)
@@ -139,7 +147,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         if not self._stop.done():
             self._stop.set_result(None)
             try:
-                await self._loop.run_in_executor(self._executor, self._client.disconnet)
+                await self._loop.run_in_executor(self._executor, self._client.disconnect)
             except (TimeoutError, AttributeError):
                 pass
 
@@ -253,19 +261,27 @@ class OPCUAMixin:
         Datachanges callback (one per packet)
         """
 
-    async def opcua_write(self, node, value, datatype):
+    async def opcua_write(self, node, value, datatype, sync=False):
         """
         write value to node on opcua-server
         """
         if OPCUA:
-            return await self._opcua.write_many([node, value, datatype])
+            future = self._opcua.write_many([node, value, datatype])
+            if sync:
+                await future
+            else:
+                asyncio.create_task(future)
 
-    async def opcua_write_many(self, data):
+    async def opcua_write_many(self, data, sync=False):
         """
         data is a list or tuple of node, value and datatype
         """
         if OPCUA:
-            return await self._opcua.write_many(data)
+            future = self._opcua.write_many(data)
+            if sync:
+                await future
+            else:
+                asyncio.create_task(future)
 
     async def opcua_subscribe(self, nodes, interval):
         """

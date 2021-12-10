@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# vim: set fileencoding=utf-8 :
+# -*- coding: utf-8 -*-
 """
 iams runtime
 """
@@ -42,7 +42,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         self.servername = None
 
     def __call__(self) -> None:
-        self.regex = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.iams_namespace[0:4])
+        self.regex = re.compile(r'^(%s_)?([a-zA-Z][a-zA-Z0-9-]+[a-zA-Z0-9])$' % self.iams_namespace[0:4])  # pylint: disable=consider-using-f-string  # noqa: E501
         if self.client is None:  # pragma: no cover (during testing we've already established the client)
             self.client = docker.DockerClient()
 
@@ -65,7 +65,7 @@ class DockerSwarmRuntime(RuntimeInterface):
         regex = self.regex.match(name)
         if regex:
             return self.iams_namespace[0:4] + '_' + regex.group(2)
-        raise InvalidAgentName("%s is not a valid agent-name" % name)
+        raise InvalidAgentName(f"{name} is not a valid agent-name")
 
     def get_service_and_name(self, name):
         """
@@ -163,7 +163,7 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         if len(services) == 1:
             return services[0]
-        raise docker.errors.NotFound('Could not find service %s' % name)
+        raise docker.errors.NotFound(f'Could not find service {name}')
 
     @staticmethod
     def get_image_version(service):
@@ -330,8 +330,9 @@ class DockerSwarmRuntime(RuntimeInterface):
         task_template = docker.types.TaskTemplate(
             container_spec=docker.types.ContainerSpec(
                 f'{request.image!s}:{request.version!s}',
-                env=env,
                 configs=new_configs,
+                env=env,
+                init=True,
                 secrets=new_secrets,
             ),
             log_driver=docker.types.DriverConfig("json-file", {"max-file": "10", "max-size": "1m"}),
@@ -351,7 +352,7 @@ class DockerSwarmRuntime(RuntimeInterface):
                 name=request.name,
                 labels=labels,
                 mode=docker.types.ServiceMode("replicated", scale),
-                networks=networks,
+                # networks=networks,
             )
             return True
 
@@ -364,7 +365,7 @@ class DockerSwarmRuntime(RuntimeInterface):
                 name=request.name,
                 labels=labels,
                 mode=docker.types.ServiceMode("replicated", scale),
-                networks=networks,
+                # networks=networks,
             )
 
         # delete old screts

@@ -5,10 +5,10 @@ flake8-commas==2.1.0
 flake8-print==4.0.0
 flake8==4.0.1
 pep8-naming==0.12.1
-pylint==2.12.1
+pylint==2.12.2
 
 networkx==2.6.3
 numpy==1.21.4
 opcua==0.98.13
-ortools==9.1.9490
+ortools==9.2.9972
 paho-mqtt==1.6.1

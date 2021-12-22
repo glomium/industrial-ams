@@ -125,6 +125,10 @@ class EventCoroutine(Coroutine, ABC):
         self._stop = asyncio.get_running_loop().create_future()
 
     def get_interval(self):
+        """
+        returns the interval of this events
+        if None (the default), this function waits for the next event (i.e. call of self.run)
+        """
         return self.INTERVAL
 
     @abstractmethod

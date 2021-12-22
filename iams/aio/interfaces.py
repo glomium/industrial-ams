@@ -124,6 +124,9 @@ class EventCoroutine(Coroutine, ABC):
         self._lock = asyncio.Lock()
         self._stop = asyncio.get_running_loop().create_future()
 
+    def get_interval(self):
+        return self.INTERVAL
+
     @abstractmethod
     async def main(self, periodic):
         """
@@ -136,7 +139,7 @@ class EventCoroutine(Coroutine, ABC):
         """
         while not self._stop.done():
             try:
-                await asyncio.wait_for(self._event.wait(), timeout=self.INTERVAL)
+                await asyncio.wait_for(self._event.wait(), timeout=self.get_interval())
             except asyncio.TimeoutError:
                 periodic = True
             except asyncio.CancelledError:

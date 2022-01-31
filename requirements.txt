@@ -4,7 +4,7 @@ cryptography==36.0.1
 docker==5.0.3
 grpcio-tools==1.43.0
 grpcio==1.43.0
-protobuf==3.19.1
+protobuf==3.19.4
 python-arango==7.3.0
-sentry-sdk==1.5.1
-influxdb-client[ciso]==1.24.0
+sentry-sdk==1.5.4
+influxdb-client[ciso]==1.25.0

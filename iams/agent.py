@@ -95,19 +95,19 @@ class AgentBase:
         overwrite this function
         """
 
-    async def callback_agent_upgrade(self, context):
+    async def callback_agent_upgrade(self, identities, context):
         """
         This function can be called from the agents and services to suggest
         hat the agent should upgrate it's software (i.e. docker image)
         """
 
-    async def callback_agent_update(self, context):
+    async def callback_agent_update(self, identities, context):
         """
         This function can be called from the agents and services to suggest
         that the agent should update its configuration or state
         """
 
-    async def callback_agent_reset(self, context):
+    async def callback_agent_reset(self, identities, context):
         """
         This function can be called from the agents and services to suggest
         that the agent should reset its connected device

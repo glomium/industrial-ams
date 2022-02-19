@@ -173,7 +173,7 @@ class EventCoroutine(Coroutine, ABC):
             self._event.set()
 
 
-class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attributes
+class GRPCConnectionCoroutine(ABC):
     """
     gRPC connection coroutine
     """
@@ -185,7 +185,6 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
         self.agent = agent
         self.connected = False
         self.data = None
-        self.event = None
         self.hostname = agent.iams.prefix + name
         self.name = name
         self.parent = parent
@@ -200,24 +199,20 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
     def __repr__(self):
         return f"<{self.__class__.__qualname__}({self.name})>"
 
+    async def __call__(self):
+        """
+        starts the coroutine
+        """
+        if self.task is None or self.task.done():
+            logger.debug("Start: GRPC connection to %s", self.name)
+            self.task = asyncio.create_task(self._main(), name=f"GRPCConnection.{self.name}")
+
     async def stop(self):
         """
         closes the connection and stops the coroutine
         """
         if self.task is not None and not self.task.done():
             self.task.cancel()
-        if self.event is not None:
-            self.event.set()
-
-    async def start(self):
-        """
-        starts the coroutine
-        """
-        logger.debug("Start: GRPC connection to %s", self.name)
-        if self.task is None:
-            self.task = asyncio.create_task(self.main(), name=f"GRPCConnection.{self.name}")
-        if self.event is None:
-            self.event = asyncio.Event()
 
     @staticmethod
     def grpc_options():
@@ -270,20 +265,20 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
         disconnect callback
         """
 
-    async def main(self):
+    async def _main(self):
         """
         manages the connection
         """
         wait = 0
+        kwargs = {
+            'hostname': self.hostname,
+            'persistent': False,
+            'options': self.grpc_options(),
+        }
+
         try:
             while True:
                 try:
-                    kwargs = {
-                        'hostname': self.hostname,
-                        'persistent': False,
-                        'options': self.grpc_options(),
-                    }
-
                     async with self.agent.grpc.stub(self.grpc_stub(), **kwargs) as stub:  # noqa: E501
                         method = getattr(stub, self.grpc_method())
                         payload = self.grpc_payload()
@@ -309,5 +304,5 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
             pass
 
         except Exception:
-            logger.exception('Error in %s.main', self.__class__.__qualname__)
+            logger.exception('Error in %s._main', self.__class__.__qualname__)
             raise

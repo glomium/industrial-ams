@@ -125,7 +125,7 @@ class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instan
 
         assert self.agent is not None, 'Must define IAMS_AGENT in environment'
         assert self.service is not None, 'Must define IAMS_SERVICE in environment'
-        self.prefix = self.agent.split('_')[0]
+        self.prefix = self.agent.split('_')[0] + '_'
 
         self.parent = parent
         self.position = None

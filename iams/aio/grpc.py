@@ -378,8 +378,9 @@ class GRPCConnectionCoroutine(ABC):
                         self.hostname,
                         error.details(),  # pylint: disable=no-member
                     )
-                    self.connected = False
-                    await self.disconnect()
+                    if self.connected:
+                        self.connected = False
+                        await self.disconnect()
                     wait = min(15, wait + 0.3)
                     await asyncio.sleep(wait)
 

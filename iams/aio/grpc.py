@@ -369,18 +369,29 @@ class GRPCConnectionCoroutine(ABC):
                             if not self.connected:
                                 wait = 0
                                 self.connected = True
+                                logger.info(
+                                    "Connection to %s etablished",
+                                    self.hostname,
+                                )
                             self.data = response
                             await self.process(response)
                 except grpc.RpcError as error:
-                    logger.info(
-                        "Connection rejected (%s) by %s: %s",
-                        error.code(),  # pylint: disable=no-member
-                        self.hostname,
-                        error.details(),  # pylint: disable=no-member
-                    )
                     if self.connected:
+                        logger.info(
+                            "Disconnected (%s) from %s: %s",
+                            error.code(),  # pylint: disable=no-member
+                            self.hostname,
+                            error.details(),  # pylint: disable=no-member
+                        )
                         self.connected = False
                         await self.disconnect()
+                    else:
+                        logger.debug(
+                            "Connection rejected (%s) by %s: %s",
+                            error.code(),  # pylint: disable=no-member
+                            self.hostname,
+                            error.details(),  # pylint: disable=no-member
+                        )
                     wait = min(15, wait + 0.3)
                     await asyncio.sleep(wait)
 

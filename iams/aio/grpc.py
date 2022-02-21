@@ -256,7 +256,7 @@ class GRPCMixin:
         """
 
 
-class GRPCConnectionCoroutine(ABC):
+class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attributes
     """
     gRPC connection coroutine
     """
@@ -271,6 +271,7 @@ class GRPCConnectionCoroutine(ABC):
         self.hostname = agent.iams.prefix + name
         self.name = name
         self.parent = parent
+        self.previous = None
         self.task = None
 
     def __hash__(self):
@@ -343,6 +344,11 @@ class GRPCConnectionCoroutine(ABC):
         process new data
         """
 
+    async def connect(self):
+        """
+        connect callback
+        """
+
     async def disconnect(self):
         """
         disconnect callback
@@ -373,6 +379,8 @@ class GRPCConnectionCoroutine(ABC):
                                     "Connection to %s etablished",
                                     self.hostname,
                                 )
+                                await self.connect()
+                            self.previous = self.data
                             self.data = response
                             await self.process(response)
                 except grpc.RpcError as error:

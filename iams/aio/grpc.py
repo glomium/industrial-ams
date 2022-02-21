@@ -15,6 +15,7 @@ from typing import AsyncIterator
 import asyncio
 import logging
 
+from google.protobuf.empty_pb2 import Empty
 import grpc
 
 from iams.aio.interfaces import Coroutine
@@ -260,6 +261,7 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
     """
     gRPC connection coroutine
     """
+    GRPC_METHOD = "status"
 
     def __init__(self, agent, parent, name):
         super().__init__()
@@ -271,7 +273,7 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
         self.hostname = agent.iams.prefix + name
         self.name = name
         self.parent = parent
-        self.previous = None
+        self.previous = self.grpc_default()
         self.task = None
 
     def __hash__(self):
@@ -297,6 +299,19 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
         """
         if self.task is not None and not self.task.done():
             self.task.cancel()
+
+    @staticmethod
+    def grpc_default():
+        """
+        returns the default grpc value for the status message
+        """
+        return None
+
+    def grpc_method(self):
+        """
+        returns the default grpc method
+        """
+        return self.GRPC_METHOD
 
     @staticmethod
     def grpc_options():
@@ -326,17 +341,12 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
         returns the default grpc stub
         """
 
-    @abstractmethod
-    def grpc_method(self):
-        """
-        returns the default grpc method
-        """
-
-    @abstractmethod
-    def grpc_payload(self):
+    @staticmethod
+    def grpc_payload():
         """
         returns the default grpc payload
         """
+        return Empty()
 
     @abstractmethod
     async def process(self, response):
@@ -372,16 +382,19 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
                         method = getattr(stub, self.grpc_method())
                         payload = self.grpc_payload()
                         async for response in method(payload):
-                            if not self.connected:
+                            if self.connected:
+                                self.previous = self.data
+                                self.data = response
+                            else:
                                 wait = 0
                                 self.connected = True
                                 logger.info(
                                     "Connection to %s etablished",
                                     self.hostname,
                                 )
+                                self.previous = self.grpc_default()
+                                self.data = response
                                 await self.connect()
-                            self.previous = self.data
-                            self.data = response
                             await self.process(response)
                 except grpc.RpcError as error:
                     if self.connected:

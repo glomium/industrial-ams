@@ -69,7 +69,7 @@ def get_logging_config(config=None, level=logging.INFO, main=True):  # pragma: n
     # FLUENTD plugin
     if FLUENTD and os.environ.get('FLUENTD_HOST') and os.environ.get('FLUENTD_TAG'):  # pragma: no branch
         conf["formatters"]["fluentd"] = {
-            '()': 'fluent.asynchandler.FluentRecordFormatter',
+            '()': 'fluent.handler.FluentRecordFormatter',
             'format': {
                 'level': '%(levelname)s',
                 'name': '%(name)s',

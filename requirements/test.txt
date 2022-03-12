@@ -7,8 +7,8 @@ flake8==4.0.1
 pep8-naming==0.12.1
 pylint==2.12.2
 
-networkx==2.7
-numpy==1.22.2
-opcua==0.98.13
+asyncua==0.9.92
+networkx==2.7.1
+numpy==1.22.3
 ortools==9.2.9972
 paho-mqtt==1.6.1

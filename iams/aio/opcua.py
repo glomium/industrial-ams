@@ -142,7 +142,8 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
             try:
                 await self._client.connect()
                 break
-            except (ConnectionRefusedError, socket.gaierror):  # TODO: catch more/different errors here
+            # TODO: catch more/different errors here
+            except (asyncio.TimeoutError, ConnectionRefusedError, socket.gaierror):
                 wait = min(60, wait + 1)
                 logger.info('Connection to %s refused (retry in %ss)', self._address, wait)
                 await asyncio.sleep(wait)

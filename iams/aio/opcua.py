@@ -150,7 +150,6 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
 
         logger.info("OPCUA connected to %s", self._address)
         self.objects = self._client.nodes.objects
-        await self._client.load_data_type_definitions()
         await self._parent.opcua_start()
 
     async def stop(self):

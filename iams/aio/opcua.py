@@ -121,12 +121,16 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         while True:
             try:
                 # check the connection state at least every second or dependent on the session timeout
-                await asyncio.wait_for(self._stop.wait(), timeout=min(1, self._client.session_timeout / 2.5))
+                # we check about 2.5 times within the specified interval (the session_timeout is given in ms)
+                await asyncio.wait_for(self._stop.wait(), timeout=min(1, self._client.session_timeout / 2500))
             except asyncio.TimeoutError:
+                # if the timeout occurs, the timeout occurs
                 pass
             except asyncio.CancelledError:
+                # if the cancel is raised, the coroutine should stop
                 break
 
+            # check connection status
             if self._client.uaclient.protocol.state != self._client.uaclient.protocol.OPEN:
                 await self.stop()
                 break
@@ -142,7 +146,6 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
             try:
                 await self._client.connect()
                 break
-            # TODO: catch more/different errors here
             except (asyncio.TimeoutError, ConnectionRefusedError, socket.gaierror):
                 wait = min(60, wait + 1)
                 logger.info('Connection to %s refused (retry in %ss)', self._address, wait)

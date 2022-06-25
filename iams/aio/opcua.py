@@ -135,6 +135,10 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
                 await self.stop()
                 break
 
+            if await self._parent.opcua_keepalive() is False:
+                await self.stop()
+                break
+
     async def start(self):
         """
         start method is awaited once, after the setup were concluded
@@ -259,6 +263,14 @@ class OPCUAMixin:
     async def opcua_start(self):
         """
         Callback after opcua started
+        """
+
+    # this should run internally, however testing by disconnecting the power to
+    # an OPCUA server shows that the internal timeout are not handled correctly by asyncio
+    async def opcua_keepalive(self):
+        """
+        Callback to check the opcua connection
+        Can be overwritten and needs to return 'False' to stop and restart the agent
         """
 
     async def opcua_datachange(self, node, val, data):

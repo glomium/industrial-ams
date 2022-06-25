@@ -12,7 +12,7 @@ import os
 import grpc
 import yaml
 
-from google.protobuf.empty_pb2 import Empty
+from google.protobuf.empty_pb2 import Empty  # pylint: disable=no-name-in-module
 
 # from iams.proto import agent_pb2
 from iams.aio.manager import Manager

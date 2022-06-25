@@ -12,7 +12,7 @@ from threading import Event
 import grpc
 
 from docker import errors as docker_errors
-from google.protobuf.empty_pb2 import Empty
+from google.protobuf.empty_pb2 import Empty  # pylint: disable=no-name-in-module
 
 # from .proto import agent_pb2
 # from .proto import df_pb2

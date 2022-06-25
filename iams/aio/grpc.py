@@ -15,7 +15,7 @@ from typing import AsyncIterator
 import asyncio
 import logging
 
-from google.protobuf.empty_pb2 import Empty
+from google.protobuf.empty_pb2 import Empty  # pylint: disable=no-name-in-module
 import grpc
 
 from iams.aio.interfaces import Coroutine

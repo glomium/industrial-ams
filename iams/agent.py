@@ -5,7 +5,7 @@ iams agent
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from signal import SIGTERM
+from signal import SIGKILL
 import logging
 import os
 
@@ -84,11 +84,11 @@ class AgentBase:
             logger.debug("Starting execution")
             self.aio_manager(self, executor)
         finally:
-            logger.debug("Shutdown ThreadPoolExecutor")
-            executor.shutdown(wait=False)
+            logger.debug("Shutdown ...")
+            # executor.shutdown(wait=False)
 
         # force exit via os.kill
-        os.kill(os.getpid(), SIGTERM)
+        os.kill(os.getpid(), SIGKILL)
 
     async def setup(self, executor):
         """

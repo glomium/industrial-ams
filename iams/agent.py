@@ -87,8 +87,8 @@ class AgentBase:
             logger.debug("Shutdown ...")
             # executor.shutdown(wait=False)
 
-        # force exit via os.kill
-        os.kill(os.getpid(), SIGKILL)
+            # force exit via os.kill
+            os.kill(os.getppid(), SIGKILL)
 
     async def setup(self, executor):
         """

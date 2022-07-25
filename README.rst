@@ -29,14 +29,14 @@ Typically an agents connects via a TCP-based communication (OPC-UA, HTTP, Socket
 The status updates are processed by the agent, which then updates it's connected agents with it's changed state.
 In addition to agents, that are connected to a physical devices, coordination agents can be used to aggregate and group agents.
 
-Example implementations can be found in the "examples" folder of this repository
+Example implementations can be found in the ``examples`` folder of this repository
 
 Contributions
 --------------
 
 Feel free to contribute to this repository.
 
-Use the ``Makefile``to generate a docker image. The build process includes basic software tests.
+Use the ``Makefile`` (``make build``) to generate a docker image. The build process includes basic software tests.
 
 Help and Support
 -----------------

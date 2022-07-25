@@ -36,6 +36,7 @@ Contributions
 
 Feel free to contribute to this repository.
 
+Use the ``Makefile``to generate a docker image. The build process includes basic software tests.
 
 Help and Support
 -----------------

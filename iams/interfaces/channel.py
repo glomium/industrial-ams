@@ -11,7 +11,7 @@ from abc import ABC
 
 import grpc
 
-from google.protobuf.empty_pb2 import Empty
+from google.protobuf.empty_pb2 import Empty  # pylint: disable=no-name-in-module
 
 from iams.constants import AGENT_PORT
 from iams.stub import AgentStub

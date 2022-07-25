@@ -8,17 +8,17 @@ opc ua mixin for agents
 from types import MethodType
 import asyncio
 import logging
+import socket
 
 from iams.aio.interfaces import Coroutine
 
 logger = logging.getLogger(__name__)
 
 try:
-    from opcua.client.client import Client
-    from opcua.common.subscription import DataChangeNotif
-    from opcua.common.subscription import SubHandler
-    from opcua.ua.uatypes import DataValue
-    from opcua.ua.uatypes import Variant
+    from asyncua import Client
+    from asyncua.ua.uatypes import DataValue
+    from asyncua.ua.uatypes import Variant
+    from asyncua.common.subscription import DataChangeNotif
 except ImportError:  # pragma: no branch
     logger.exception("Could not import opcua library")
     OPCUA = False
@@ -26,45 +26,62 @@ else:
     OPCUA = True
 
 
-def monkeypatch_call_datachange(self, datachange):
+async def monkeypatch_call_datachange(self, datachange):
     """
     Monkeypatching to have one signal, when a new packet with datachanges arrives.
     """
     # pylint: disable=protected-access
-    changes = []
+    # see https://github.com/FreeOpcUa/opcua-asyncio/blob/7d7841bfb7b4e351797b8a5cebdfa68a6418e406/asyncua/common/subscription.py#L126  # noqa: E501
+    changes = {}
     for item in datachange.MonitoredItems:
-        with self._lock:
-            if item.ClientHandle not in self._monitoreditems_map:
-                self.logger.warning("Received a notification for unknown handle: %s", item.ClientHandle)
-                self.has_unknown_handlers = True
-                continue
-            data = self._monitoreditems_map[item.ClientHandle]
-        event_data = DataChangeNotif(data, item)
-        changes.append((data.node, item.Value.Value.Value, event_data))
-    self._handler.datachange_notifications(changes)
+        if item.ClientHandle not in self._monitored_items:
+            self.logger.warning("Received a notification for unknown handle: %s", item.ClientHandle)
+            continue
+        data = self._monitored_items[item.ClientHandle]
+
+        if hasattr(self._handler, "datachange_notification"):
+            event_data = DataChangeNotif(data, item)
+            try:
+                if asyncio.iscoroutinefunction(self._handler.datachange_notification):
+                    result = await self._handler.datachange_notification(data.node, item.Value.Value.Value, event_data)
+                else:
+                    result = self._handler.datachange_notification(data.node, item.Value.Value.Value, event_data)
+                changes[data.node] = (result, item.Value.Value.Value)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("Exception calling data change handler")
+        else:
+            logger.error("DataChange subscription created but handler has no datachange_notification method")
+
+    if hasattr(self._handler, "datachange_notifications"):
+        try:
+            if asyncio.iscoroutinefunction(self._handler.datachange_notifications):
+                await self._handler.datachange_notifications(changes)
+            else:
+                self._handler.datachange_notifications(changes)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Exception calling data changes handler")
 
 
-class Handler(SubHandler):
+class Handler:
     """
-    Subscription Handler. To receive events from server for a subscription
-    data_change and event methods are called directly from receiving thread.
-    Do not do expensive, slow or network operation there. Create another
-    thread if you need to do such a thing
+    The SubscriptionHandler is used to handle the data that is received for the subscription.
     """
 
-    def __init__(self, agent, coro):
-        self.agent = agent
+    def __init__(self, parent, coro):
         self.coro = coro
+        self.parent = parent
 
-    def datachange_notifications(self, notifications):
+    async def datachange_notification(self, node, val, data):
+        """
+        Callback for asyncua Subscription.
+        """
+        return await self.coro.datachange(node, val, data)
+
+    async def datachange_notifications(self, changes):
         """
         packet datachange notifications
         """
-        # pylint: disable=protected-access
-        asyncio.run_coroutine_threadsafe(
-            self.coro.datachanges(notifications),
-            self.coro._loop,
-        )
+        await self.coro.datachanges(changes)
 
 
 class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
@@ -72,19 +89,18 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
     OPCUA Coroutine
     """
 
-    def __init__(self, parent, host, port=4840, timeout=15, heartbeat=12.5):  # pylint: disable=too-many-arguments
+    def __init__(self, parent, host, port=4840, session_timeout=5, request_timeout=0.5):  # pylint: disable=too-many-arguments  # noqa: E501
         logger.debug("Initialize OPCUA coroutine")
 
         self._address = f"opc.tcp://{host}:{port}/"
         self._client = None
-        self._executor = None
-        self._heartbeat = heartbeat
-        self._loop = None
+        self._names = {}  # cached names (node object to string)
+        self._nodes = {}  # cached nodes (string to node object)
         self._parent = parent
         self._stop = None
-        self._timeout = timeout
+        self._session_timeout = session_timeout
+        self._request_timeout = request_timeout
 
-        self.handles = {}
         self.objects = None
         self.subscriptions = {}
 
@@ -92,64 +108,64 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         setup method is awaited one at the start of the coroutines
         """
-        logger.debug("Try to establish OPCUA connection with %s", self._address)
-        self._client = Client(self._address, timeout=self._timeout)
-        self._executor = executor
-        self._loop = asyncio.get_running_loop()
-        self._stop = self._loop.create_future()
+        logger.debug("Create client with address=%s and timeout=%s", self._address, self._request_timeout)
+        self._client = Client(self._address, timeout=self._request_timeout)
+        self._client.session_timeout = int(self._session_timeout * 1000)
+        self._client.secure_channel_timeout = self._client.session_timeout
+        self._stop = asyncio.Event()
 
     async def loop(self):
         """
         loop method contains the business-code
         """
-        if self._heartbeat:
-            # pylint: disable=protected-access
-            while not self._stop.done() and self._client.uaclient._uasocket._thread.is_alive():
-                logger.debug("OPCUA for heartbeat")
-                try:
-                    await asyncio.wait_for(self._stop, timeout=self._heartbeat)
-                except asyncio.TimeoutError:
-                    # refresh self._stop as it got canceled by wait_for
-                    self._stop = self._loop.create_future()
-                else:
-                    break
-                result = await self._parent.opcua_heartbeat()
-                logger.debug("OPCUA heartbeat returned %s", result)
-                if result in [None, False]:
-                    logger.debug("OPCUA: get_objects_node()")
-                    await self._loop.run_in_executor(self._executor, self._client.get_objects_node)
-        else:
-            await asyncio.wait_for(self._stop, timeout=None)
+        while True:
+            try:
+                # check the connection state at least every second or dependent on the session timeout
+                # we check about 2.5 times within the specified interval (the session_timeout is given in ms)
+                await asyncio.wait_for(self._stop.wait(), timeout=min(1, self._client.session_timeout / 2500))
+            except asyncio.TimeoutError:
+                # if the timeout occurs, the timeout occurs
+                pass
+            except asyncio.CancelledError:
+                # if the cancel is raised, the coroutine should stop
+                break
+
+            # check connection status
+            if self._client.uaclient.protocol.state != self._client.uaclient.protocol.OPEN:
+                await self.stop()
+                break
+
+            if await self._parent.opcua_keepalive() is False:
+                await self.stop()
+                break
 
     async def start(self):
         """
         start method is awaited once, after the setup were concluded
         """
+        logger.debug("Try to establish OPCUA connection with %s", self._address)
+
         wait = 0
         while True:
             try:
-                await self._loop.run_in_executor(self._executor, self._client.connect)
+                await self._client.connect()
                 break
-            except (ConnectionRefusedError, OSError):
+            except (asyncio.TimeoutError, ConnectionRefusedError, socket.gaierror):
                 wait = min(60, wait + 1)
                 logger.info('Connection to %s refused (retry in %ss)', self._address, wait)
                 await asyncio.sleep(wait)
 
         logger.info("OPCUA connected to %s", self._address)
-        await self._loop.run_in_executor(self._executor, self._client.load_type_definitions)
-        self.objects = await self._loop.run_in_executor(self._executor, self._client.get_objects_node)
+        self.objects = self._client.nodes.objects
         await self._parent.opcua_start()
 
     async def stop(self):
         """
         stop method is called after the coroutine was canceled
         """
-        if not self._stop.done():
-            self._stop.set_result(None)
-            try:
-                await self._loop.run_in_executor(self._executor, self._client.disconnect)
-            except (TimeoutError, AttributeError):
-                pass
+        if not self._stop.is_set():
+            await self._client.disconnect()
+            self._stop.set()
 
     async def write_many(self, data):
         """
@@ -160,24 +176,30 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         for node, value, datatype in data:
             nodes.append(node)
             values.append(DataValue(Variant(value, datatype)))
+        try:
+            await self._client.write_values(nodes, values)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Problem writing nodes via OPC-UA: restarting agent")
+            return False
+        else:
+            return True
 
-        await self._loop.run_in_executor(
-            self._executor,
-            self._client.set_values,
-            nodes,
-            values,
-        )
+    async def datachange(self, node, val, data):
+        """
+        datachange
+        """
+        try:
+            logger.debug("%s changed it's value to %s", node, val)
+            return await self._parent.opcua_datachange(node, val, data)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("error evaluating datachange of %s", node)
 
-    async def datachanges(self, notifications):
+    async def datachanges(self, changes):
         """
         datachanges
         """
         try:
-            results = []
-            for node, val, data in notifications:
-                logger.debug("%s changed it's value to %s", node, val)
-                results.append(await self._parent.opcua_datachange(node, val, data))
-            await self._parent.opcua_datachanges(results)
+            await self._parent.opcua_datachanges(changes)
         except Exception:  # pylint: disable=broad-except
             logger.exception("error evaluating datachanges")
 
@@ -185,42 +207,34 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         subscribe to variable
         """
+        if isinstance(nodes, dict):
+            nodes = list(self.get_node(name, path) for name, path in nodes.items())
+
         try:
             subscription = self.subscriptions[interval]
         except KeyError:
-            # pylint: disable=protected-access
-            subscription = await self._loop.run_in_executor(
-                self._executor,
-                self._client.create_subscription,
-                interval,
-                Handler(self._parent, self),
-            )
-            subscription._call_datachange = MethodType(monkeypatch_call_datachange, subscription)
+            subscription = await self._client.create_subscription(interval, Handler(self._parent, self))
+            subscription._call_datachange = MethodType(monkeypatch_call_datachange, subscription)  # pylint: disable=protected-access  # noqa: E501
             self.subscriptions[interval] = subscription
 
-        handle = subscription.subscribe_data_change(nodes)
-        try:
-            for node in nodes:
-                self.handles[node] = (subscription, handle)
-        except TypeError:
-            self.handles[nodes] = (subscription, handle)
-        return None
+        await subscription.subscribe_data_change(nodes)
 
-    async def get_node(self, path):
+    async def get_node(self, name=None, path=None):
         """
         get node object
         """
-        if isinstance(path, (list, tuple)):
-            return await self._loop.run_in_executor(
-                self._executor,
-                self.objects.get_child,
-                path,
-            )
-        return await self._loop.run_in_executor(
-            self._executor,
-            self._client.get_node,
-            path,
-        )
+        try:
+            return self._nodes[name]
+        except KeyError:
+            if path is None:
+                return None
+            if isinstance(path, (list, tuple)):
+                node = await self._client.nodes.objects.get_child(path)
+            else:
+                node = await self._client.get_node(path)
+            if name is not None:
+                self._nodes[name] = node
+            return node
 
 
 class OPCUAMixin:
@@ -251,37 +265,40 @@ class OPCUAMixin:
         Callback after opcua started
         """
 
+    # this should run internally, however testing by disconnecting the power to
+    # an OPCUA server shows that the internal timeout are not handled correctly by asyncio
+    async def opcua_keepalive(self):
+        """
+        Callback to check the opcua connection
+        Can be overwritten and needs to return 'False' to stop and restart the agent
+        """
+
     async def opcua_datachange(self, node, val, data):
         """
         Datachange callback (one per subscribed variable)
         """
 
-    async def opcua_datachanges(self, results):
+    async def opcua_datachanges(self, results, changes):
         """
         Datachanges callback (one per packet)
         """
 
-    async def opcua_write(self, node, value, datatype, sync=False):
+    async def opcua_write(self, node, value, datatype, sync=True):
         """
         write value to node on opcua-server
         """
         if OPCUA:
-            future = self._opcua.write_many([node, value, datatype])
-            if sync:
-                await future
-            else:
-                asyncio.create_task(future)
+            return await self.opcua_write_many([node, value, datatype], sync=sync)
 
-    async def opcua_write_many(self, data, sync=False):
+    async def opcua_write_many(self, data, sync=True):
         """
         data is a list or tuple of node, value and datatype
         """
         if OPCUA:
             future = self._opcua.write_many(data)
             if sync:
-                await future
-            else:
-                asyncio.create_task(future)
+                return await future
+            asyncio.create_task(future)
 
     async def opcua_subscribe(self, nodes, interval):
         """
@@ -290,14 +307,9 @@ class OPCUAMixin:
         if OPCUA:
             return await self._opcua.subscribe(nodes, interval)
 
-    async def opcua_node(self, path):
+    async def opcua_node(self, name=None, path=None):
         """
         gets the node object for a path
         """
         if OPCUA:
-            return await self._opcua.get_node(path)
-
-    async def opcua_heartbeat(self):
-        """
-        talk to the opc-ua server in regular intervals
-        """
+            return await self._opcua.get_node(name=name, path=path)

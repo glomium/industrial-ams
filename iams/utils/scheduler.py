@@ -518,7 +518,7 @@ class BufferScheduler(SchedulerInterface):
         model.AddCumulative(intervals, [1] * len(intervals), self.buffer_input[1])
 
         # minimize this
-        model.Minimize(sum([data["etd"] for data in events.values()]))  # noqa
+        model.Minimize(sum([data["etd"] for data in events.values()]))  # noqa # pylint: disable=consider-using-generator
 
         return model, events, offset
 

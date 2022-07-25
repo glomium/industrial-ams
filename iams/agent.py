@@ -5,14 +5,14 @@ iams agent
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from signal import SIGTERM
+from signal import SIGKILL
 import logging
 import os
 
 import grpc
 import yaml
 
-from google.protobuf.empty_pb2 import Empty
+from google.protobuf.empty_pb2 import Empty  # pylint: disable=no-name-in-module
 
 # from iams.proto import agent_pb2
 from iams.aio.manager import Manager
@@ -84,11 +84,11 @@ class AgentBase:
             logger.debug("Starting execution")
             self.aio_manager(self, executor)
         finally:
-            logger.debug("Shutdown ThreadPoolExecutor")
-            executor.shutdown(wait=False)
+            logger.debug("Shutdown ...")
+            # executor.shutdown(wait=False)
 
-        # force exit via os.kill
-        os.kill(os.getpid(), SIGTERM)
+            # force exit via os.kill
+            os.kill(os.getppid(), SIGKILL)
 
     async def setup(self, executor):
         """

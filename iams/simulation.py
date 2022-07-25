@@ -148,6 +148,7 @@ def prepare_run(count, folder, template, run_config, config):
     except (KeyError, AttributeError):
         df = DF()  # pylint: disable=invalid-name
     else:
+        df = None
         raise NotImplementedError("the directory facilitator cannot be changed")
         # df = getattr(import_module(module_name), class_name)
         # if not issubclass(df, DierctoryFacilitatorInterface):

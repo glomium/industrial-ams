@@ -15,7 +15,7 @@ from typing import AsyncIterator
 import asyncio
 import logging
 
-from google.protobuf.empty_pb2 import Empty
+from google.protobuf.empty_pb2 import Empty  # pylint: disable=no-name-in-module
 import grpc
 
 from iams.aio.interfaces import Coroutine
@@ -116,7 +116,10 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         """
         loop method contains the business-code
         """
-        await self.server.wait_for_termination()
+        try:
+            await self.server.wait_for_termination()
+        except asyncio.CancelledError:
+            pass
 
     async def start(self):
         """
@@ -135,7 +138,10 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         # grace period, the server won't accept new connections and allow
         # existing RPCs to continue within the grace period.
         # After the grace period all connections are closed
-        await self.server.stop(1.0)
+        try:
+            await self.server.stop(1.0)
+        except asyncio.CancelledError:
+            pass
 
     async def wait(self, tasks):
         """

@@ -5,6 +5,7 @@
 iams coroutine manager
 """
 
+from time import time
 import asyncio
 import logging
 
@@ -24,6 +25,7 @@ class Manager:
     def __init__(self):
         logger.debug("Initialize asyncio manager")
         self.coros = {}
+        self.uptime = None
 
     def __call__(self, parent=None, executor=None):
         loop = asyncio.new_event_loop()
@@ -68,6 +70,7 @@ class Manager:
 
         try:
             logger.debug("Start asyncio loop")
+            self.uptime = time()
             done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         except KeyboardInterrupt:  # pragma: no cover
             pending = tasks
@@ -119,6 +122,14 @@ class Manager:
             logger.info("Exception in asyncio", exc_info=exception, stack_info=True)
         else:
             logger.debug("Exception in asyncio", stack_info=True)
+
+    def get_uptime(self):
+        """
+        returns the time (in seconds) after the agent has booted
+        """
+        if self.uptime is None:
+            return 0.0
+        return time() - self.uptime()
 
     def register(self, coro):
         """

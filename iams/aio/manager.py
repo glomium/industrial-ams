@@ -129,7 +129,7 @@ class Manager:
         """
         if self.uptime is None:
             return 0.0
-        return time() - self.uptime()
+        return time() - self.uptime
 
     def register(self, coro):
         """

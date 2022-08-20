@@ -146,7 +146,7 @@ def execute_command_line():  # pragma: no cover
         try:
             while True:
                 expire = grpc_server.certificate_expire()
-                logger.debug("certificate valid for %s days", expire.days)
+                logger.debug("Certificate valid for %s days", expire.days)
 
                 if expire.days > 1:
                     sleep(86400)

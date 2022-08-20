@@ -13,6 +13,8 @@ import re
 
 from socket import gethostname
 
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 import docker
 
 from iams.exceptions import InvalidAgentName
@@ -296,14 +298,17 @@ class DockerSwarmRuntime(RuntimeInterface):
         # get private_key and certificate
         secrets = self.ca.get_ca_secret(secrets, self.namespace)
         certificate, private_key = self.ca.get_agent_certificate(request.name)
-        generated.append(("peer.crt", "peer.crt", certificate))
-        generated.append(("peer.key", "peer.key", private_key))
+        if certificate is not None:
+            x509_certificate = x509.load_pem_x509_certificate(certificate, default_backend())
+            expire = {'iams.certificate.expire': x509_certificate.not_valid_after.isoformat()}
+        generated.append(("peer.crt", "peer.crt", certificate, expire))
+        generated.append(("peer.key", "peer.key", private_key, expire))
 
         # update all secrets from agent
         old_secrets = []
         new_secrets = []
-        for secret_name, filename, data in generated:
-            secret, old = self.set_secret(request.name, secret_name, data)
+        for secret_name, filename, data, additional in generated:
+            secret, old = self.set_secret(request.name, secret_name, data, additional)
             new_secrets.append(docker.types.SecretReference(secret.id, secret.name, filename=filename))
             old_secrets += old
 
@@ -378,7 +383,7 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         return False
 
-    def set_secret(self, service, name, data):
+    def set_secret(self, service, name, data, labels):
         """
         set secret
         """
@@ -403,15 +408,16 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         if secret is None:
             logger.debug('creating secret %s for %s', name, service)
+            labels.update({
+                self.label: self.namespace,
+                'iams.namespace': self.iams_namespace,
+                'iams.agent': service,
+                'iams.secret': name,
+            })
             secret = self.client.secrets.create(
                 name=secret_name,
                 data=data,
-                labels={
-                    self.label: self.namespace,
-                    'iams.namespace': self.iams_namespace,
-                    'iams.agent': service,
-                    'iams.secret': name,
-                },
+                labels=labels,
             )
             secret.reload()  # workarround for https://github.com/docker/docker-py/issues/2025
         return secret, old_secrets

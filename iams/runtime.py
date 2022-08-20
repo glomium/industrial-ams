@@ -5,13 +5,14 @@ iams runtime
 """
 # pylint: disable=too-many-instance-attributes
 
+from collections import defaultdict
+from datetime import datetime
+from socket import gethostname
 import base64
 import hashlib
 import logging
 import os
 import re
-
-from socket import gethostname
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -459,3 +460,33 @@ class DockerSwarmRuntime(RuntimeInterface):
             )
             config.reload()  # workarround for https://github.com/docker/docker-py/issues/2025
         return config, old_configs
+
+    def get_expired(self):
+        """
+        get services with expired secrets
+        """
+        secrets = defaultdict(list)
+        time = datetime.utcnow()
+        for secret in self.client.secrets.list(filters={"label": [  # pylint: disable=invalid-name
+            f"{self.label}={self.namespace}",
+        ]}):
+            try:
+                agent = secret.attrs['Spec']['Labels'].get('iams.agent')
+                filename = secret.attrs['Spec']['Labels'].get('iams.secret')
+                expire = secret.attrs['Spec']['Labels'].get('iams.certificate.expire')
+            except KeyError:
+                continue
+            if filename not in {'peer.crt', 'peer.key'}:
+                continue
+
+            try:
+                delta = datetime.fromisoformat(expire) - time
+            except ValueError:
+                pass
+            else:
+                if delta.days > 2:
+                    continue
+
+            secrets[str(agent)].append(secret)
+
+        return secrets.keys()

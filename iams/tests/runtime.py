@@ -18,13 +18,13 @@ class Runtime(RuntimeInterface):
         """
 
     @staticmethod
-    def get_address():
+    def get_address():  # pylint: disable=arguments-differ
         """
         """
         return ("localhost", 0)
 
     @staticmethod
-    def get_namespace():
+    def get_namespace():  # pylint: disable=arguments-differ
         return "unittest"
 
     def get_valid_agent_name(self, name):
@@ -36,6 +36,10 @@ class Runtime(RuntimeInterface):
         """
 
     def get_agent_config(self, name):
+        """
+        """
+
+    def get_expired(self):
         """
         """
 

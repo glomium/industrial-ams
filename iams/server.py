@@ -116,6 +116,13 @@ class Server:
         )
         return self.server
 
+    def update_certificates(self):
+        """
+        updates certificates from agents and services that expire within two days
+        """
+        # logger.info("Checking for agents and services that require the update of a certificate")
+        # logger.warning("%s.update_certificates is not implemented yet", self.__class__.__qualname__)
+
     def get_plugins(self):
         """
         dynamically load services from environment
@@ -146,7 +153,9 @@ def execute_command_line():  # pragma: no cover
         try:
             while True:
                 expire = grpc_server.certificate_expire()
-                logger.debug("Certificate valid for %s days", expire.days)
+                logger.debug("Server certificate valid for %s days", expire.days)
+
+                server.update_certificates()
 
                 if expire.days > 1:
                     sleep(86400)

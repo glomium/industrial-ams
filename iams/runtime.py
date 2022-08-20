@@ -34,7 +34,7 @@ class DockerSwarmRuntime(RuntimeInterface):
     def __init__(self, ca) -> None:
         super().__init__()
         self.ca = ca
-        self.iams_namespace = "prod"
+        self.iams_namespace = os.environ.get('IAMS_NAMESPACE', "prod")
         self.label = "com.docker.stack.namespace"
 
         self.client = None

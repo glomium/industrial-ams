@@ -23,7 +23,7 @@ from iams.proto import framework_pb2
 
 
 logger = logging.getLogger(__name__)
-AgentData = framework_pb2.AgentData
+AgentData = framework_pb2.AgentData  # pylint: disable=no-member
 
 
 async def credentials(context, optional=False):

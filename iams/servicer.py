@@ -66,7 +66,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
             logger.debug(message)
             context.abort(grpc.StatusCode.NOT_FOUND, message)
 
-        return framework_pb2.AgentData(name=request.name)
+        return framework_pb2.AgentData(name=request.name)  # pylint: disable=no-member
 
     # RPC
     def create(self, request, context):
@@ -113,7 +113,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         #     logger.debug(message)
         #     context.abort(grpc.StatusCode.INVALID_ARGUMENT, message)
 
-        # return framework_pb2.AgentData(name=request.name)
+        # return framework_pb2.AgentData(name=request.name)  # pylint: disable=no-member
 
     # RPC
     def upgrade(self, request, context):
@@ -123,7 +123,7 @@ class FrameworkServicer(framework_pb2_grpc.FrameworkServicer):  # pylint: disabl
         # pylint: disable=protected-access
         identities = credentials(context)
         logger.debug('Update called from %s', identities)
-        self.runtime.update_agent(framework_pb2.AgentData(name=request.name), update=True)  # noqa
+        self.runtime.update_agent(framework_pb2.AgentData(name=request.name), update=True)  # noqa  # pylint: disable=no-member
         return Empty()
 
     def get_agent_name(self, identities, context, name):  # pylint: disable=inconsistent-return-statements
@@ -231,10 +231,10 @@ class CertificateAuthorityServicer(ca_pb2_grpc.CertificateAuthorityServicer):  #
         if request.hard:
             self.threadpool.submit(
                 self.runtime.update_agent,
-                framework_pb2.AgentData(name=request.name),
+                framework_pb2.AgentData(name=request.name),  # pylint: disable=no-member
                 update=True,
             )
-            return framework_pb2.RenewResponse()
+            return framework_pb2.RenewResponse()  # pylint: disable=no-member
 
         # generate private key and certificate and send it
         # the request is authenticated and origins from an agent, i.e it contains image and version

@@ -141,8 +141,8 @@ class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instan
             message = 'Not allowed to access'
             await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
         while True:
-            await asyncio.sleep(30)
             yield Empty()
+            await asyncio.sleep(300)
 
     async def ping(self, request, context):  # pylint: disable=invalid-overridden-method
         identities = await credentials(context)

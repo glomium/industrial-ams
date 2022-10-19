@@ -9,9 +9,14 @@ import "google/protobuf/empty.proto";
 */
 service Agent {
     /*
-    Receive scheduled events in simulation run
+    Sends one ping to the agent
     */
     rpc ping(PingRequest) returns (google.protobuf.Empty) {}
+
+    /*
+    Establishes with a ping a continuous connection
+    */
+    rpc online(PingRequest) returns (stream google.protobuf.Empty) {}
 
     /*
     */
@@ -28,7 +33,7 @@ service Agent {
     /*
     Updates the current position to the agent called this function
     */
-    rpc position(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    // rpc position(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 
     /*
     Updates the current position to the agent called this function

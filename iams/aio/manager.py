@@ -91,25 +91,23 @@ class Manager:
             logger.debug("Cancel %r", task)
             task.cancel()
 
-        if pending:
-            while True:
-                logger.debug("Wait for %s coroutine(s) to be canceled", len(pending))
-                done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        while pending:
+            logger.debug("Wait for %s coroutine(s) to be canceled", len(pending))
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
 
-                for task in done:
-                    name = task.get_name()
-                    try:
-                        task.exception()
-                    except asyncio.CancelledError as exception:  # pylint: disable=broad-except
-                        logger.info(
-                            "Exception raised during cancel of task %r",
-                            name, exc_info=exception, stack_info=True,
-                        )
-                    else:
-                        logger.debug("%r cancelled without an exception", name)
-
-                if not pending:
-                    break
+            for task in done:
+                name = task.get_name()
+                try:
+                    task.exception()
+                except Exception as exc:  # pylint: disable=broad-except
+                    logger.info(
+                        "Exception raised during cancel of task %r",
+                        name,
+                        exc_info=exc,
+                        stack_info=True,
+                    )
+                else:
+                    logger.debug("%r cancelled without an exception", name)
         return None
 
     @staticmethod

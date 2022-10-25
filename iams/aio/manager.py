@@ -26,6 +26,7 @@ class Manager:
         logger.debug("Initialize asyncio manager")
         self.coros = {}
         self.uptime = None
+        self.timeout = 10.0
 
     def __call__(self, parent=None, executor=None):
         loop = asyncio.new_event_loop()
@@ -82,32 +83,30 @@ class Manager:
         for task in done:
             exception = task.exception()
             if exception is None:
-                logger.warning("%r finished without an exception", task)
+                logger.warning("%s finished without an exception", task.get_name())
             else:
-                logger.error("Exception raised from task %r", task, exc_info=exception, stack_info=True)
+                logger.error(
+                    "Exception raised from coroutine %s",
+                    task.get_name(), exc_info=exception, stack_info=True,
+                )
 
         # send cancel events to all pending tasks
         for task in pending:
-            logger.debug("Cancel %r", task)
+            logger.debug("Calling cancel on coroutine %s", task.get_name())
             task.cancel()
 
-        while pending:
-            logger.debug("Wait for %s coroutine(s) to be canceled", len(pending))
-            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-
-            for task in done:
-                name = task.get_name()
+        try:
+            for coro in asyncio.as_completed(pending, timeout=self.timeout):
                 try:
-                    task.exception()
+                    await coro
                 except Exception as exc:  # pylint: disable=broad-except
                     logger.info(
-                        "Exception raised during cancel of task %r",
-                        name,
+                        "Exception raised during cancel of a coroutine",
                         exc_info=exc,
                         stack_info=True,
                     )
-                else:
-                    logger.debug("%r cancelled without an exception", name)
+        except asyncio.TimeoutError:
+            logger.warning("Not all coroutines were cancelled within %.1f seconds", self.timeout)
         return None
 
     @staticmethod

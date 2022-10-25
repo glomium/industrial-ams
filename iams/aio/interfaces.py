@@ -27,6 +27,7 @@ class Coroutine(ABC):
         try:
             await self.loop()
         except asyncio.CancelledError:
+            logger.debug("%s is cancelled", self)
             await self.stop()
         logger.debug("%s stopped", self)
 
@@ -141,17 +142,22 @@ class EventCoroutine(Coroutine, ABC):
         """
         loop method contains the business-code
         """
+        periodic = True
         while not self._stop.done():
             try:
+                async with self._lock:
+                    await self.main(periodic=periodic)
                 await asyncio.wait_for(self._event.wait(), timeout=self.get_interval())
             except asyncio.TimeoutError:
                 periodic = True
             except asyncio.CancelledError:
+                logger.debug("%r received the cancel signal", self)
+                break
+            except Exception:  # pylint: disable=broad-except
+                logger.exception('Error executing main with periodic=%s', periodic)
                 break
             else:
                 periodic = False
-            async with self._lock:
-                await self.main(periodic=periodic)
         await self.stop()
 
     async def run(self):

@@ -5,10 +5,11 @@
 opc ua mixin for agents
 """
 
-from types import MethodType
 import asyncio
 import logging
 import socket
+from time import time
+from types import MethodType
 
 from iams.aio.interfaces import Coroutine
 
@@ -16,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 try:
     from asyncua import Client
+    from asyncua.ua.status_codes import StatusCodes
+    from asyncua.ua.status_codes import get_name_and_doc
     from asyncua.ua.uatypes import DataValue
     from asyncua.ua.uatypes import Variant
     from asyncua.common.subscription import DataChangeNotif
@@ -75,13 +78,32 @@ class Handler:
         """
         Callback for asyncua Subscription.
         """
-        return await self.coro.datachange(node, val, data)
+        logger.debug("%s changed it's value to %s", node, val)
+        try:
+            return await self.parent.opcua_datachange(node, val, data)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Error evaluating datachange of %s with value=%s", node, val)
 
     async def datachange_notifications(self, changes):
         """
         packet datachange notifications
         """
-        await self.coro.datachanges(changes)
+        try:
+            await self.parent.opcua_datachanges(changes)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Error evaluating datachanges")
+
+    async def status_change_notification(self, status):  # pylint: disable=no-self-use
+        """
+        status change notification
+        """
+        logger.warning("OPC-UA connection status called")
+        try:
+            name, doc = get_name_and_doc(status)
+            logger.info("OPC-UA connection status changed to %s (%s)", name, status)
+            await self.parent.opcua_statuschange(status, name, doc)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Error evaluating statuschange with status %s", status)
 
 
 class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
@@ -109,35 +131,15 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         setup method is awaited one at the start of the coroutines
         """
         logger.debug("Create client with address=%s and timeout=%s", self._address, self._request_timeout)
-        self._client = Client(self._address, timeout=self._request_timeout)
-        self._client.session_timeout = int(self._session_timeout * 1000)
-        self._client.secure_channel_timeout = self._client.session_timeout
+        self._client = Client(self._address, timeout=self._request_timeout, watchdog_intervall=self._session_timeout)
         self._stop = asyncio.Event()
 
     async def loop(self):
         """
-        loop method contains the business-code
+        the server is started and the client is monitoring itself, thus this method only needs to wait
+        for the closing signal
         """
-        while True:
-            try:
-                # check the connection state at least every second or dependent on the session timeout
-                # we check about 2.5 times within the specified interval (the session_timeout is given in ms)
-                await asyncio.wait_for(self._stop.wait(), timeout=min(1, self._client.session_timeout / 2500))
-            except asyncio.TimeoutError:
-                # if the timeout occurs, the timeout occurs
-                pass
-            except asyncio.CancelledError:
-                # if the cancel is raised, the coroutine should stop
-                break
-
-            # check connection status
-            if self._client.uaclient.protocol.state != self._client.uaclient.protocol.OPEN:
-                await self.stop()
-                break
-
-            if await self._parent.opcua_keepalive() is False:
-                await self.stop()
-                break
+        await self._stop.wait()
 
     async def start(self):
         """
@@ -176,32 +178,18 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         for node, value, datatype in data:
             nodes.append(node)
             values.append(DataValue(Variant(value, datatype)))
+        if not nodes:
+            return True
         try:
+            delta = time()
             await self._client.write_values(nodes, values)
         except Exception:  # pylint: disable=broad-except
-            logger.exception("Problem writing nodes via OPC-UA: restarting agent")
+            logger.exception("Problem writing nodes via OPC-UA")
             return False
         else:
+            delta = (time() - delta) * 1000
+            asyncio.create_task(self._parent.opcua_stats_write(len(nodes), delta))
             return True
-
-    async def datachange(self, node, val, data):
-        """
-        datachange
-        """
-        try:
-            logger.debug("%s changed it's value to %s", node, val)
-            return await self._parent.opcua_datachange(node, val, data)
-        except Exception:  # pylint: disable=broad-except
-            logger.exception("error evaluating datachange of %s", node)
-
-    async def datachanges(self, changes):
-        """
-        datachanges
-        """
-        try:
-            await self._parent.opcua_datachanges(changes)
-        except Exception:  # pylint: disable=broad-except
-            logger.exception("error evaluating datachanges")
 
     async def subscribe(self, nodes, interval):
         """
@@ -265,14 +253,6 @@ class OPCUAMixin:
         Callback after opcua started
         """
 
-    # this should run internally, however testing by disconnecting the power to
-    # an OPCUA server shows that the internal timeout are not handled correctly by asyncio
-    async def opcua_keepalive(self):
-        """
-        Callback to check the opcua connection
-        Can be overwritten and needs to return 'False' to stop and restart the agent
-        """
-
     async def opcua_datachange(self, node, val, data):
         """
         Datachange callback (one per subscribed variable)
@@ -298,7 +278,20 @@ class OPCUAMixin:
             future = self._opcua.write_many(data)
             if sync:
                 return await future
-            asyncio.create_task(future)
+            return asyncio.create_task(future)
+
+    async def opcua_stats_write(self, writes, response_time):
+        """
+        The numer of written nodes and the response time (in miliseconds) from the OPC-UA server can be processed here
+        """
+
+    async def opcua_statuschange(self, code, name, doc):  # pylint: disable=unused-argument
+        """
+        calles with the status if the status was changed by the opcua client
+        """
+        if OPCUA:
+            if code == StatusCodes.BadShutdown:
+                await self._opcua.stop()
 
     async def opcua_subscribe(self, nodes, interval):
         """

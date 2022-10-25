@@ -8,6 +8,7 @@ import asyncio
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from signal import SIGKILL
 
 import grpc
@@ -80,16 +81,33 @@ class AgentBase:
             logger.debug("Adding agent servicer to grpc")
             self.grpc.add(agent_pb2_grpc.add_AgentServicer_to_server, self.iams)
 
+        pidfile = Path("/run/iams_agent.pid")
         executor = ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
         try:
+            try:
+                with pidfile.open("w", encoding="ASCII") as fobj:
+                    fobj.write(str(os.getpid()))
+                logger.debug("Created pidfile %s", pidfile)
+            except OSError:
+                logger.debug("Could not create pidfile %s", pidfile)
+
             logger.debug("Starting execution")
             self.aio_manager(self, executor)
         finally:
+            if pidfile.exists():
+                try:
+                    pidfile.unlink(missing_ok=True)
+                    logger.debug("Removed pidfile %s", pidfile)
+                except OSError:
+                    logger.debug("Could not remove pidfile %s", pidfile)
+
             logger.debug("Shutdown ...")
-            # executor.shutdown(wait=False)
+            executor.shutdown(wait=False)
+            logger.debug("Sending SIGKILL to kill all processes")
 
             # force exit via os.kill
             os.kill(os.getppid(), SIGKILL)
+            os.kill(os.getpid(), SIGKILL)
 
     async def setup(self, executor):
         """

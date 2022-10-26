@@ -97,13 +97,12 @@ class Handler:
         """
         status change notification
         """
-        logger.warning("OPC-UA connection status called")
         try:
             name, doc = get_name_and_doc(status)
             logger.info("OPC-UA connection status changed to %s (%s)", name, status)
             await self.parent.opcua_statuschange(status, name, doc)
         except Exception:  # pylint: disable=broad-except
-            logger.exception("Error evaluating statuschange with status %s", status)
+            logger.exception("Error evaluating statuschange with status=%s, name=%s, doc=%s", status, name, doc)
 
 
 class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
@@ -166,7 +165,13 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         stop method is called after the coroutine was canceled
         """
         if not self._stop.is_set():
-            await self._client.disconnect()
+            try:
+                await self._client.disconnect()
+            except asyncio.TimeoutError:
+                # OPC-UA is already disconnected
+                pass
+            except Exception:  # pylint: disable=broad-except:
+                logger.exception("Error disconnecting OPC-UA")
             self._stop.set()
 
     async def write_many(self, data):

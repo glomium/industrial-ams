@@ -96,7 +96,7 @@ class AgentBase:
         finally:
             if pidfile.exists():
                 try:
-                    pidfile.unlink(missing_ok=True)
+                    pidfile.unlink()
                     logger.debug("Removed pidfile %s", pidfile)
                 except OSError:
                     logger.debug("Could not remove pidfile %s", pidfile)

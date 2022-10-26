@@ -92,7 +92,7 @@ class Manager:
 
         # send cancel events to all pending tasks
         for task in pending:
-            logger.debug("Calling cancel on coroutine %s", task.get_name())
+            logger.debug("Sending cancel to coroutine %s", task.get_name())
             task.cancel()
 
         try:

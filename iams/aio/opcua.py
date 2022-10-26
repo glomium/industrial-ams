@@ -135,10 +135,28 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
 
     async def loop(self):
         """
-        the server is started and the client is monitoring itself, thus this method only needs to wait
-        for the closing signal
+        We regularly check the connection to the opc-ua server
         """
-        await self._stop.wait()
+        while True:
+            try:
+                # check the connection state at least every second or dependent on the session timeout
+                # we check about 2.5 times within the specified interval (the session_timeout is given in ms)
+                await asyncio.wait_for(self._stop.wait(), timeout=min(1, self._session_timeout / 1.2))
+            except asyncio.TimeoutError:
+                # if the timeout occurs, the timeout occurs
+                pass
+            except asyncio.CancelledError:
+                # if the cancel is raised, the coroutine should stop
+                break
+
+            try:
+                self._client.check_connection()
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("Connection to OPC-UA-Server has an error")
+                break
+
+        # disconnect gracefully
+        await self.stop()
 
     async def start(self):
         """

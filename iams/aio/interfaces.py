@@ -27,7 +27,7 @@ class Coroutine(ABC):
         try:
             await self.loop()
         except asyncio.CancelledError:
-            logger.debug("%s is cancelled", self)
+            logger.debug("%s received the cancel signal", self)
             await self.stop()
         logger.debug("%s stopped", self)
 

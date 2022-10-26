@@ -150,7 +150,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
                 break
 
             try:
-                self._client.check_connection()
+                await self._client.check_connection()
             except Exception:  # pylint: disable=broad-except
                 logger.exception("Connection to OPC-UA-Server has an error")
                 break

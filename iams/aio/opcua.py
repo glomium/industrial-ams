@@ -152,7 +152,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
             try:
                 await self._client.check_connection()
             except Exception:  # pylint: disable=broad-except
-                logger.exception("Connection to OPC-UA-Server has an error")
+                logger.exception("Connection to OPC-UA-Server had an error")
                 break
 
         # disconnect gracefully
@@ -242,7 +242,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
             if isinstance(path, (list, tuple)):
                 node = await self._client.nodes.objects.get_child(path)
             else:
-                node = await self._client.get_node(path)
+                node = self._client.get_node(path)
             if name is not None:
                 self._nodes[name] = node
             return node

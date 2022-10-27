@@ -25,8 +25,9 @@ class Manager:
     def __init__(self):
         logger.debug("Initialize asyncio manager")
         self.coros = {}
-        self.uptime = None
+        self.stop_future = None
         self.timeout = 10.0
+        self.uptime = None
 
     def __call__(self, parent=None, executor=None):
         loop = asyncio.new_event_loop()
@@ -40,6 +41,8 @@ class Manager:
         """
         main coroutine, providing a common eventloop for all related coroutines
         """
+        self.stop_future = asyncio.get_running_loop().create_future()
+
         logger.debug("Adding tasks for setup methods")
         tasks = set()
         for name, coro in self.coros.items():
@@ -65,7 +68,7 @@ class Manager:
             starts[name] = asyncio.create_task(coro._start(), name=f"{name}.start")  # pylint: disable=protected-access
 
         logger.debug("Adding tasks for asyncio modules")
-        tasks = set()
+        tasks = set([self.stop_future])
         for name, coro in self.coros.items():
             tasks.add(asyncio.create_task(coro(starts), name=f"{name}.call"))
 
@@ -81,6 +84,8 @@ class Manager:
 
         # log the event that was closing the loop
         for task in done:
+            if task == self.stop_future:
+                continue
             exception = task.exception()
             if exception is None:
                 logger.warning("%s finished without an exception", task.get_name())
@@ -89,9 +94,12 @@ class Manager:
                     "Exception raised from coroutine %s",
                     task.get_name(), exc_info=exception, stack_info=True,
                 )
+        self.stop()
 
         # send cancel events to all pending tasks
         for task in pending:
+            if task == self.stop_future:
+                continue
             logger.debug("Sending cancel to coroutine %s", task.get_name())
             task.cancel()
 
@@ -108,6 +116,13 @@ class Manager:
         except asyncio.TimeoutError:
             logger.warning("Not all coroutines were cancelled within %.1f seconds", self.timeout)
         return None
+
+    def stop(self):
+        """
+        sets the result on the stop future
+        """
+        if not self.stop_future.done():
+            self.stop_future.set_result(None)
 
     @staticmethod
     def exception_handler(loop, context):  # pylint: disable=unused-argument

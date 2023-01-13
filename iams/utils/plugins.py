@@ -7,8 +7,8 @@ helper for loading plugins
 import logging
 import os
 import sys
-
 from importlib.util import find_spec
+from importlib.util import module_from_spec
 from inspect import getmembers, isclass
 
 
@@ -54,7 +54,8 @@ def get_plugins():
     # get plugins from specs
     for spec in specs:
         try:
-            module = spec.loader.load_module()
+            module = module_from_spec(spec)
+            spec.loader.exec_module(module)
         except ModuleNotFoundError:
             logger.exception("Import error for %s", spec.name)
             continue

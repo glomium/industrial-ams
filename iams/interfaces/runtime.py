@@ -92,6 +92,12 @@ class RuntimeInterface(ABC):
         wake_agent
         """
 
+    @abstractmethod
+    def get_expired(self):
+        """
+        get services with expired secrets
+        """
+
     def delete_agent_plugins(self, name):
         """
         delete agent plugins

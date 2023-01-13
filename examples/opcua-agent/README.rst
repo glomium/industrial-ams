@@ -57,13 +57,12 @@ The connection to the OPC-UA server is created automatically.
 A call to ``opcua_kwargs`` is used to select the configuration options for OPC-UA.
 The Hostname is usually configured by the IAMS-Server.
 If the OPC-UA server is not running on the default port, this can be used to set a different port.
-In our example-code a ``session_timeout`` is specified.
+Additionally, a ``session_timeout`` is specified in our example.
 
 After the client is connected to the OPC-UA server the ``opcua_start`` callback is used to establish the subscriptions and store the OPC-UA nodes in the instance.
 
-The OPC-UA server should send keep-alive signals, according to the time specified by ``session_timeout``.
-However, some implementations don't send this signal. To detect a disconnect, you can send a update-request from the client.
-Use the ``opcua_keepalive`` callback for this.
+The OPC-UA client is checking the connection, according to the time specified ``session_timeout``.
+However, the subscriptions can be stopped by the server. Thus it is helpful to subscribe to ``i=2258`` (Server_ServerStatus_CurrentTime) and observe if the subscription needs to be renewed.
 
 
 Getting data changes

@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 # vim: set fileencoding=utf-8 :
 
-import asyncio
 import logging
 
 from iams.agent import Agent
@@ -12,16 +11,18 @@ from iams.aio.opcua import OPCUAMixin
 logger = logging.getLogger(__name__)
 
 
-class Conveyor(OPCUAMixin, InfluxMixin, Agent):
+class MyAgent(OPCUAMixin, InfluxMixin, Agent):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # store node an values on instance
         self.sensor1_node = None
-        self.sensor2_node = None
         self.sensor1_value = None
+        self.sensor2_node = None
         self.sensor2_value = None
+        self.server_time_node = None
+        self.server_time_value = None
 
     def opcua_kwargs(self):
         """
@@ -34,32 +35,25 @@ class Conveyor(OPCUAMixin, InfluxMixin, Agent):
         })
         return kwargs
 
-    async def opcua_keepalive(self):
-        """
-        If the server does not send data, a node.get_value() is called
-        to test if the connection is still alive
-        """
-        try:
-            await self.sensor1_node.get_value()
-        except Exception:  # pylint: disable=broad-except
-            return False
-
     async def opcua_start(self):
         """
         callback after opc-ua starts
         """
         self.sensor1_node = await self.opcua_node(name="sensor1", path=["3:ServerInterfaces", "4:Test", "4:Sensor1"])
         self.sensor2_node = await self.opcua_node(name="sensor2", path=["3:ServerInterfaces", "4:Test", "4:Sensor2"])
+        self.server_time_node = await self.opcua_node(name="server_time", path="i=2258")
 
         # create subscription (update every 100 ms)
-        await self.opcua_subscribe([self.sensor1_node, self.sensor2_node], 100)
+        await self.opcua_subscribe([self.server_time, self.sensor1_node, self.sensor2_node], 100)
 
     async def opcua_datachange(self, node, val, data):
         """
         callback for every node that has a subscription, when it's value changes
         identifies a node, stores its value and writes a log message containing the old and new values
         """
-        if node == self.sensor1_node:
+        if node == self.server_time_node:
+            self.server_time_value = val
+        elif node == self.sensor1_node:
             previous = self.sensor1_value
             self.sensor1_value = val
         elif node == self.sensor2_node:

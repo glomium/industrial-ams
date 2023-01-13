@@ -28,7 +28,7 @@ class CFSSL(CertificateAuthorityInterface):
         logger.debug("CFSSL(%s, %s)", service_uri, self.hosts)
 
     def __call__(self):
-        response = requests.post(f'http://{self.service}/api/v1/cfssl/info', json={}).json()
+        response = requests.post(f'http://{self.service}/api/v1/cfssl/info', json={}, timeout=10.).json()
         self.root_ca = response["result"]["certificate"].encode()
 
     def get_ca_secret(self, data, namespace):
@@ -85,7 +85,7 @@ class CFSSL(CertificateAuthorityInterface):
             },
         }
         logger.debug('request to %s: %s', url, data)
-        response = requests.post(url, json=data).json()
+        response = requests.post(url, json=data, timeout=15.).json()
         return response
 
     # pylint: disable=

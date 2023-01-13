@@ -5,14 +5,17 @@ iams runtime
 """
 # pylint: disable=too-many-instance-attributes
 
+from collections import defaultdict
+from datetime import datetime
+from socket import gethostname
 import base64
 import hashlib
 import logging
 import os
 import re
 
-from socket import gethostname
-
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 import docker
 
 from iams.exceptions import InvalidAgentName
@@ -32,7 +35,7 @@ class DockerSwarmRuntime(RuntimeInterface):
     def __init__(self, ca) -> None:
         super().__init__()
         self.ca = ca
-        self.iams_namespace = "prod"
+        self.iams_namespace = os.environ.get('IAMS_NAMESPACE', "prod")
         self.label = "com.docker.stack.namespace"
 
         self.client = None
@@ -296,14 +299,17 @@ class DockerSwarmRuntime(RuntimeInterface):
         # get private_key and certificate
         secrets = self.ca.get_ca_secret(secrets, self.namespace)
         certificate, private_key = self.ca.get_agent_certificate(request.name)
-        generated.append(("peer.crt", "peer.crt", certificate))
-        generated.append(("peer.key", "peer.key", private_key))
+        if certificate is not None:
+            x509_certificate = x509.load_pem_x509_certificate(certificate, default_backend())
+            expire = {'iams.certificate.expire': x509_certificate.not_valid_after.isoformat()}
+        generated.append(("peer.crt", "peer.crt", certificate, expire))
+        generated.append(("peer.key", "peer.key", private_key, expire))
 
         # update all secrets from agent
         old_secrets = []
         new_secrets = []
-        for secret_name, filename, data in generated:
-            secret, old = self.set_secret(request.name, secret_name, data)
+        for secret_name, filename, data, additional in generated:
+            secret, old = self.set_secret(request.name, secret_name, data, additional)
             new_secrets.append(docker.types.SecretReference(secret.id, secret.name, filename=filename))
             old_secrets += old
 
@@ -378,7 +384,7 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         return False
 
-    def set_secret(self, service, name, data):
+    def set_secret(self, service, name, data, labels):
         """
         set secret
         """
@@ -403,15 +409,16 @@ class DockerSwarmRuntime(RuntimeInterface):
 
         if secret is None:
             logger.debug('creating secret %s for %s', name, service)
+            labels.update({
+                self.label: self.namespace,
+                'iams.namespace': self.iams_namespace,
+                'iams.agent': service,
+                'iams.secret': name,
+            })
             secret = self.client.secrets.create(
                 name=secret_name,
                 data=data,
-                labels={
-                    self.label: self.namespace,
-                    'iams.namespace': self.iams_namespace,
-                    'iams.agent': service,
-                    'iams.secret': name,
-                },
+                labels=labels,
             )
             secret.reload()  # workarround for https://github.com/docker/docker-py/issues/2025
         return secret, old_secrets
@@ -453,3 +460,33 @@ class DockerSwarmRuntime(RuntimeInterface):
             )
             config.reload()  # workarround for https://github.com/docker/docker-py/issues/2025
         return config, old_configs
+
+    def get_expired(self):
+        """
+        get services with expired secrets
+        """
+        secrets = defaultdict(list)
+        time = datetime.utcnow()
+        for secret in self.client.secrets.list(filters={"label": [  # pylint: disable=invalid-name
+            f"{self.label}={self.namespace}",
+        ]}):
+            try:
+                agent = secret.attrs['Spec']['Labels'].get('iams.agent')
+                filename = secret.attrs['Spec']['Labels'].get('iams.secret')
+                expire = secret.attrs['Spec']['Labels'].get('iams.certificate.expire')
+            except KeyError:
+                continue
+            if filename not in {'peer.crt', 'peer.key'}:
+                continue
+
+            try:
+                delta = datetime.fromisoformat(expire) - time
+            except ValueError:
+                pass
+            else:
+                if delta.days > 2:
+                    continue
+
+            secrets[str(agent)].append(secret)
+
+        return secrets.keys()

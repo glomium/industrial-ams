@@ -4,10 +4,12 @@
 iams agent
 """
 
-from concurrent.futures import ThreadPoolExecutor
-from signal import SIGKILL
+import asyncio
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from signal import SIGKILL
 
 import grpc
 import yaml
@@ -23,7 +25,7 @@ from iams.proto import framework_pb2
 
 
 logger = logging.getLogger(__name__)
-AgentData = framework_pb2.AgentData
+AgentData = framework_pb2.AgentData  # pylint: disable=no-member
 
 
 async def credentials(context, optional=False):
@@ -38,7 +40,7 @@ async def credentials(context, optional=False):
     # assign peer identities
     ignore = set([b'127.0.0.1', b'localhost'])
     try:
-        return set(x.decode('utf-8') for x in context.peer_identities() if x not in ignore)
+        return set(x.decode('utf-8') for x in context.peer_identities() if x and x not in ignore)
     except TypeError:
         logger.debug("Could not assign the 'credentials' attribute")
 
@@ -79,20 +81,43 @@ class AgentBase:
             logger.debug("Adding agent servicer to grpc")
             self.grpc.add(agent_pb2_grpc.add_AgentServicer_to_server, self.iams)
 
+        pidfile = Path("/run/iams_agent.pid")
         executor = ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
         try:
+            try:
+                with pidfile.open("w", encoding="ASCII") as fobj:
+                    fobj.write(str(os.getpid()))
+                logger.debug("Created pidfile %s", pidfile)
+            except OSError:
+                logger.debug("Could not create pidfile %s", pidfile)
+
             logger.debug("Starting execution")
             self.aio_manager(self, executor)
         finally:
+            if pidfile.exists():
+                try:
+                    pidfile.unlink()
+                    logger.debug("Removed pidfile %s", pidfile)
+                except OSError:
+                    logger.debug("Could not remove pidfile %s", pidfile)
+
             logger.debug("Shutdown ...")
-            # executor.shutdown(wait=False)
+            executor.shutdown(wait=False)
+            logger.debug("Sending SIGKILL to kill all processes")
 
             # force exit via os.kill
             os.kill(os.getppid(), SIGKILL)
+            os.kill(os.getpid(), SIGKILL)
 
     async def setup(self, executor):
         """
         overwrite this function
+        """
+
+    async def callback_agent_authenticate(self, identities, context):
+        """
+        This function should return True if the agent calling is authenticated
+        to access the agent servicer
         """
 
     async def callback_agent_upgrade(self, identities, context):
@@ -125,40 +150,54 @@ class Servicer(agent_pb2_grpc.AgentServicer):  # pylint: disable=too-many-instan
 
         assert self.agent is not None, 'Must define IAMS_AGENT in environment'
         assert self.service is not None, 'Must define IAMS_SERVICE in environment'
-        self.prefix = self.agent.split('_')[0] + '_'
-
+        self.prefix = self.agent.split('_', 1)[0] + '_'
         self.parent = parent
-        self.position = None
-        self.queue = None
 
-        # caches
-        self._topology = None
+    async def online(self, request, context):  # pylint: disable=invalid-overridden-method
+        identities = await credentials(context)
+        if not await self.parent.callback_agent_authenticate(identities, context):
+            message = 'Not allowed to access'
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        while True:
+            yield Empty()
+            await asyncio.sleep(300)
 
     async def ping(self, request, context):  # pylint: disable=invalid-overridden-method
-        await credentials(context)
+        identities = await credentials(context)
+        if not await self.parent.callback_agent_authenticate(identities, context):
+            message = 'Not allowed to access'
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        return Empty()
+
+    async def reset(self, request, context):  # pylint: disable=invalid-overridden-method
+        identities = await credentials(context)
+        if not await self.parent.callback_agent_authenticate(identities, context):
+            message = 'Not allowed to access'
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        if not await self.parent.callback_agent_reset(identities, context):
+            message = 'Reset is not allowed'
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        return Empty()
+
+    async def update(self, request, context):  # pylint: disable=invalid-overridden-method
+        identities = await credentials(context)
+        if not await self.parent.callback_agent_authenticate(identities, context):
+            message = 'Not allowed to access'
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        if not await self.parent.callback_agent_update(identities, context):
+            message = 'Update is not allowed'
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
         return Empty()
 
     async def upgrade(self, request, context):  # pylint: disable=invalid-overridden-method
         identities = await credentials(context)
-        if await self.parent.callback_agent_upgrade(identities, context):
-            return Empty()
-        message = 'Upgrade is not allowed'
-        await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
-
-    async def update(self, request, context):  # pylint: disable=invalid-overridden-method
-        identities = await credentials(context)
-        if await self.parent.callback_agent_update(identities, context):
-            return Empty()
-        message = 'Update is not allowed'
-        await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
-
-    async def reset(self, request, context):  # pylint: disable=invalid-overridden-method
-        identities = await credentials(context)
-
-        if await self.parent.callback_agent_reset(identities, context):
-            return Empty()
-        message = 'Reset is not allowed'
-        await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        if not await self.parent.callback_agent_authenticate(identities, context):
+            message = 'Not allowed to access'
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        if not await self.parent.callback_agent_upgrade(identities, context):
+            message = 'Upgrade is not allowed'
+            await context.abort(grpc.StatusCode.PERMISSION_DENIED, message)
+        return Empty()
 
 
 class Agent(AgentBase):
@@ -175,6 +214,9 @@ class Agent(AgentBase):
         except FileNotFoundError:
             logger.debug('Configuration at /config was not found')
             self._config = {}
+
+    async def callback_agent_authenticate(self, identities, context):
+        return True
 
 
 Servicer.__doc__ = agent_pb2_grpc.AgentServicer.__doc__

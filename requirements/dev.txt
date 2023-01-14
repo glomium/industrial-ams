@@ -1,3 +1,4 @@
 pip-upgrader
 setuptools>=57.0.0
-wheel==0.38.0
+twine==4.0.2
+wheel==0.38.4

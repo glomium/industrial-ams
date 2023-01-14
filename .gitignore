@@ -5,8 +5,10 @@
 
 /build
 /dist
-/secrets
 /docs/_build
+/htmlcov
+/secrets
+/venv
 /*\.egg-info
 /*\.whl
 /\.coverage

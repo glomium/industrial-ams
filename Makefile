@@ -13,6 +13,7 @@ endif
 endif
 
 
+.PHONY: build
 build:
 	docker build --cache-from iams-base:local --pull --target basestage -t iams-base:local .
 	docker build --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
@@ -23,6 +24,7 @@ buildx:
 	docker buildx build --pull --platform linux/amd64,linux/arm64 -t glomium/industrial-ams:$(TARGET) --push .
 
 
+.PHONY: test
 test:
 	flake8 iams benchmark publication
 	doc8 iams benchmark publication

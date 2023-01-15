@@ -13,11 +13,24 @@ endif
 endif
 
 
+# used in github action
 .PHONY: static
 static:
 	flake8 iams
 	doc8 iams
 	pylint iams
+
+
+# used in github action
+.PHONY: grpc
+grpc:
+	python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto \
+		proto/agent.proto \
+		proto/ca.proto \
+		proto/df.proto \
+		proto/framework.proto \
+		proto/market.proto
+	sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
 
 
 .PHONY: build
@@ -66,16 +79,6 @@ start: build
 
 stop:
 	docker stack rm iams 
-
-
-grpc:
-	python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto \
-		proto/agent.proto \
-		proto/ca.proto \
-		proto/df.proto \
-		proto/framework.proto \
-		proto/market.proto
-	sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
 
 
 pip:

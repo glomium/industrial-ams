@@ -27,3 +27,13 @@ jobs:
       run: |
         python setup.py bdist_wheel
         twine upload dist/*
+    - name: Create Release on github
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided automatically
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false

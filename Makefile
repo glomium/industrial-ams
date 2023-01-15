@@ -13,6 +13,13 @@ endif
 endif
 
 
+.PHONY: static
+static:
+	flake8 iams
+	doc8 iams
+	pylint iams
+
+
 .PHONY: build
 build:
 	docker build --cache-from iams-base:local --pull --target basestage -t iams-base:local .

@@ -1,4 +1,4 @@
-name: Pylint
+name: Static code analysis
 
 on: [push]
 
@@ -19,7 +19,4 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements/test.txt
     - name: Static code analysis
-      run: |
-        flake8 iams
-        doc8 iams
-        pylint iams
+      run: make grpc static

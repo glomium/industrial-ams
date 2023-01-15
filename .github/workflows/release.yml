@@ -1,4 +1,4 @@
-name: Release to pypi and github
+name: Release to pypi
 
 on:
   push:
@@ -16,25 +16,16 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.x'
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt -r requirements/build.txt
+        pip install -r requirements/build.txt
+
     - name: Build and publish
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
       run: |
-        make grpc
-        python setup.py bdist_wheel
+        make wheel
         twine upload dist/*
-    - name: Create Release on github
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided automatically
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false

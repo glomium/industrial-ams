@@ -13,6 +13,27 @@ endif
 endif
 
 
+# used in github action
+.PHONY: static
+static:
+	flake8 iams
+	doc8 iams
+	pylint iams
+
+
+# used in github action
+.PHONY: grpc
+grpc:
+	python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto \
+		proto/agent.proto \
+		proto/ca.proto \
+		proto/df.proto \
+		proto/framework.proto \
+		proto/market.proto
+	sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
+
+
+.PHONY: build
 build:
 	docker build --cache-from iams-base:local --pull --target basestage -t iams-base:local .
 	docker build --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
@@ -23,6 +44,7 @@ buildx:
 	docker buildx build --pull --platform linux/amd64,linux/arm64 -t glomium/industrial-ams:$(TARGET) --push .
 
 
+.PHONY: test
 test:
 	flake8 iams benchmark publication
 	doc8 iams benchmark publication
@@ -57,16 +79,6 @@ start: build
 
 stop:
 	docker stack rm iams 
-
-
-grpc:
-	python3 -m grpc_tools.protoc -Iproto --python_out=iams/proto --grpc_python_out=iams/proto \
-		proto/agent.proto \
-		proto/ca.proto \
-		proto/df.proto \
-		proto/framework.proto \
-		proto/market.proto
-	sed -i -E 's/^import.*_pb2/from . \0/' iams/proto/*.py
 
 
 pip:

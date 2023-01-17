@@ -1,0 +1,2 @@
+grpcio-tools==1.51.1
+twine>=4.0.0

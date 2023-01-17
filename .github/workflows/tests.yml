@@ -1,4 +1,4 @@
-name: Static code analysis
+name: Run static code analysis and tests
 
 on: [push]
 
@@ -20,3 +20,10 @@ jobs:
         pip install -r requirements.txt -r requirements/test.txt
     - name: Static code analysis
       run: make grpc static
+    - name: Test with unittests
+      run: coverage run --data-file=coverage-py${{ matrix.python-version }} -m unittest -v
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-py${{ matrix.python-version }}
+        path: coverage-py${{ matrix.python-version }}

@@ -21,9 +21,9 @@ jobs:
     - name: Static code analysis
       run: make grpc static
     - name: Test with unittests
-      run: coverage run -m unittest -v 
+      run: coverage run -m unittest -v --data-file=coverage-py${{ matrix.python-version }}
     - name: Upload test results
       uses: actions/upload-artifact@v3
       with:
-        name: .coverage
-        path: coverage/python-${{ matrix.python-version }}
+        name: coverage-py${{ matrix.python-version }}
+        path: coverage-py${{ matrix.python-version }}

@@ -311,7 +311,6 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
         """
         returns the default grpc value for the status message
         """
-        return None
 
     def grpc_method(self):
         """

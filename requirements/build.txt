@@ -1,2 +1,2 @@
-grpcio-tools==1.51.1
+grpcio-tools==1.52.0
 twine>=4.0.0

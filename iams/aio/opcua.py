@@ -209,10 +209,10 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         except Exception:  # pylint: disable=broad-except
             logger.exception("Problem writing nodes via OPC-UA")
             return False
-        else:
-            delta = (time() - delta) * 1000
-            asyncio.create_task(self._parent.opcua_stats_write(len(nodes), delta))
-            return True
+
+        delta = (time() - delta) * 1000
+        asyncio.create_task(self._parent.opcua_stats_write(len(nodes), delta))
+        return True
 
     async def subscribe(self, nodes, interval):
         """

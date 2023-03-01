@@ -137,11 +137,10 @@ def prepare_run(count, folder, template, run_config, config):
         module_name, class_name = config["simulation-class"].rsplit('.', 1)
     except (KeyError, AttributeError) as exception:
         raise ValueError('The configuration-file needs a valid "simulation-class-setting') from exception
-    else:
-        simcls = getattr(import_module(module_name), class_name)
 
-        if not issubclass(simcls, SimulationInterface):
-            raise AssertionError(f"{simcls.__qualname__} needs to be a subclass of {SimulationInterface.__qualname__}")
+    simcls = getattr(import_module(module_name), class_name)
+    if not issubclass(simcls, SimulationInterface):
+        raise AssertionError(f"{simcls.__qualname__} needs to be a subclass of {SimulationInterface.__qualname__}")
 
     try:
         module_name, class_name = config["directory-facilitator"].rsplit('.', 1)

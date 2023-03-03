@@ -222,7 +222,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         if not nodes:
             return []
 
-        nodes = [await self.get_node(path) for path in nodes]
+        nodes = [await self.get_node(path=path) for path in nodes]
         delta = time()
         values = await self._client.read_values(nodes)
         delta = (time() - delta) * 1000

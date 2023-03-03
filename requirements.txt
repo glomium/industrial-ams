@@ -1,6 +1,6 @@
 PyYAML==6.0
 aiohttp[speedups]==3.8.4
-cryptography==39.0.1
+cryptography==39.0.2
 docker==6.0.1
 grpcio-tools==1.52.0
 grpcio==1.52.0

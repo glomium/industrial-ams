@@ -7,7 +7,7 @@ flake8==6.0.0
 pep8-naming==0.13.3
 pylint==2.16.2
 
-asyncua==1.0.0
+asyncua==1.0.1
 networkx==3.0
 numpy==1.24.2
 ortools==9.2.9972

@@ -117,6 +117,7 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         self._client = None
         self._names = {}  # cached names (node object to string)
         self._nodes = {}  # cached nodes (string to node object)
+        self._paths = {}  # cached paths (tuple to node object)
         self._parent = parent
         self._stop = None
         self._session_timeout = session_timeout
@@ -214,6 +215,20 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         asyncio.create_task(self._parent.opcua_stats_write(len(nodes), delta))
         return True
 
+    async def read_many(self, nodes: list[tuple[str]]):
+        """
+        writes variables to opcua
+        """
+        if not nodes:
+            return []
+
+        nodes = [await self.get_node(path) for path in nodes]
+        delta = time()
+        values = await self._client.read_values(nodes)
+        delta = (time() - delta) * 1000
+        asyncio.create_task(self._parent.opcua_stats_read(len(nodes), delta))
+        return values
+
     async def subscribe(self, nodes, interval):
         """
         subscribe to variable
@@ -237,15 +252,24 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         try:
             return self._nodes[name]
         except KeyError:
-            if path is None:
-                return None
-            if isinstance(path, (list, tuple)):
+            pass
+
+        if path is None:
+            return None
+
+        if isinstance(path, (list, tuple)):
+            try:
+                node = self._paths[tuple(path)]
+            except KeyError:
                 node = await self._client.nodes.objects.get_child(path)
-            else:
-                node = self._client.get_node(path)
-            if name is not None:
-                self._nodes[name] = node
-            return node
+                self._paths[tuple(path)] = node
+        else:
+            # if it is already a nodeid or string
+            node = await self._client.get_node(path)
+
+        if name is not None:
+            self._nodes[name] = node
+        return node
 
 
 class OPCUAMixin:
@@ -303,9 +327,21 @@ class OPCUAMixin:
                 return await future
             return asyncio.create_task(future)
 
+    async def opcua_read_many(self, nodes):
+        """
+        data is a list or tuple of node, value and datatype
+        """
+        if OPCUA:
+            return await self._opcua.read_many(nodes)
+
     async def opcua_stats_write(self, writes, response_time):
         """
-        The numer of written nodes and the response time (in miliseconds) from the OPC-UA server can be processed here
+        The numer of written nodes and the response time (in milliseconds) from the OPC-UA server can be processed here
+        """
+
+    async def opcua_stats_read(self, reads, response_time):
+        """
+        The numer of read nodes and the response time (in milliseconds) from the OPC-UA server can be processed here
         """
 
     async def opcua_statuschange(self, code, name, doc):  # pylint: disable=unused-argument

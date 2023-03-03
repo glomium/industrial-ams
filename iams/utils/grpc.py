@@ -38,7 +38,7 @@ class Grpc(ContextDecorator):  # pylint: disable=too-many-instance-attributes
         self.certificate = None
         self.insecure_port = None
         self.port = None
-        self.secure = (secure is True)
+        self.secure = secure is True
         self.server = None
 
         if ca is None:

@@ -252,20 +252,19 @@ class OPCUACoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         try:
             return self._nodes[name]
         except KeyError:
-            pass
-
-        if path is None:
-            return None
+            if path is None:
+                raise
 
         if isinstance(path, (list, tuple)):
+            path = tuple(path)
             try:
-                node = self._paths[tuple(path)]
+                node = self._paths[path]
             except KeyError:
                 node = await self._client.nodes.objects.get_child(path)
-                self._paths[tuple(path)] = node
+                self._paths[path] = node
         else:
             # if it is already a nodeid or string
-            node = await self._client.get_node(path)
+            node = self._client.get_node(path)
 
         if name is not None:
             self._nodes[name] = node

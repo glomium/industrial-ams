@@ -148,7 +148,12 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
         wait for all tasks to finish
         """
         await super().wait(tasks)
-        await asyncio.wait(tasks.values(), timeout=None)
+        done, _ = await asyncio.wait(tasks.values(), timeout=None)
+        for task in done:
+            try:
+                task.done()
+            except Exception:
+                raise SystemError(f'Setup of task {task.get_name()} failed with an error')
 
     async def _channel(self, hostname, port, persistent, options):
         """

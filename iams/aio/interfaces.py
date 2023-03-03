@@ -22,14 +22,20 @@ class Coroutine(ABC):
     __hash__ = None
 
     async def __call__(self, setups):
-        logger.debug("Starting %s", self)
-        await self.wait(setups)
+        logger.debug("%s wait for setup", self)
+        try:
+            await self.wait(setups)
+        except SystemError:
+            logger.debug("%s wait failed", self)
+            return None
+
+        logger.debug("%s start running loop", self)
         try:
             await self.loop()
         except asyncio.CancelledError:
             logger.debug("%s received the cancel signal", self)
             await self.stop()
-        logger.debug("%s stopped", self)
+        logger.debug("%s is stopped", self)
 
     def __repr__(self):
         return f"{self.__class__.__qualname__}()"

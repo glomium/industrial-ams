@@ -153,6 +153,7 @@ class GRPCCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
             try:
                 task.done()
             except Exception:
+                # pylint: disable=raise-missing-from
                 raise SystemError(f'Setup of task {task.get_name()} failed with an error')
 
     async def _channel(self, hostname, port, persistent, options):

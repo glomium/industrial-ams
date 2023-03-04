@@ -5,11 +5,21 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10"]
+
     steps:
+
     - uses: actions/checkout@v3
+
+    - name: Create s single node docker swarm cluster
+      run: |
+        docker swarm init
+        make certs
+        docker-compose -f docker-test.yaml up -d
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
@@ -22,8 +32,10 @@ jobs:
 
     - name: Static code analysis
       run: make grpc static
+
     - name: Test with unittests
       run: coverage run --data-file=coverage-py${{ matrix.python-version }} -m unittest -v
+
     - name: Upload test results
       uses: actions/upload-artifact@v3
       with:

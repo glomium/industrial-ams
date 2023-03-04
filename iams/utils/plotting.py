@@ -97,7 +97,6 @@ class PlotInterface(ABC):
         """
         load the pandas dataframe for path
         """
-        print(f"loading {path}")  # noqa
         dataframe = cls.prepare_individual_dataframe(pd.read_csv(path))
         basename = cls.basename(path)
         data = {}

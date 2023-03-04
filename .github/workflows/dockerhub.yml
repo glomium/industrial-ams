@@ -1,10 +1,7 @@
 name: Push releases on Dockerhub
 
 on:
-  workflow_run:
-    workflows: ["Run static code analysis and tests"]
-    types:
-      - completed
+  push:
     branches:
       - main
       - develop

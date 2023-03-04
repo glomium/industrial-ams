@@ -19,7 +19,7 @@ class CA(CertificateAuthorityInterface):
         return b'root-ca'
 
     def get_agent_certificate(self, name, hosts=None):
-        return b'None', b'None'
+        return None, None
 
     def get_service_certificate(self, name, hosts=None):
-        return b'None', b'None'
+        return None, None

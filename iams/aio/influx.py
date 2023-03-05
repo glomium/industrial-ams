@@ -23,6 +23,7 @@ try:
     from influxdb_client.client.write_api import PointSettings
     from influxdb_client.client.write_api import WriteOptions
     from influxdb_client.client.write_api import WriteType
+    logger.debug("influxdb_client library imported")
     ENABLED = True
 except ImportError:
     logger.info("Could not import influxdb_client library")
@@ -117,7 +118,7 @@ class InfluxMixin:
                 "Influx is disabled, HOST=%s BUCKET=%s TOKEN=%s ORG=%s",
                 HOST,
                 BUCKET,
-                TOKEN,
+                '*****' if TOKEN else 'None',
                 ORG,
             )
 

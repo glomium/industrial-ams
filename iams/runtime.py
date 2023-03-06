@@ -299,11 +299,11 @@ class DockerSwarmRuntime(RuntimeInterface):
         # get private_key and certificate
         secrets = self.ca.get_ca_secret(secrets, self.namespace)
         certificate, private_key = self.ca.get_agent_certificate(request.name)
-        if certificate is not None:
+        if certificate is not None:  # when no ca is used (i.e. in testing)
             x509_certificate = x509.load_pem_x509_certificate(certificate, default_backend())
             expire = {'iams.certificate.expire': x509_certificate.not_valid_after.isoformat()}
-        generated.append(("peer.crt", "peer.crt", certificate, expire))
-        generated.append(("peer.key", "peer.key", private_key, expire))
+            generated.append(("peer.crt", "peer.crt", certificate, expire))
+            generated.append(("peer.key", "peer.key", private_key, expire))
 
         # update all secrets from agent
         old_secrets = []

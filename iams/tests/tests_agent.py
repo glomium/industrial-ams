@@ -31,8 +31,8 @@ else:
 
 class TestCoroutine(Coroutine):
 
-    def __init__(self, grpc_servicer, case):
-        self.case = case
+    def __init__(self, grpc_servicer, testcase):
+        self.testcase = testcase
         self.grpc = grpc_servicer
 
     async def loop(self):
@@ -44,17 +44,17 @@ class TestCoroutine(Coroutine):
         """
         start method is awaited once, after the setup were concluded
         """
-        with self.case.subTest("ping"):
-            await self.case.run_ping()
+        with self.testcase.subTest("ping"):
+            await self.testcase.run_ping()
 
-        with self.case.subTest("update"):
-            await self.case.run_update()
+        with self.testcase.subTest("update"):
+            await self.testcase.run_update()
 
-        with self.case.subTest("upgrade"):
-            await self.case.run_upgrade()
+        with self.testcase.subTest("upgrade"):
+            await self.testcase.run_upgrade()
 
-        with self.case.subTest("reset"):
-            await self.case.run_reset()
+        with self.testcase.subTest("reset"):
+            await self.testcase.run_reset()
 
     async def stop(self):
         """
@@ -65,7 +65,7 @@ class TestCoroutine(Coroutine):
 class Agent(GRPCMixin, AgentBase):
     MAX_WORKERS = 2
 
-    def __init__(self, case, root_certificate, private_key, certificate_chain) -> None:
+    def __init__(self, testcase, root_certificate, private_key, certificate_chain) -> None:
         super().__init__()
         self.grpc = GRPCCoroutine(
             self, root_certificate=root_certificate, private_key=private_key,
@@ -76,17 +76,20 @@ class Agent(GRPCMixin, AgentBase):
         self.response_upgrade = True
         self.response_reset = True
         self.data = []
-        self.aio_manager.register(TestCoroutine(self.grpc, case))
+        self.aio_manager.register(TestCoroutine(self.grpc, testcase))
 
-    async def callback_agent_upgrade(self, context):
+    async def callback_agent_authenticate(self, identities, context):
+        return True
+
+    async def callback_agent_upgrade(self, identities, context):
         self.response_upgrade = not self.response_upgrade
         return self.response_upgrade
 
-    async def callback_agent_update(self, context):
+    async def callback_agent_update(self, identities, context):
         self.response_update = not self.response_update
         return self.response_update
 
-    async def callback_agent_reset(self, context):
+    async def callback_agent_reset(self, identities, context):
         self.response_reset = not self.response_reset
         return self.response_reset
 
@@ -106,8 +109,7 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
                 pass
 
     async def run_ping(self):
-        async with self.agent.grpc.channel(self.agent.grpc.manager, port=self.agent.grpc.port) as channel:
-            stub = agent_pb2_grpc.AgentStub(channel)
+        async with self.agent.grpc.stub(agent_pb2_grpc.AgentStub, hostname=self.agent.grpc.manager, port=self.agent.grpc.port) as stub:  # noqa: E501
             response = await stub.ping(
                 Empty(),
                 timeout=1,
@@ -117,8 +119,7 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
     async def run_update(self):
         self.assertEqual(self.agent.response_update, True)
         try:
-            async with self.agent.grpc.channel(self.agent.grpc.manager, port=self.agent.grpc.port) as channel:
-                stub = agent_pb2_grpc.AgentStub(channel)
+            async with self.agent.grpc.stub(agent_pb2_grpc.AgentStub, hostname=self.agent.grpc.manager, port=self.agent.grpc.port) as stub:  # noqa: E501
                 response = await stub.update(
                     Empty(),
                     timeout=1,
@@ -126,8 +127,7 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
         except grpc.RpcError:
             self.assertEqual(self.agent.response_update, False)
 
-        async with self.agent.grpc.channel(self.agent.grpc.manager, port=self.agent.grpc.port) as channel:
-            stub = agent_pb2_grpc.AgentStub(channel)
+        async with self.agent.grpc.stub(agent_pb2_grpc.AgentStub, hostname=self.agent.grpc.manager, port=self.agent.grpc.port) as stub:  # noqa: E501
             response = await stub.update(
                 Empty(),
                 timeout=1,
@@ -139,8 +139,7 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
     async def run_upgrade(self):
         self.assertEqual(self.agent.response_upgrade, True)
         try:
-            async with self.agent.grpc.channel(self.agent.grpc.manager, port=self.agent.grpc.port) as channel:
-                stub = agent_pb2_grpc.AgentStub(channel)
+            async with self.agent.grpc.stub(agent_pb2_grpc.AgentStub, hostname=self.agent.grpc.manager, port=self.agent.grpc.port) as stub:  # noqa: E501
                 response = await stub.upgrade(
                     Empty(),
                     timeout=1,
@@ -148,8 +147,7 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
         except grpc.RpcError:
             self.assertEqual(self.agent.response_upgrade, False)
 
-        async with self.agent.grpc.channel(self.agent.grpc.manager, port=self.agent.grpc.port) as channel:
-            stub = agent_pb2_grpc.AgentStub(channel)
+        async with self.agent.grpc.stub(agent_pb2_grpc.AgentStub, hostname=self.agent.grpc.manager, port=self.agent.grpc.port) as stub:  # noqa: E501
             response = await stub.upgrade(
                 Empty(),
                 timeout=1,
@@ -161,8 +159,7 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
     async def run_reset(self):
         self.assertEqual(self.agent.response_reset, True)
         try:
-            async with self.agent.grpc.channel(self.agent.grpc.manager, port=self.agent.grpc.port) as channel:
-                stub = agent_pb2_grpc.AgentStub(channel)
+            async with self.agent.grpc.stub(agent_pb2_grpc.AgentStub, hostname=self.agent.grpc.manager, port=self.agent.grpc.port) as stub:  # noqa: E501
                 response = await stub.reset(
                     Empty(),
                     timeout=1,
@@ -170,8 +167,7 @@ class AgentTests(unittest.TestCase):  # pragma: no cover
         except grpc.RpcError:
             self.assertEqual(self.agent.response_reset, False)
 
-        async with self.agent.grpc.channel(self.agent.grpc.manager, port=self.agent.grpc.port) as channel:
-            stub = agent_pb2_grpc.AgentStub(channel)
+        async with self.agent.grpc.stub(agent_pb2_grpc.AgentStub, hostname=self.agent.grpc.manager, port=self.agent.grpc.port) as stub:  # noqa: E501
             response = await stub.reset(
                 Empty(),
                 timeout=1,

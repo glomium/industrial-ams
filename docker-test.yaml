@@ -11,18 +11,7 @@ services:
             - ca.crt
             - ca.key
 
-    arangodb:
-        image: arangodb:3.7.11
-        environment:
-            ARANGO_ROOT_PASSWORD_FILE: /run/secrets/arango
-        ports:
-            - "8529:8529"
-        secrets:
-            - arango
-
 secrets:
-    arango:
-        file: ./secrets/arango
     ca.key:
         file: ./secrets/ca.key
     ca.crt:

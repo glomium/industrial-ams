@@ -9,7 +9,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from signal import SIGKILL
+# from signal import SIGKILL
 
 import grpc
 import yaml
@@ -106,8 +106,8 @@ class AgentBase:
             logger.debug("Sending SIGKILL to kill all processes")
 
             # force exit via os.kill
-            os.kill(os.getppid(), SIGKILL)
-            os.kill(os.getpid(), SIGKILL)
+            # os.kill(os.getppid(), SIGKILL)
+            # os.kill(os.getpid(), SIGKILL)
 
     async def setup(self, executor):
         """

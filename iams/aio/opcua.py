@@ -34,35 +34,39 @@ async def monkeypatch_call_datachange(self, datachange):
     Monkeypatching to have one signal, when a new packet with datachanges arrives.
     """
     # pylint: disable=protected-access
-    # see https://github.com/FreeOpcUa/opcua-asyncio/blob/7d7841bfb7b4e351797b8a5cebdfa68a6418e406/asyncua/common/subscription.py#L126  # noqa: E501
-    changes = {}
+    # see https://github.com/FreeOpcUa/opcua-asyncio/blob/589666c15fd06aadff534c04d9dbd6c35a9d560c/asyncua/common/subscription.py#L132  # noqa: E501
+    known_handles_args = []
     for item in datachange.MonitoredItems:
         if item.ClientHandle not in self._monitored_items:
             self.logger.warning("Received a notification for unknown handle: %s", item.ClientHandle)
             continue
         data = self._monitored_items[item.ClientHandle]
+        event_data = DataChangeNotif(data, item)
+        known_handles_args.append((data.node, item.Value.Value.Value, event_data))
 
-        if hasattr(self._handler, "datachange_notification"):
-            event_data = DataChangeNotif(data, item)
-            try:
-                if asyncio.iscoroutinefunction(self._handler.datachange_notification):
-                    result = await self._handler.datachange_notification(data.node, item.Value.Value.Value, event_data)
-                else:
-                    result = self._handler.datachange_notification(data.node, item.Value.Value.Value, event_data)
-                changes[data.node] = (result, item.Value.Value.Value)
-            except Exception:  # pylint: disable=broad-except
-                logger.exception("Exception calling data change handler")
+    try:
+        tasks = [
+            self._handler.datachange_notification(*args) for args in known_handles_args
+        ]
+        results = await asyncio.gather(*tasks)
+    except Exception as ex:  # pylint: disable=broad-except
+        self.logger.exception("Exception calling data change handler. Error: %s", ex)
+        return
+
+    if not hasattr(self._handler, "datachange_notifications"):
+        return
+
+    changes = dict((args[0], (result, args[1])) for args, result in zip(known_handles_args, results) if result)
+    if not changes:
+        return
+
+    try:
+        if asyncio.iscoroutinefunction(self._handler.datachange_notifications):
+            await self._handler.datachange_notifications(changes)
         else:
-            logger.error("DataChange subscription created but handler has no datachange_notification method")
-
-    if hasattr(self._handler, "datachange_notifications"):
-        try:
-            if asyncio.iscoroutinefunction(self._handler.datachange_notifications):
-                await self._handler.datachange_notifications(changes)
-            else:
-                self._handler.datachange_notifications(changes)
-        except Exception:  # pylint: disable=broad-except
-            logger.exception("Exception calling data changes handler")
+            self._handler.datachange_notifications(changes)
+    except Exception:  # pylint: disable=broad-except
+        logger.exception("Exception calling data changes handler")
 
 
 class Handler:

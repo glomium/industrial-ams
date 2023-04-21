@@ -6,6 +6,7 @@ MAINTAINER Sebastian Braun <sebastian.braun@fh-aachen.de>
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C
+ENV PIP_ROOT_USER_ACTION=ignore
 ENV PYTHONUNBUFFERED=1
 
 COPY dist/iams-*-py3-none-any.whl /tmp/
@@ -13,7 +14,7 @@ COPY dist/iams-*-py3-none-any.whl /tmp/
 RUN apt-get update && apt-get install --no-install-recommends -y -q \
     python3 \
     python3-pip \
-&& pip3 install /tmp/iams-*-py3-none-any.whl \
+&& pip3 install /tmp/iams-*-py3-none-any.whl --break-system-packages \
 && apt-get clean \
 && rm -rf /tmp/ /var/lib/apt/lists/*
 

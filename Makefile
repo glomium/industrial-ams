@@ -20,6 +20,12 @@ wheel: grpc
 	pip wheel --no-deps -w dist .
 
 
+.PHONY: certs
+certs:
+	mkdir -p secrets
+	openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -nodes -days 365 -out secrets/ca.crt -keyout secrets/ca.key -subj "/CN=industrial-agents.eu"
+
+
 # not used in github actions
 .PHONY: build
 build: wheel
@@ -51,12 +57,6 @@ test2: build
 	docker service scale test_arangodb=1 test_sim=1 test_cfssl=1 test_coverage=1
 	docker exec test_sim.1.`docker service ps test_sim -q --filter="desired-state=running"` /bin/bash run_tests.sh
 	docker stack rm test
-
-
-# not used in github actions
-certs:
-	mkdir -p secrets
-	openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -nodes -days 365 -out secrets/ca.crt -keyout secrets/ca.key -subj "/CN=industrial-agents.eu"
 
 
 # not used in github actions

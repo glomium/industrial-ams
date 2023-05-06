@@ -7,7 +7,7 @@ Industrial agent management system
 
 from functools import lru_cache
 
-VERSION = ((0, 7, 6), ('b', 0))
+VERSION = ((0, 7, 6), ('final', 0))
 
 
 @lru_cache(maxsize=8)

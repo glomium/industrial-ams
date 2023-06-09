@@ -33,6 +33,7 @@ try:
     from pyzeebe.errors import ZeebeInternalError
 except ImportError:  # pragma: no branch
     logger.exception("Could not import opcua library")
+    Job = None
     ENABLE = False
 else:
     ENABLE = True
@@ -42,13 +43,20 @@ if HOST is None:
     ENABLE = False
 
 
-class ZeebeCoroutine(Coroutine):
+class JobAlreadyRunningError(Exception):
+    """
+    Error thrown, when job is already processed by the agent
+    """
+
+
+class ZeebeCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
     """
     Zeebe Coroutine
     """
 
     # pylint: disable=too-many-arguments,dangerous-default-value
-    def __init__(self, parent, host: str, port: int = 26500, channel_options: dict = {}, task_type: str = None):
+    def __init__(self, parent, host: str, port: int = 26501,
+                 channel_options: dict = {}, task_type: str = None):
         logger.debug("Initialize Zeebe coroutine")
         self._adapter = None
         self._channel = None
@@ -58,34 +66,72 @@ class ZeebeCoroutine(Coroutine):
             'channel_options': channel_options,
         }
         self._client = None
+        self._jobs = {}
+        self._loop = None
         self._parent = parent
         self._task_type = task_type or f'agent:{self._parent.iams.agent}'
+        self._watch = {}
         self._worker = None
 
     async def setup(self, executor):
         """
         setup method is awaited one at the start of the coroutines
         """
-        logger.debug(
-            "Create zeebe worker client with address=%s",
+        logger.info(
+            "Create zeebe worker client with address=%s listening to task_type=%s",
             self._channel_kwargs['hostname'],
+            self._task_type,
         )
         self._channel = create_insecure_channel(**self._channel_kwargs)
         self._client = ZeebeClient(self._channel)
-        self._worker = ZeebeWorker(self._channel, name=NAME)
+        self._worker = ZeebeWorker(self._channel, name=NAME, max_connection_retries=-1)
+        self._loop = asyncio.get_running_loop()
 
-        @self._worker.task(task_type=self._task_type, single_value=True, variable_name="agent_data")
-        async def callback(job: Job, agent_data: dict):
-            await self._parent.zeebe_update_process(job.process_instance_key, agent_data, job.custom_headers, False)
-            await self._parent.zeebe_callback(job, agent_data)
+        @self._worker.task(
+            task_type=self._task_type,
+            exception_handler=self.exception_handler,
+            **self._parent.zeebe_worker_options(),
+        )
+        async def callback(job: Job, agent_instance_variables: dict):
 
-    async def start_process(self, process_id: str, variables: dict, version: int = -1):
+            if job.key in self._jobs:
+                self._watch[job.key].cancel()
+                self._watch[job.key] = self._loop.call_later(120, self._jobs[job.key].cancel)
+                raise JobAlreadyRunningError("Job already running")
+
+            self._jobs[job.key] = asyncio.create_task(self._parent.zeebe_callback(
+                agent_instance_variables,
+                job.custom_headers,
+                job.process_instance_key,
+                job.key,
+            ), name=f"zeebe-job:{job.key}")
+
+            # set watchdog and cancel the job if zeebe server did not update the worker for 120 seconds
+            self._watch[job.key] = self._loop.call_later(120, self._jobs[job.key].cancel)
+
+            # wait for response, cleanup and return
+            result = await self._jobs[job.key]
+            self._watch[job.key].cancel()
+            del self._jobs[job.key]
+            del self._watch[job.key]
+            return result
+
+    @staticmethod
+    async def exception_handler(exception: Exception, job: Job) -> None:
+        """
+        Exception handler for zeebe
+        """
+        if isinstance(exception, JobAlreadyRunningError):
+            return
+        logger.info("Failed to run task %s. Reason: %s", job.type, exception, exc_info=True)
+
+    async def start_process(self, process_id: str, variables: dict, version: int = -1) -> int:
         """
         Start a process in zeebe gateway
         """
         variables['task_type'] = self._task_type
-        if "agent_data" not in variables:
-            variables['agent_data'] = None
+        if "agent_instance_variables" not in variables:
+            variables['agent_instance_variables'] = None
 
         wait = 0
         while True:
@@ -94,15 +140,18 @@ class ZeebeCoroutine(Coroutine):
                 break
             except (ProcessDefinitionNotFoundError, InvalidJSONError, ProcessDefinitionHasNoStartEventError):
                 logger.exception("Zeebe process error")
-                return False
+                return 0
             except (ZeebeBackPressureError, ZeebeGatewayUnavailableError, ZeebeInternalError, UnkownGrpcStatusCodeError) as exc:  # noqa: E501
                 wait = min(60, wait + 1)
                 logger.info("Waiting Zeebe got an error: '%s' - wait %s seconds to retry", exc, wait)
                 await asyncio.sleep(wait)
 
-        logger.debug("New process started with id=%s and agent_data=%s", instance_key, variables['agent_data'])
-        await self._parent.zeebe_update_process(instance_key, variables['agent_data'], {}, True)
-        return True
+        logger.debug(
+            "New process started with id=%s and agent_instance_variables=%s",
+            instance_key,
+            variables['agent_instance_variables'],
+        )
+        return instance_key
 
     async def cancel_process(self, instance_key: int) -> None:
         """
@@ -123,7 +172,7 @@ class ZeebeCoroutine(Coroutine):
                 await asyncio.sleep(wait)
 
     # pylint: disable=too-many-arguments
-    async def send_message(self, name: str, variables: dict, message_id: str, ttl: int, correlation_key: str):
+    async def send_message(self, name: str, variables: dict, message_id: str, ttl: int, correlation_key: str) -> bool:
         """
         send message to zeebe gateway
         """
@@ -182,6 +231,15 @@ class ZeebeMixin:
         """
         return {}
 
+    def zeebe_worker_options(self) -> dict:  # pylint: disable=no-self-use
+        """
+        returns the zebee worker options
+        """
+        return {
+            'single_value': True,
+            'variable_name': "agent_instance_variables",
+        }
+
     async def zeebe_start_process(self, process_id: str, variables: dict, version: int = -1) -> bool:
         """
         starts a zeebe process, returns true when the process was started or false when it was not started
@@ -190,20 +248,11 @@ class ZeebeMixin:
             return False
         return await self._zeebe.start_process(process_id, variables, version)
 
-    async def zeebe_callback(self, job: Job, data: dict):
+    async def zeebe_callback(self, variables: dict, headers: dict, process_instance_key: int, job_key: int):
         """
         implements a zeebe worker for this agent. gets the job and the state of the BPMN diagram
         returns the new state of the BPMN diagram
         """
-
-    # pylint: disable=no-self-use,unused-argument
-    async def zeebe_update_process(self, instance_key, agent_data, headers, created):
-        """
-        callback that can be used to update the process data. Gets the instance key, agent_data, headers
-        and the info if the process was created or updated.
-        returns True on success and False on failure
-        """
-        return True
 
     async def zeebe_cancel_process(self, instance_key):
         """

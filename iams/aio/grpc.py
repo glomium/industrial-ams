@@ -294,6 +294,24 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
     def __str__(self):
         return self.name
 
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __ne__(self, other):
+        return not hash(self) == hash(other)
+
+    def __gt__(self, other):
+        return hash(self) > hash(other)
+
+    def __lt__(self, other):
+        return hash(self) < hash(other)
+
+    def __gte__(self, other):
+        return hash(self) >= hash(other)
+
+    def __lte__(self, other):
+        return hash(self) <= hash(other)
+
     def __repr__(self):
         return f"<{self.__class__.__qualname__}({self.name})>"
 
@@ -375,6 +393,11 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
         disconnect callback
         """
 
+    async def cleanup(self):
+        """
+        cleanup when task was closed
+        """
+
     async def _main(self):
         """
         manages the connection
@@ -433,3 +456,6 @@ class GRPCConnectionCoroutine(ABC):  # pylint: disable=too-many-instance-attribu
         except Exception:
             logger.exception('Error in %s._main', self.__class__.__qualname__)
             raise
+
+        finally:
+            await self.cleanup()

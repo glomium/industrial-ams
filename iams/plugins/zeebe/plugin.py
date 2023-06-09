@@ -14,9 +14,9 @@ from iams.interfaces.plugin import Plugin
 logger = logging.getLogger(__name__)
 
 
-class Mqtt(Plugin):
+class Zeebe(Plugin):
     """
-    mqtt
+    Zeebe
     """
     # pylint: disable=arguments-differ
 

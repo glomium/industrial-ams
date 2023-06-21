@@ -6,26 +6,17 @@ Preparation
 
 * Work on a Linux machine
 * Have docker installed
-* Have make installed
-* Clone or copy the industrial-ams repository
-* Create an docker image for industrial-ams with the command ``make build`` running from the root directory of the repository. This docker image is called ``iams:local``.
 
 Dockerfile
 -----------
 
-From now on you can work in a new directory somewhere on your system.
+Copy the ``Dockerfile`` as a template. It includes a setup routine to install the required libraries via pip and sets labels.
+The label ``LABEL iams.services.agent=true`` is set to indicate to the AMS that this image contains an agent.
+The build copies a file called ``run.py`` into the working directory and sets the entrypoint to start this file with python.
+This file contains the agent's source-code.
+For our example, OPC-UA (``asyncua``) and influxdb (``influxdb``) are installed together with the latest release of ``iams``. Both libraries are used in the example.
 
-Create a ``Dockerfile``. This file contains a ``FROM iams:local`` indicating the docker image which is used as a template for your agent.
-You also need one ``LABEL iams.services.agent=true`` to indicat to the AMS that this image contains an agent.
-Now you need create a file ``run.py`` which needs to be copied in the build-process by ``COPY run.py ./run.py``.
-This file contains the agent's source-code. It needs to be called by docker, which is done by adding the following line ``ENTRYPOINT ["/usr/bin/python3", "run.py"]`` to ``Dockerfile``.
-Additionally, the OPC-UA (``asyncua 0.9.94``) needs to be installed. This is done by a ``RUN pip install asyncua==0.9.94``
-
-Now a minimalistic ``Dockerfile`` is created. In our use-case we want to connect to a OPC-UA device and dump variables into a timeseries database.
-We use InfluxDB as this database and assume that the IAMS-Server is configured correctly.
-Thus, you only need to add a label ``LABEL iams.plugins.influxdb=MySensor`` to you ``Dockerfile`` and install ``influxdb==5.3.1`` via pip (add it to the specified install command).
-
-Build the docker-image with ``docker build -t opcuaagent:latest .`` - it also works with an empty ``run.py``,
+Build the docker-image with ``docker build -t opcuaagent:latest .`` - the build also works with an empty ``run.py``,
 However, every change in your agents requires the build step to be repeated.
 
 Agent-Source

@@ -30,8 +30,6 @@ certs:
 .PHONY: build
 build: wheel
 	docker build --cache-from iams-base:local --pull --target basestage -t iams-base:local .
-	docker build --cache-from iams-base:local --cache-from iams-test:local --target test -t iams-test:local .
-	docker build --cache-from iams-base:local --cache-from iams-test:local --cache-from iams-build:local --cache-from iams:local -t iams:local .
 
 
 # not used in github actions

@@ -104,6 +104,7 @@ class ZeebeCoroutine(Coroutine):  # pylint: disable=too-many-instance-attributes
                 job.custom_headers,
                 job.process_instance_key,
                 job.key,
+                job.element_id,
             ), name=f"zeebe-job:{job.key}")
 
             # set watchdog and cancel the job if zeebe server did not update the worker for 120 seconds
@@ -248,10 +249,12 @@ class ZeebeMixin:
             return False
         return await self._zeebe.start_process(process_id, variables, version)
 
-    async def zeebe_callback(self, variables: dict, headers: dict, process_instance_key: int, job_key: int):
+    async def zeebe_callback(self, variables: dict, headers: dict, process_instance_key: int, job_key: int, element_id: str):
         """
-        implements a zeebe worker for this agent. gets the job and the state of the BPMN diagram
-        returns the new state of the BPMN diagram
+        implements a zeebe worker for this agent. gets the BPMN instance variables and header from the active node
+        Additionally, the process_instance_key (unique per process), job_key (unique per job) and element_id of the job
+        can be processed.
+        This variable returns the new instance variables, which are stored when the job finishes
         """
 
     async def zeebe_cancel_process(self, instance_key):

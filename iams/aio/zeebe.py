@@ -249,7 +249,9 @@ class ZeebeMixin:
             return False
         return await self._zeebe.start_process(process_id, variables, version)
 
-    async def zeebe_callback(self, variables: dict, headers: dict, process_instance_key: int, job_key: int, element_id: str):
+    # pylint: disable=too-many-arguments
+    async def zeebe_callback(self, variables: dict, headers: dict, process_instance_key: int,
+                             job_key: int, element_id: str):
         """
         implements a zeebe worker for this agent. gets the BPMN instance variables and header from the active node
         Additionally, the process_instance_key (unique per process), job_key (unique per job) and element_id of the job

@@ -163,6 +163,7 @@ class EventCoroutine(Coroutine, ABC):
                 logger.exception('Error executing main with periodic=%s', periodic)
                 break
             else:
+                self._event.clear()
                 periodic = False
         await self.stop()
 
@@ -171,7 +172,6 @@ class EventCoroutine(Coroutine, ABC):
         redirects loop to a seperate task
         """
         self._event.set()
-        self._event.clear()
 
     async def stop(self):
         """
